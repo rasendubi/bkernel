@@ -1,28 +1,26 @@
 CC := arm-none-eabi-gcc
 LD := arm-none-eabi-ld
-NIM := nim
+RUST := rustc
 
 CFLAGS := -std=c99 -pedantic -Wall -Wextra -march=armv6 -msoft-float \
-	-fPIC -mapcs-frame -ffreestanding
+	-fPIC -mapcs-frame -ffreestanding -O3
 LDFLAGS := -N -Ttext=0x10000 -nostdlib
-NIMFLAGS := --parallelBuild:1 --deadCodeElim:on --gcc.exe:$(CC) \
-	--noMain --noLinking --gc:none --cpu:arm --os:standalone \
-	--passC:\"$(CFLAGS)\"
+RUSTFLAGS := -Z no-landing-pads --target arm-none-eabi --emit=obj -L . -C lto -C opt-level=2
 
 QEMU ?= qemu-system-arm
 
-kernel.elf: bootstrap.o nimcache/kernel.o nimcache/stdlib_system.o
+kernel.elf: bootstrap.o kernel.o
 	$(LD) $(LDFLAGS) -o $@ $^
 
 %.o: %.s
 	$(CC) $(CFLAGS) -o $@ -c $^
 
-nimcache/%.o: %.nim
-	$(NIM) $(NIMFLAGS) c $^
+%.o: %.rs
+	$(RUST) $(RUSTFLAGS) $^ -o $@
 
 .PHONY: clean
 clean:
-	rm -rf *.o nimcache
+	rm -rf *.o
 
 .PHONY: run
 run: kernel.elf
