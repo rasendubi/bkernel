@@ -2,3 +2,4 @@
 /nimcache
 /kernel.elf
 /kernel.bin
+*.o

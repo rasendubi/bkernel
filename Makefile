@@ -13,19 +13,15 @@ QEMU ?= qemu-system-arm
 kernel.bin: kernel.elf
 	$(OBJCOPY) -O binary $^ $@
 
-kernel.elf: bootstrap.o kernel.o
+kernel.elf: src/bootstrap.o src/kernel.o
 	$(LD) $(LDFLAGS) -o $@ $^
 
 %.o: %.s
 	$(CC) $(CFLAGS) -o $@ -c $^
 
-kernel.o: $(wildcard *.rs)
-	$(RUST) $(RUSTFLAGS) kernel.rs -o $@
+src/kernel.o: $(shell find src/ -type f -name '*.rs')
+	$(RUST) $(RUSTFLAGS) src/kernel.rs -o $@
 
 .PHONY: clean
 clean:
 	rm -rf *.o *.elf *.bin
-
-.PHONY: run
-run: kernel.elf
-	$(QEMU) -M versatilepb -cpu arm1176 -nographic -kernel kernel.elf
