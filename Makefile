@@ -1,13 +1,17 @@
 CC := arm-none-eabi-gcc
-LD := arm-none-eabi-ld
+LD := arm-none-eabi-gcc
+OBJCOPY := arm-none-eabi-objcopy
 RUST := rustc
 
-CFLAGS := -std=c99 -pedantic -Wall -Wextra -march=armv6 -msoft-float \
-	-fPIC -mapcs-frame -ffreestanding -O3
-LDFLAGS := -N -Ttext=0x10000 -nostdlib
+CFLAGS := -std=c99 -pedantic -Wall -Wextra -mcpu=cortex-m4 -msoft-float -nostdlib -lnosys \
+	-fPIC -mapcs-frame -ffreestanding -O3 -mthumb-interwork -mlittle-endian -mthumb
+LDFLAGS := -N -nostdlib -T stm32_flash.ld
 RUSTFLAGS := -Z no-landing-pads --target arm-none-eabi --emit=obj -L . -C lto -C opt-level=2
 
 QEMU ?= qemu-system-arm
+
+kernel.bin: kernel.elf
+	$(OBJCOPY) -O binary $^ $@
 
 kernel.elf: bootstrap.o kernel.o
 	$(LD) $(LDFLAGS) -o $@ $^
@@ -15,12 +19,12 @@ kernel.elf: bootstrap.o kernel.o
 %.o: %.s
 	$(CC) $(CFLAGS) -o $@ -c $^
 
-%.o: %.rs
-	$(RUST) $(RUSTFLAGS) $^ -o $@
+kernel.o: $(wildcard *.rs)
+	$(RUST) $(RUSTFLAGS) kernel.rs -o $@
 
 .PHONY: clean
 clean:
-	rm -rf *.o
+	rm -rf *.o *.elf *.bin
 
 .PHONY: run
 run: kernel.elf

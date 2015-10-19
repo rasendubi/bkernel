@@ -6,27 +6,20 @@
 
 #![no_std]
 
-pub mod runtime;
-
 extern crate core;
 
-use core::str::*;
+pub mod runtime;
 
-use core::intrinsics::volatile_store;
+#[macro_use]
+mod volatile;
+mod stm32f4;
 
 #[no_mangle]
 pub extern fn kmain() -> ! {
-    puts("Hello, world!\n");
+    stm32f4::init_usart1();
+
+    stm32f4::puts("Hello, world!\r\n");
+
     loop {}
-}
-
-fn puts(s: &str) {
-    const REG: *mut u8 = 0x101f1000 as *mut u8;
-
-    for c in s.bytes() {
-        unsafe {
-            volatile_store(REG, c);
-        }
-    }
 }
 
