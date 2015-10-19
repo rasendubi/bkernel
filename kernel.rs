@@ -1,12 +1,10 @@
 #![crate_type = "staticlib"]
 
 #![feature(no_std)]
-#![feature(core)]
+#![feature(core_intrinsics, core_str_ext)]
 #![feature(lang_items)]
 
 #![no_std]
-
-extern crate core;
 
 pub mod runtime;
 

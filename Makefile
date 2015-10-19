@@ -6,7 +6,7 @@ RUST := rustc
 CFLAGS := -std=c99 -pedantic -Wall -Wextra -mcpu=cortex-m4 -msoft-float -nostdlib -lnosys \
 	-fPIC -mapcs-frame -ffreestanding -O3 -mthumb-interwork -mlittle-endian -mthumb
 LDFLAGS := -N -nostdlib -T stm32_flash.ld
-RUSTFLAGS := -Z no-landing-pads --target arm-none-eabi --emit=obj -L . -C lto -C opt-level=2
+RUSTFLAGS := -Z no-landing-pads --target thumbv7em-none-eabi --emit=obj -L . -C lto -C opt-level=2
 
 QEMU ?= qemu-system-arm
 
