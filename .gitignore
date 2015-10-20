@@ -1,8 +1,7 @@
-/*.o
-/nimcache
+/doc/
+/rust/
 /kernel.elf
 /kernel.bin
 *.o
 *.a
-/doc/
 *.rlib
