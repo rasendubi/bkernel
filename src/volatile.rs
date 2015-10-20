@@ -19,9 +19,25 @@ impl <T> Volatile<T> {
 
 #[macro_export]
 macro_rules! registers {
-    ( $($v:ident : $t:ty = $e:expr);* ; ) => (
+    ( $base: expr => { $($v:ident : $t:ty = $e:expr),* } ) => (
         $(
-            const $v: ::volatile::Volatile<$t> = ::volatile::Volatile($e as *mut $t);
+            const $v: ::volatile::Volatile<$t> = ::volatile::Volatile(($base as usize + $e) as *mut $t);
         )*
-    )
+    );
+    ( $base: expr => { $($v:ident : $t:ty = $e:expr),* , } ) => (
+        $(
+            const $v: ::volatile::Volatile<$t> = ::volatile::Volatile(($base as usize + $e) as *mut $t);
+        )*
+    );
+
+    ( $base: expr , $t:ty => { $($v:ident = $e:expr),* } ) => (
+        $(
+            const $v: ::volatile::Volatile<$t> = ::volatile::Volatile(($base as usize + $e) as *mut $t);
+        )*
+    );
+    ( $base: expr , $t:ty => { $($v:ident = $e:expr),* , } ) => (
+        $(
+            const $v: ::volatile::Volatile<$t> = ::volatile::Volatile(($base as usize + $e) as *mut $t);
+        )*
+    );
 }

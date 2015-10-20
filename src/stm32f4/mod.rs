@@ -1,39 +1,32 @@
 #![allow(dead_code)]
 
+mod rcc;
+
 use core::str::*;
-
-const RCC_BASE: u32 = 0x40023800;
-registers! {
-    RCC_AHB1ENR: u32 = RCC_BASE + 0x30;
-    RCC_APB2ENR: u32 = RCC_BASE + 0x44;
-}
-
-// RCC_AHB1ENR
-const GPIOA_EN: u32 = 1 << 0;
-const GPIOB_EN: u32 = 1 << 1;
-
-// RCC_APB2ENR
-const USART1_EN: u32 = 1 << 4;
 
 const GPIOB_BASE: u32 = 0x40020400;
 registers! {
-    GPIOB_MODER: u32   = GPIOB_BASE + 0x0;
-    GPIOB_TYPER: u32   = GPIOB_BASE + 0x4;
-    GPIOB_OSPEEDR: u32 = GPIOB_BASE + 0x8;
-    GPIOB_PUPDR: u32   = GPIOB_BASE + 0xC;
-    GPIOB_AFRL: u32    = GPIOB_BASE + 0x20;
+    GPIOB_BASE, u32 => {
+        GPIOB_MODER   = 0x0,
+        GPIOB_TYPER   = 0x4,
+        GPIOB_OSPEEDR = 0x8,
+        GPIOB_PUPDR   = 0xC,
+        GPIOB_AFRL    = 0x20
+    }
 }
 
 const AF_MODE: u32 = 0x2;
 
 const USART1_BASE: u32 = 0x40011000;
 registers! {
-    USART1_SR: u32 = USART1_BASE + 0x0;
-    USART1_DR: u32 = USART1_BASE + 0x4;
-    USART1_BRR: u32 = USART1_BASE + 0x8;
-    USART1_CR1: u32 = USART1_BASE + 0xC;
-    USART1_CR2: u32 = USART1_BASE + 0x10;
-    USART1_CR3: u32 = USART1_BASE + 0x14;
+    USART1_BASE, u32 => {
+        USART1_SR  = 0x0,
+        USART1_DR  = 0x4,
+        USART1_BRR = 0x8,
+        USART1_CR1 = 0xC,
+        USART1_CR2 = 0x10,
+        USART1_CR3 = 0x14
+    }
 }
 
 pub fn puts(s: &str) {
@@ -47,12 +40,14 @@ pub fn puts(s: &str) {
 
 pub fn init_usart1() {
     unsafe {
-        RCC_APB2ENR.set(RCC_APB2ENR.get() | USART1_EN);
+        rcc::apb2_clock_enable(rcc::Apb2Enable::USART1);
+        // RCC_APB2ENR.set(RCC_APB2ENR.get() | USART1_EN);
 
         /* enable the peripheral clock for the pins used by 
          * USART1, PB6 for TX and PB7 for RX
          */
-        RCC_AHB1ENR.set(RCC_AHB1ENR.get() | GPIOB_EN);
+        rcc::ahb1_clock_enable(rcc::Ahb1Enable::GPIOB);
+        // RCC_AHB1ENR.set(RCC_AHB1ENR.get() | GPIOB_EN);
 
         /* This sequence sets up the TX and RX pins 
          * so they work correctly with the USART1 peripheral
