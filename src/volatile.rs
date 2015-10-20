@@ -16,32 +16,25 @@ pub struct Volatile<T>(pub *mut T);
 
 impl<T> Debug for Volatile<T> {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
-        write!(f, "Volatile({0:p})", self.addr())
+        write!(f, "Volatile({0:p})", self.0)
     }
 }
 
 impl<T> PartialEq for Volatile<T> {
     fn eq(&self, other: &Volatile<T>) -> bool {
-        let Volatile(addr1) = *self;
-        let Volatile(addr2) = *other;
-        addr1 == addr2
+        self.0 == other.0
     }
 }
 
 impl<T> Volatile<T> {
-    fn addr(&self) -> *mut T {
-        let Volatile(addr) = *self;
-        addr
-    }
-
     /// Use instead of `volatile_store`.
     pub unsafe fn set(&self, value: T) {
-        volatile_store(self.addr(), value)
+        volatile_store(self.0, value)
     }
 
     /// Use instead of `volatile_load`.
     pub unsafe fn get(&self) -> T {
-        volatile_load(self.addr())
+        volatile_load(self.0)
     }
 }
 
