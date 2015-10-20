@@ -3,3 +3,6 @@
 /kernel.elf
 /kernel.bin
 *.o
+*.a
+/doc/
+*.rlib

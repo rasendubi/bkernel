@@ -1,3 +1,4 @@
+//! STM32F4xx drivers.
 #![allow(dead_code)]
 
 mod rcc;

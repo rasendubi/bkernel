@@ -1,3 +1,5 @@
+//! Reset and clock control.
+
 const RCC_BASE: u32 = 0x40023800;
 registers! {
     RCC_BASE, u32 => {
