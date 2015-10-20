@@ -45,7 +45,7 @@ rust/src/libcore: rust
 checkout_rust: $(RUSTDIR)
 	cd $(RUSTDIR) && [ "$$(git rev-parse HEAD)" = "$(RUSTC_COMMIT)" ] || git checkout -q $(RUSTC_COMMIT)
 
-src/libkernel.rlib: $(shell find src/ -type f -name '*.rs')
+src/libkernel.rlib: $(shell find src/ -type f -name '*.rs') lib/thumbv7em-none-eabi/libcore.rlib
 	$(RUST) --crate-type=lib --cfg=doc src/kernel.rs
 
 doc: src/libkernel.rlib
