@@ -46,7 +46,7 @@ checkout_rust: $(RUSTDIR)
 	cd $(RUSTDIR) && [ "$$(git rev-parse HEAD)" = "$(RUSTC_COMMIT)" ] || git checkout -q $(RUSTC_COMMIT)
 
 src/libkernel.rlib: $(shell find src/ -type f -name '*.rs') lib/thumbv7em-none-eabi/libcore.rlib
-	$(RUST) --crate-type=lib --cfg=doc src/kernel.rs
+	$(RUST) --crate-type=lib --cfg=test src/kernel.rs
 
 doc: src/libkernel.rlib
 	rustdoc --no-defaults --passes collapse-docs --passes unindent-comments --passes strip-hidden src/kernel.rs --target thumbv7em-none-eabi -L .

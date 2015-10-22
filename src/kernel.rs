@@ -2,7 +2,7 @@
 //! the bootstrap that will jump to the `kmain` function.
 #![crate_type = "staticlib"]
 
-#![cfg_attr(doc, allow(unused_features))]
+#![cfg_attr(test, allow(unused_features))]
 
 #![feature(no_std)]
 #![feature(core_intrinsics, core_str_ext)]
@@ -17,15 +17,18 @@ pub mod runtime;
 extern crate core;
 
 // We export volatile as pub for doc to document registers! macro
-#[cfg(doc)]
+#[cfg(test)]
 #[macro_use]
 pub mod volatile;
 
-#[cfg(not(doc))]
+#[cfg(not(test))]
 #[macro_use]
 mod volatile;
 
+#[cfg(not(test))]
 mod stm32f4;
+#[cfg(test)]
+pub mod stm32f4;
 
 /// The main entry of the kernel.
 #[no_mangle]

@@ -27,6 +27,19 @@ impl<T> PartialEq for Volatile<T> {
 }
 
 impl<T> Volatile<T> {
+    /// Cast-constructor for `Volatile`. It creates a volatile
+    /// variable implicitly casting from `usize`, so you don't have to
+    /// cast yourself.
+    ///
+    /// # Example
+    /// ```
+    /// # use kernel::volatile::Volatile;
+    /// assert_eq!(Volatile(0x40020100 as *mut u32), Volatile::new(0x40020100));
+    /// ```
+    pub fn new(addr: usize) -> Volatile<T> {
+        Volatile(addr as *mut T)
+    }
+
     /// Use instead of `volatile_store`.
     pub unsafe fn set(&self, value: T) {
         volatile_store(self.0, value)
