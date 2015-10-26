@@ -33,7 +33,7 @@ impl<T> Volatile<T> {
     ///
     /// # Example
     /// ```
-    /// # use kernel::volatile::Volatile;
+    /// # use stm32f4::volatile::Volatile;
     /// assert_eq!(Volatile(0x40020100 as *mut u32), Volatile::new(0x40020100));
     /// ```
     pub fn new(addr: usize) -> Volatile<T> {
@@ -55,8 +55,8 @@ impl<T> Volatile<T> {
 ///
 /// # Examples
 /// ```
-/// # #[macro_use] extern crate kernel;
-/// # use kernel::volatile::Volatile;
+/// # #[macro_use] extern crate stm32f4;
+/// # use stm32f4::volatile::Volatile;
 /// # fn main() {
 /// const RCC_BASE: usize = 0x40023800;
 /// registers! {
@@ -73,8 +73,8 @@ impl<T> Volatile<T> {
 /// This also support explicit type for all registers:
 ///
 /// ```
-/// # #[macro_use] extern crate kernel;
-/// # use kernel::volatile::Volatile;
+/// # #[macro_use] extern crate stm32f4;
+/// # use stm32f4::volatile::Volatile;
 /// # fn main() {
 /// const USART1_BASE: usize = 0x40011000;
 /// registers! {
@@ -95,7 +95,7 @@ impl<T> Volatile<T> {
 ///
 /// ```ignore
 /// # #[macro_use] extern crate kernel;
-/// # use kernel::volatile::Volatile;
+/// # use stm32f4::volatile::Volatile;
 /// # fn main() {
 /// const USART1_BASE: usize = 0x40011000;
 /// registers! {

@@ -16,7 +16,7 @@ RUSTC_COMMIT := $(shell rustc -Vv | sed -n 's/^commit-hash: \(.*\)$$/\1/p')
 all: kernel_meta doc test
 
 .PHONY: kernel_meta
-kernel_meta: checkout_rust kernel.bin lib/thumbv7em-none-eabi
+kernel_meta: checkout_rust kernel.bin lib/thumbv7em-none-eabi lib/host
 
 kernel.bin: kernel.elf
 	$(OBJCOPY) -O binary $^ $@
@@ -27,13 +27,26 @@ kernel.elf: src/bootstrap.o src/kernel.o
 %.o: %.s
 	$(CC) $(CFLAGS) -o $@ -c $^
 
-src/kernel.o: $(shell find src/ -type f -name '*.rs') lib/thumbv7em-none-eabi/libcore.rlib
-	$(RUST) $(RUSTFLAGS) src/kernel.rs -C lto --emit=obj -o $@
+src/kernel.o: $(shell find src/ -type f -name '*.rs') lib/thumbv7em-none-eabi/libcore.rlib \
+		lib/thumbv7em-none-eabi/libstm32f4.rlib
+	$(RUST) $(RUSTFLAGS) src/kernel.rs -C lto --emit=obj -o $@ --extern stm32f4=lib/thumbv7em-none-eabi/libstm32f4.rlib
+
+lib/thumbv7em-none-eabi/libkernel.rlib: $(shell find src/ -type f -name '*.rs') lib/host/libstm32f4.rlib
+	$(RUST) --crate-type=lib src/kernel.rs -L lib/host --out-dir lib/host
+
+lib/host/libkernel.rlib: $(shell find src/ -type f -name '*.rs') lib/host/libstm32f4.rlib
+	$(RUST) --crate-type=lib src/kernel.rs -L lib/host --out-dir lib/host
+
+lib/thumbv7em-none-eabi/libstm32f4.rlib: $(shell find stm32f4/ -type f -name '*.rs') lib/thumbv7em-none-eabi/libcore.rlib | lib/thumbv7em-none-eabi
+	$(RUST) $(RUSTFLAGS) stm32f4/lib.rs --out-dir lib/thumbv7em-none-eabi/
+
+lib/host/libstm32f4.rlib: $(shell find stm32f4/ -type f -name '*.rs') | lib/host
+	$(RUST) stm32f4/lib.rs --out-dir lib/host/
 
 lib/thumbv7em-none-eabi/libcore.rlib: $(RUSTDIR)/src/libcore | checkout_rust lib/thumbv7em-none-eabi
 	$(RUST) $(RUSTFLAGS) $(RUSTDIR)/src/libcore/lib.rs --out-dir lib/thumbv7em-none-eabi/
 
-lib/thumbv7em-none-eabi:
+lib/thumbv7em-none-eabi lib/host:
 	mkdir -p $@
 
 rust:
@@ -45,16 +58,25 @@ rust/src/libcore: rust
 checkout_rust: $(RUSTDIR)
 	cd $(RUSTDIR) && [ "$$(git rev-parse HEAD)" = "$(RUSTC_COMMIT)" ] || git checkout -q $(RUSTC_COMMIT)
 
-src/libkernel.rlib: $(shell find src/ -type f -name '*.rs') lib/thumbv7em-none-eabi/libcore.rlib
-	$(RUST) --crate-type=lib --cfg=test src/kernel.rs
+doc: lib/thumbv7em-none-eabi/libcore.rlib lib/thumbv7em-none-eabi/libstm32f4.rlib
 
-doc: src/libkernel.rlib
-	rustdoc --no-defaults --passes collapse-docs --passes unindent-comments --passes strip-hidden src/kernel.rs --target thumbv7em-none-eabi -L .
+doc_kernel: lib/thumbv7em-none-eabi/libcore.rlib lib/thumbv7em-none-eabi/libstm32f4.rlib
+	rustdoc src/kernel.rs --target thumbv7em-none-eabi -L lib/thumbv7em-none-eabi/
+
+doc_stm32f4: lib/thumbv7em-none-eabi/libcore.rlib
+	rustdoc stm32f4/lib.rs --target thumbv7em-none-eabi -L lib/thumbv7em-none-eabi/
 
 .PHONY: test
-test: src/libkernel.rlib
-	rustdoc src/kernel.rs --test -L .
+test: test_kernel test_stm32f4
+
+.PHONY: test_kernel
+test_kernel: lib/host/libkernel.rlib
+	rustdoc src/kernel.rs --test -L lib/host
+
+.PHONY: test_stm32f4
+test_stm32f4: lib/host/libkernel.rlib
+	rustdoc stm32f4/lib.rs --test -L lib/host
 
 .PHONY: clean
 clean:
-	rm -rf *.o *.elf *.bin lib
+	rm -rf *.o *.elf *.bin lib doc

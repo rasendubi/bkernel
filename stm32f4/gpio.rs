@@ -75,7 +75,7 @@ impl GPIO {
     /// Enable PB6 with Alternate Function 7 (USART1), fast speed, open-drain.
     ///
     /// ```no_run
-    /// use kernel::stm32f4::gpio;
+    /// use stm32f4::gpio;
     ///
     /// gpio::GPIO_B.enable(6, gpio::GpioConfig {
     ///     mode: gpio::GpioMode::AF,

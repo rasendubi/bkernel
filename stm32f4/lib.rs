@@ -1,12 +1,21 @@
 //! STM32F4xx drivers.
+#![crate_name = "stm32f4"]
+#![crate_type = "lib"]
+
+#![feature(lang_items)]
+#![feature(no_std)]
+#![feature(core_intrinsics, core_str_ext)]
+
+#![no_std]
+
 #![allow(dead_code)]
 
-mod rcc;
-
-#[cfg(not(test))]
-mod gpio;
-#[cfg(test)]
+#[macro_use]
+pub mod volatile;
+pub mod rcc;
 pub mod gpio;
+
+pub mod lang_items;
 
 use core::str::*;
 
@@ -50,8 +59,6 @@ pub fn init_usart1() {
             pupd: gpio::GpioPuPd::PULL_UP,
             af: gpio::GpioAF::AF7,
         });
-
-        const PIN: u32 = 6;
 
         /* The RX and TX pins are now connected to their AF
          * so that the USART1 can take over control of the
