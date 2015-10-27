@@ -58,12 +58,12 @@ rust/src/libcore: rust
 checkout_rust: $(RUSTDIR)
 	cd $(RUSTDIR) && [ "$$(git rev-parse HEAD)" = "$(RUSTC_COMMIT)" ] || git checkout -q $(RUSTC_COMMIT)
 
-doc: lib/thumbv7em-none-eabi/libcore.rlib lib/thumbv7em-none-eabi/libstm32f4.rlib
+doc: doc/kernel doc/stm32f4
 
-doc_kernel: lib/thumbv7em-none-eabi/libcore.rlib lib/thumbv7em-none-eabi/libstm32f4.rlib
+doc/kernel: lib/thumbv7em-none-eabi/libcore.rlib lib/thumbv7em-none-eabi/libstm32f4.rlib
 	rustdoc src/kernel.rs --target thumbv7em-none-eabi -L lib/thumbv7em-none-eabi/
 
-doc_stm32f4: lib/thumbv7em-none-eabi/libcore.rlib
+doc/stm32f4: lib/thumbv7em-none-eabi/libcore.rlib
 	rustdoc stm32f4/lib.rs --target thumbv7em-none-eabi -L lib/thumbv7em-none-eabi/
 
 .PHONY: test
