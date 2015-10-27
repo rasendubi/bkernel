@@ -2,14 +2,26 @@
 
 #![allow(non_camel_case_types)]
 
+use core::ops::Deref;
+
 use volatile::RW;
 
 pub const GPIO_B: GPIO = GPIO(0x40020400 as *const GPIO_Impl);
 
 pub struct GPIO(*const GPIO_Impl);
 
+impl Deref for GPIO {
+    type Target = GPIO_Impl;
+
+    fn deref(&self) -> &GPIO_Impl {
+        unsafe { &*self.0 }
+    }
+}
+
+/// This is public to only make compiler happy. Don't use this in your
+/// module.
 #[repr(C)]
-struct GPIO_Impl {
+pub struct GPIO_Impl {
     moder:   RW<u32>, // 0x0
     otyper:  RW<u32>, // 0x4
     ospeedr: RW<u32>, // 0x8
@@ -100,24 +112,20 @@ impl GPIO {
     /// ```
     pub fn enable(&self, pin: u32, config: GpioConfig) {
         unsafe {
-            self.me().moder.update_with_mask(0x3 << pin*2, (config.mode as u32) << pin*2);
-            self.me().ospeedr.update_with_mask(0x3 << pin*2, (config.ospeed as u32) << pin*2);
-            self.me().otyper.update_with_mask(0x1 << pin, config.otype as u32);
-            self.me().pupdr.update_with_mask(0x3 << pin*2, (config.pupd as u32) << pin*2);
+            self.moder.update_with_mask(0x3 << pin*2, (config.mode as u32) << pin*2);
+            self.ospeedr.update_with_mask(0x3 << pin*2, (config.ospeed as u32) << pin*2);
+            self.otyper.update_with_mask(0x1 << pin, config.otype as u32);
+            self.pupdr.update_with_mask(0x3 << pin*2, (config.pupd as u32) << pin*2);
 
             /* The RX and TX pins are now connected to their AF
              * so that the USART1 can take over control of the
              * pins
              */
             if pin < 8 {
-                self.me().afrl.update_with_mask(0xf << (pin*4), (config.af as u32) << pin*4);
+                self.afrl.update_with_mask(0xf << (pin*4), (config.af as u32) << pin*4);
             } else {
-                self.me().afrh.update_with_mask(0xf << (pin-8)*4, (config.af as u32) << (pin-8)*4);
+                self.afrh.update_with_mask(0xf << (pin-8)*4, (config.af as u32) << (pin-8)*4);
             }
         }
-    }
-
-    unsafe fn me(&self) -> &GPIO_Impl {
-        &*self.0
     }
 }
