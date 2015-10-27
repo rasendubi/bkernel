@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/rasendubi/bkernel.svg)](https://travis-ci.org/rasendubi/bkernel)
+
 bkernel is an experimental kernel for embedded devices written in Rust. I'm mostly trying out Rust now to see how it applies to kernel development.
 
 # Prerequisites
