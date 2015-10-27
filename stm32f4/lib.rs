@@ -2,6 +2,8 @@
 #![crate_name = "stm32f4"]
 #![crate_type = "lib"]
 
+#![cfg_attr(test, allow(unused_features))]
+
 #![feature(lang_items)]
 #![feature(no_std)]
 #![feature(core_intrinsics, core_str_ext)]
@@ -16,6 +18,9 @@ pub mod rcc;
 pub mod gpio;
 
 pub mod lang_items;
+
+use rcc::RCC;
+use gpio::GPIO_B;
 
 use core::str::*;
 
@@ -42,17 +47,17 @@ pub fn puts(s: &str) {
 
 pub fn init_usart1() {
     unsafe {
-        rcc::apb2_clock_enable(rcc::Apb2Enable::USART1);
+        RCC.apb2_clock_enable(rcc::Apb2Enable::USART1);
 
         /* enable the peripheral clock for the pins used by
          * USART1, PB6 for TX and PB7 for RX
          */
-        rcc::ahb1_clock_enable(rcc::Ahb1Enable::GPIOB);
+        RCC.ahb1_clock_enable(rcc::Ahb1Enable::GPIOB);
 
         /* This sequence sets up the TX pin
          * so they work correctly with the USART1 peripheral
          */
-        gpio::GPIO_B.enable(6, gpio::GpioConfig {
+        GPIO_B.enable(6, gpio::GpioConfig {
             mode: gpio::GpioMode::AF,
             ospeed: gpio::GpioOSpeed::FAST_SPEED,
             otype: gpio::GpioOType::OPEN_DRAIN,

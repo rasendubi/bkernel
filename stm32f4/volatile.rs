@@ -56,6 +56,14 @@ impl<T> Volatile<T> {
 #[repr(C)]
 pub struct RW<T>(T);
 
+/// Reserved register.
+///
+/// There is no operations defined and the structure is hidden, so
+/// there is nothing you can do with reserved register - it's reserved
+/// after all.
+#[repr(C)]
+pub struct RES<T>(T);
+
 impl<T> RW<T> {
     pub unsafe fn get(&self) -> T {
         volatile_load(&self.0)

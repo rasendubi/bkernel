@@ -46,7 +46,7 @@ lib/host/libstm32f4.rlib: $(shell find stm32f4/ -type f -name '*.rs') | lib/host
 lib/thumbv7em-none-eabi/libcore.rlib: $(RUSTDIR)/src/libcore | checkout_rust lib/thumbv7em-none-eabi
 	$(RUST) $(RUSTFLAGS) $(RUSTDIR)/src/libcore/lib.rs --out-dir lib/thumbv7em-none-eabi/
 
-lib/thumbv7em-none-eabi lib/host:
+lib/thumbv7em-none-eabi lib/host tests:
 	mkdir -p $@
 
 rust:
@@ -67,15 +67,22 @@ doc/stm32f4: lib/thumbv7em-none-eabi/libcore.rlib $(shell find stm32f4/ -type f 
 	rustdoc stm32f4/lib.rs --target thumbv7em-none-eabi -L lib/thumbv7em-none-eabi/
 
 .PHONY: test
-test: test_kernel test_stm32f4
+test: test_kernel_doc test_stm32f4_doc test_stm32f4 tests
 
-.PHONY: test_kernel
-test_kernel: lib/host/libkernel.rlib
+.PHONY: test_kernel_doc
+test_kernel_doc: lib/host/libkernel.rlib
 	rustdoc src/kernel.rs --test -L lib/host
 
-.PHONY: test_stm32f4
-test_stm32f4: lib/host/libkernel.rlib
+.PHONY: test_stm32f4_doc
+test_stm32f4_doc: lib/host/libkernel.rlib
 	rustdoc stm32f4/lib.rs --test -L lib/host
+
+.PHONY: test_stm32f4
+test_stm32f4: tests/stm32f4
+	tests/stm32f4
+
+tests/stm32f4: $(shell find stm32f4/ -type f -name '*.rs') | tests
+	rustc --test stm32f4/lib.rs --out-dir tests
 
 .PHONY: clean
 clean:

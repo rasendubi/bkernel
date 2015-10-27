@@ -1,4 +1,5 @@
 /doc/
+/tests/
 /rust/
 /kernel.elf
 /kernel.bin

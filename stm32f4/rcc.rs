@@ -1,34 +1,67 @@
 //! Reset and clock control.
 
-const RCC_BASE: u32 = 0x40023800;
-registers! {
-    RCC_BASE, u32 => {
-        RCC_CR         = 0x00,
-        RCC_PLLCFGR    = 0x04,
-        RCC_CFGR       = 0x08,
-        RCC_CIR        = 0x0C,
-        RCC_AHB1RSTR   = 0x10,
-        RCC_AHB2RSTR   = 0x14,
-        RCC_AHB3RSTR   = 0x18,
-        RCC_APB1RSTR   = 0x20,
-        RCC_APB2RSTR   = 0x24,
-        RCC_AHB1ENR    = 0x30,
-        RCC_AHB2ENR    = 0x34,
-        RCC_AHB3ENR    = 0x38,
-        RCC_APB1ENR    = 0x40,
-        RCC_APB2ENR    = 0x44,
-        RCC_AHB1LPENR  = 0x50,
-        RCC_AHB2LPENR  = 0x54,
-        RCC_AHB3LPENR  = 0x58,
-        RCC_APB1LPENR  = 0x60,
-        RCC_APB2LPENR  = 0x64,
-        RCC_BDCR       = 0x70,
-        RCC_CSR        = 0x74,
-        RCC_SSCGR      = 0x80,
-        RCC_PLLI2SCFGR = 0x84,
-        RCC_PLLSAICFGR = 0x88,
-        RCC_DCKCFGR    = 0x8C,
+use core::ops::Deref;
+
+use volatile::{RW, RES};
+
+#[cfg(test)]
+use core::mem;
+
+pub const RCC: Rcc = Rcc(0x40023800 as *const RccRegister);
+
+pub struct Rcc(*const RccRegister);
+
+impl Deref for Rcc {
+    type Target = RccRegister;
+
+    fn deref(&self) -> &RccRegister {
+        unsafe { &*self.0 }
     }
+}
+
+#[repr(C)]
+pub struct RccRegister {
+    cr:          RW<u32>,  // 0x00
+    pllcfgr:     RW<u32>,  // 0x04
+    cfgr:        RW<u32>,  // 0x08
+    cir:         RW<u32>,  // 0x0C
+    ahb1rstr:    RW<u32>,  // 0x10
+    ahb2rstr:    RW<u32>,  // 0x14
+    ahb3rstr:    RW<u32>,  // 0x18
+    _reserved0:  RES<u32>, // 0x1C
+    apb1rstr:    RW<u32>,  // 0x20
+    apb2rstr:    RW<u32>,  // 0x24
+    _reserved1:  RES<u32>, // 0x28
+    _reserved2:  RES<u32>, // 0x2C
+    ahb1enr:     RW<u32>,  // 0x30
+    ahb2enr:     RW<u32>,  // 0x34
+    ahb3enr:     RW<u32>,  // 0x38
+    _reserved3:  RES<u32>, // 0x3C
+    apb1enr:     RW<u32>,  // 0x40
+    apb2enr:     RW<u32>,  // 0x44
+    _reserved4:  RES<u32>, // 0x48
+    _reserved5:  RES<u32>, // 0x4C
+    ahb1lpenr:   RW<u32>,  // 0x50
+    ahb2lpenr:   RW<u32>,  // 0x54
+    ahb3lpenr:   RW<u32>,  // 0x58
+    _reserved6:  RES<u32>, // 0x5C
+    apb1lpenr:   RW<u32>,  // 0x60
+    apb2lpenr:   RW<u32>,  // 0x64
+    _reserved7:  RES<u32>, // 0x68
+    _reserved8:  RES<u32>, // 0x6C
+    bdcr:        RW<u32>,  // 0x70
+    csr:         RW<u32>,  // 0x74
+    _reserved9:  RES<u32>, // 0x78
+    _reserved10: RES<u32>, // 0x7C
+    sscgr:       RW<u32>,  // 0x80
+    plli2scfgr:  RW<u32>,  // 0x84
+    pllsaicfgr:  RW<u32>,  // 0x88
+    dckcfgr:     RW<u32>,  // 0x8C
+}
+
+#[test]
+fn test_rcc_register_size() {
+    assert_eq!(0x90, mem::size_of::<RccRegister>());
 }
 
 #[repr(u32)]
@@ -127,32 +160,34 @@ pub enum Apb2Enable {
     LTDC       = 1 << 26,
 }
 
-pub fn ahb1_clock_enable(val: Ahb1Enable) {
-    unsafe {
-        RCC_AHB1ENR.set(RCC_AHB1ENR.get() | val as u32);
+impl Rcc {
+    pub fn ahb1_clock_enable(&self, value: Ahb1Enable) {
+        unsafe {
+            self.ahb1enr.update(|x| x | value as u32);
+        }
     }
-}
 
-pub fn ahb2_clock_enable(val: Ahb2Enable) {
-    unsafe {
-        RCC_AHB2ENR.set(RCC_AHB2ENR.get() | val as u32);
+    pub fn ahb2_clock_enable(&self, value: Ahb2Enable) {
+        unsafe {
+            self.ahb2enr.update(|x| x | value as u32);
+        }
     }
-}
 
-pub fn ahb3_clock_enable(val: Ahb3Enable) {
-    unsafe {
-        RCC_AHB3ENR.set(RCC_AHB3ENR.get() | val as u32);
+    pub fn ahb3_clock_enable(&self, value: Ahb3Enable) {
+        unsafe {
+            self.ahb3enr.update(|x| x | value as u32);
+        }
     }
-}
 
-pub fn apb1_clock_enable(val: Apb1Enable) {
-    unsafe {
-        RCC_APB1ENR.set(RCC_APB1ENR.get() | val as u32);
+    pub fn apb1_clock_enable(&self, value: Apb1Enable) {
+        unsafe {
+            self.apb1enr.update(|x| x | value as u32);
+        }
     }
-}
 
-pub fn apb2_clock_enable(val: Apb2Enable) {
-    unsafe {
-        RCC_APB2ENR.set(RCC_APB2ENR.get() | val as u32);
+    pub fn apb2_clock_enable(&self, value: Apb2Enable) {
+        unsafe {
+            self.apb2enr.update(|x| x | value as u32);
+        }
     }
 }
