@@ -6,14 +6,14 @@ use core::ops::Deref;
 
 use volatile::RW;
 
-pub const GPIO_B: GPIO = GPIO(0x40020400 as *const GPIO_Impl);
+pub const GPIO_B: GPIO = GPIO(0x40020400 as *const GPIO_Register);
 
-pub struct GPIO(*const GPIO_Impl);
+pub struct GPIO(*const GPIO_Register);
 
 impl Deref for GPIO {
-    type Target = GPIO_Impl;
+    type Target = GPIO_Register;
 
-    fn deref(&self) -> &GPIO_Impl {
+    fn deref(&self) -> &GPIO_Register {
         unsafe { &*self.0 }
     }
 }
@@ -21,7 +21,7 @@ impl Deref for GPIO {
 /// This is public to only make compiler happy. Don't use this in your
 /// module.
 #[repr(C)]
-pub struct GPIO_Impl {
+pub struct GPIO_Register {
     moder:   RW<u32>, // 0x0
     otyper:  RW<u32>, // 0x4
     ospeedr: RW<u32>, // 0x8
