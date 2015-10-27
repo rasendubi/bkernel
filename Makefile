@@ -60,7 +60,7 @@ checkout_rust: $(RUSTDIR)
 
 doc: doc/kernel doc/stm32f4
 
-doc/kernel: lib/thumbv7em-none-eabi/libcore.rlib lib/thumbv7em-none-eabi/libstm32f4.rlib $(shell find src/ -type -f -name '*.rs')
+doc/kernel: lib/thumbv7em-none-eabi/libcore.rlib lib/thumbv7em-none-eabi/libstm32f4.rlib $(shell find src/ -type f -name '*.rs')
 	rustdoc src/kernel.rs --target thumbv7em-none-eabi -L lib/thumbv7em-none-eabi/
 
 doc/stm32f4: lib/thumbv7em-none-eabi/libcore.rlib $(shell find stm32f4/ -type f -name '*.rs')
