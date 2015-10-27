@@ -2,12 +2,24 @@
 
 #![allow(non_camel_case_types)]
 
-use volatile::Volatile;
+use volatile::RW;
 
-pub const GPIO_B: GPIO = GPIO { base: 0x40020400 };
+pub const GPIO_B: GPIO = GPIO(0x40020400 as *const GPIO_Impl);
 
-pub struct GPIO {
-    base: usize,
+pub struct GPIO(*const GPIO_Impl);
+
+#[repr(C)]
+struct GPIO_Impl {
+    moder:   RW<u32>, // 0x0
+    otyper:  RW<u32>, // 0x4
+    ospeedr: RW<u32>, // 0x8
+    pupdr:   RW<u32>, // 0xC
+    idr:     RW<u32>, // 0x10
+    odr:     RW<u32>, // 0x14
+    bsrr:    RW<u32>, // 0x18
+    lckr:    RW<u32>, // 0x1C
+    afrl:    RW<u32>, // 0x20
+    afrh:    RW<u32>, // 0x24
 }
 
 pub struct GpioConfig {
@@ -63,10 +75,6 @@ pub enum GpioAF {
     AF15 = 0xF,
 }
 
-unsafe fn update_with_mask(reg: Volatile<u32>, mask: u32, value: u32) {
-    reg.set(reg.get() & !mask | value);
-}
-
 impl GPIO {
     /// Enables a given pin on GPIO. Pins are numbered starting from 0.
     ///
@@ -87,50 +95,24 @@ impl GPIO {
     /// ```
     pub fn enable(&self, pin: u32, config: GpioConfig) {
         unsafe {
-            update_with_mask(self.moder(), 0x3 << pin*2, (config.mode as u32) << pin*2);
-            update_with_mask(self.ospeedr(), 0x3 << pin*2, (config.ospeed as u32) << pin*2);
-            update_with_mask(self.otyper(), 0x1 << pin, config.otype as u32);
-            update_with_mask(self.pupdr(), 0x3 << pin*2, (config.pupd as u32) << pin*2);
+            self.me().moder.update_with_mask(0x3 << pin*2, (config.mode as u32) << pin*2);
+            self.me().ospeedr.update_with_mask(0x3 << pin*2, (config.ospeed as u32) << pin*2);
+            self.me().otyper.update_with_mask(0x1 << pin, config.otype as u32);
+            self.me().pupdr.update_with_mask(0x3 << pin*2, (config.pupd as u32) << pin*2);
 
             /* The RX and TX pins are now connected to their AF
              * so that the USART1 can take over control of the
              * pins
              */
             if pin < 8 {
-                update_with_mask(self.afrl(), 0xf << (pin*4), (config.af as u32) << pin*4);
+                self.me().afrl.update_with_mask(0xf << (pin*4), (config.af as u32) << pin*4);
             } else {
-                update_with_mask(self.afrh(), 0xf << (pin-8)*4, (config.af as u32) << (pin-8)*4);
+                self.me().afrh.update_with_mask(0xf << (pin-8)*4, (config.af as u32) << (pin-8)*4);
             }
         }
     }
 
-    #[inline]
-    fn moder(&self) -> Volatile<u32> {
-        Volatile::new(self.base + 0x00)
-    }
-
-    #[inline]
-    fn otyper(&self) -> Volatile<u32> {
-        Volatile::new(self.base + 0x04)
-    }
-
-    #[inline]
-    fn ospeedr(&self) -> Volatile<u32> {
-        Volatile::new(self.base + 0x08)
-    }
-
-    #[inline]
-    fn pupdr(&self) -> Volatile<u32> {
-        Volatile::new(self.base + 0x0C)
-    }
-
-    #[inline]
-    fn afrl(&self) -> Volatile<u32> {
-        Volatile::new(self.base + 0x20)
-    }
-
-    #[inline]
-    fn afrh(&self) -> Volatile<u32> {
-        Volatile::new(self.base + 0x24)
+    unsafe fn me(&self) -> &GPIO_Impl {
+        &*self.0
     }
 }

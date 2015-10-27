@@ -8,6 +8,8 @@ use core::intrinsics::{volatile_load, volatile_store};
 
 use core::fmt::{Debug, Formatter, Error};
 
+use core::ops::{BitAnd, BitOr, Not};
+
 /// Represents a volatile register.
 ///
 /// `Volatile<T>` represents a volatile register of type `T`.
@@ -48,6 +50,29 @@ impl<T> Volatile<T> {
     /// Use instead of `volatile_load`.
     pub unsafe fn get(&self) -> T {
         volatile_load(self.0)
+    }
+}
+
+#[repr(C)]
+pub struct RW<T>(T);
+
+impl<T> RW<T> {
+    pub unsafe fn get(&self) -> T {
+        volatile_load(&self.0)
+    }
+
+    pub unsafe fn set(&self, value: T) {
+        volatile_store(&self.0 as *const T as *mut T, value)
+    }
+
+    pub unsafe fn update<F>(&self, f: F) where F: FnOnce(T) -> T {
+        self.set(f(self.get()))
+    }
+
+    pub unsafe fn update_with_mask(&self, mask: T, value: T)
+        where T: Not<Output=T> + BitAnd<T, Output=T> + BitOr<T, Output=T>
+    {
+        self.update(|x| x & !mask | value);
     }
 }
 
