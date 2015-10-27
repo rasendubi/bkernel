@@ -53,8 +53,117 @@ impl<T> Volatile<T> {
     }
 }
 
+/// Read-only register
+#[repr(C)]
+pub struct RO<T>(T);
+
+impl<T> RO<T> {
+    /// Volatile read
+    pub unsafe fn get(&self) -> T {
+        volatile_load(&self.0)
+    }
+}
+
+/// Write-only register
+#[repr(C)]
+pub struct WO<T>(T);
+
+impl<T> WO<T> {
+    /// Volatile store
+    pub unsafe fn set(&self, value: T) {
+        volatile_store(&self.0 as *const T as *mut T, value)
+    }
+}
+
+/// Read-write register
 #[repr(C)]
 pub struct RW<T>(T);
+
+impl<T> RW<T> {
+    /// Volatile read
+    pub unsafe fn get(&self) -> T {
+        volatile_load(&self.0)
+    }
+
+    /// Volatile store
+    pub unsafe fn set(&self, value: T) {
+        volatile_store(&self.0 as *const T as *mut T, value)
+    }
+
+    /// Updates value of a register
+    ///
+    /// # Examples
+    /// ```
+    /// # use stm32f4::volatile::RW;
+    /// # unsafe {
+    /// let reg: RW<u32> = std::mem::uninitialized();
+    /// reg.set(0x2e);
+    /// reg.update(|x| {
+    ///     assert_eq!(0x2e, x);
+    ///     0x3f
+    /// });
+    /// assert_eq!(0x3f, reg.get());
+    /// # }
+    /// ```
+    pub unsafe fn update<F>(&self, f: F) where F: FnOnce(T) -> T {
+        self.set(f(self.get()))
+    }
+
+    /// Performs read-modify-write and updates part of register under
+    /// `mask`.
+    ///
+    /// # Examples
+    /// ```
+    /// # use stm32f4::volatile::RW;
+    /// # unsafe {
+    /// let reg: RW<u32> = std::mem::uninitialized();
+    /// reg.set(0xdeadbabe);
+    /// reg.update_with_mask(0xffff0000, 0xcafe0000);
+    /// assert_eq!(0xcafebabe, reg.get());
+    /// # }
+    /// ```
+    pub unsafe fn update_with_mask(&self, mask: T, value: T)
+        where T: Not<Output=T> + BitAnd<T, Output=T> + BitOr<T, Output=T>
+    {
+        self.update(|x| x & !mask | value);
+    }
+
+    /// Sets flag in the register.
+    ///
+    /// # Examples
+    /// ```
+    /// # use stm32f4::volatile::RW;
+    /// # unsafe {
+    /// let reg: RW<u32> = std::mem::uninitialized();
+    /// reg.set(0x2e);
+    /// reg.set_flag(0x11);
+    /// assert_eq!(0x3f, reg.get());
+    /// # }
+    /// ```
+    pub unsafe fn set_flag(&self, value: T)
+        where T: BitOr<T, Output=T>
+    {
+        self.update(|x| x | value);
+    }
+
+    /// Clears flag in the register.
+    ///
+    /// # Examples
+    /// ```
+    /// # use stm32f4::volatile::RW;
+    /// # unsafe {
+    /// let reg: RW<u32> = std::mem::uninitialized();
+    /// reg.set(0x3f);
+    /// reg.clear_flag(0x11);
+    /// assert_eq!(0x2e, reg.get());
+    /// # }
+    /// ```
+    pub unsafe fn clear_flag(&self, value: T)
+        where T: Not<Output=T> + BitAnd<T, Output=T>
+    {
+        self.update(|x| x & !value);
+    }
+}
 
 /// Reserved register.
 ///
@@ -63,26 +172,6 @@ pub struct RW<T>(T);
 /// after all.
 #[repr(C)]
 pub struct RES<T>(T);
-
-impl<T> RW<T> {
-    pub unsafe fn get(&self) -> T {
-        volatile_load(&self.0)
-    }
-
-    pub unsafe fn set(&self, value: T) {
-        volatile_store(&self.0 as *const T as *mut T, value)
-    }
-
-    pub unsafe fn update<F>(&self, f: F) where F: FnOnce(T) -> T {
-        self.set(f(self.get()))
-    }
-
-    pub unsafe fn update_with_mask(&self, mask: T, value: T)
-        where T: Not<Output=T> + BitAnd<T, Output=T> + BitOr<T, Output=T>
-    {
-        self.update(|x| x & !mask | value);
-    }
-}
 
 /// Define a set of registers with a shorter syntax.
 ///

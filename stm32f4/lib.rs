@@ -24,6 +24,7 @@ use gpio::GPIO_B;
 
 use core::str::*;
 
+// TODO: remove volatile after removing this
 const USART1_BASE: u32 = 0x40011000;
 registers! {
     USART1_BASE, u32 => {
