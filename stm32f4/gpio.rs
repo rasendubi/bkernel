@@ -30,6 +30,7 @@ pub struct GpioConfig {
     pub af: GpioAF,
 }
 
+#[repr(u32)]
 pub enum GpioMode {
     INPUT  = 0x0,
     OUTPUT = 0x1,
@@ -37,11 +38,13 @@ pub enum GpioMode {
     ANALOG = 0x3,
 }
 
+#[repr(u32)]
 pub enum GpioOType {
     PUSH_PULL  = 0x0,
     OPEN_DRAIN = 0x1,
 }
 
+#[repr(u32)]
 pub enum GpioOSpeed {
     LOW_SPEED    = 0x0,
     MEDIUM_SPEED = 0x1,
@@ -49,6 +52,7 @@ pub enum GpioOSpeed {
     HIGH_SPEED   = 0x3,
 }
 
+#[repr(u32)]
 pub enum GpioPuPd {
     NO        = 0x0,
     PULL_UP   = 0x1,
@@ -56,6 +60,7 @@ pub enum GpioPuPd {
 }
 
 /// Alternate Function
+#[repr(u32)]
 pub enum GpioAF {
     AF0  = 0x0,
     AF1  = 0x1,

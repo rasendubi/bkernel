@@ -31,6 +31,7 @@ registers! {
     }
 }
 
+#[repr(u32)]
 pub enum Ahb1Enable {
     GPIOA      = 1 << 0,
     GPIOB      = 1 << 1,
@@ -57,6 +58,7 @@ pub enum Ahb1Enable {
     OTGHSULPI  = 1 << 30,
 }
 
+#[repr(u32)]
 pub enum Ahb2Enable {
     DCMI       = 1 << 0,
     CRYP       = 1 << 4,
@@ -65,10 +67,16 @@ pub enum Ahb2Enable {
     OTGFS      = 1 << 7,
 }
 
+#[repr(u32)]
 pub enum Ahb3Enable {
     FMC        = 1 << 0,
+
+    // This is added to avoid E0083: unsupported representation for
+    // univariant enum
+    __Dummy,
 }
 
+#[repr(u32)]
 pub enum Apb1Enable {
     TIM2       = 1 << 0,
     TIM3       = 1 << 1,
@@ -97,6 +105,7 @@ pub enum Apb1Enable {
     UART8      = 1 << 31,
 }
 
+#[repr(u32)]
 pub enum Apb2Enable {
     TIM1       = 1 << 0,
     TIM8       = 1 << 1,
