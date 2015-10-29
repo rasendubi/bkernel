@@ -6,14 +6,14 @@ use core::ops::Deref;
 
 use volatile::RW;
 
-pub const GPIO_B: GPIO = GPIO(0x40020400 as *const GPIO_Register);
+pub const GPIO_B: Gpio = Gpio(0x40020400 as *const GpioRegister);
 
-pub struct GPIO(*const GPIO_Register);
+pub struct Gpio(*const GpioRegister);
 
-impl Deref for GPIO {
-    type Target = GPIO_Register;
+impl Deref for Gpio {
+    type Target = GpioRegister;
 
-    fn deref(&self) -> &GPIO_Register {
+    fn deref(&self) -> &GpioRegister {
         unsafe { &*self.0 }
     }
 }
@@ -21,7 +21,7 @@ impl Deref for GPIO {
 /// This is public to only make compiler happy. Don't use this in your
 /// module.
 #[repr(C)]
-pub struct GPIO_Register {
+pub struct GpioRegister {
     moder:   RW<u32>, // 0x0
     otyper:  RW<u32>, // 0x4
     ospeedr: RW<u32>, // 0x8
@@ -92,7 +92,7 @@ pub enum GpioAF {
     AF15 = 0xF,
 }
 
-impl GPIO {
+impl Gpio {
     /// Enables a given pin on GPIO. Pins are numbered starting from 0.
     ///
     /// # Examples

@@ -5,7 +5,7 @@ RUST := rustc
 
 CFLAGS := -std=c99 -pedantic -Wall -Wextra -mcpu=cortex-m4 -msoft-float -nostdlib -lnosys \
 	-fPIC -mapcs-frame -ffreestanding -O3 -mthumb-interwork -mlittle-endian -mthumb
-LDFLAGS := -N -nostdlib -T stm32_flash.ld
+LDFLAGS := -N -nostdlib -T stm32_flash.ld -Wl,--gc-sections
 RUSTFLAGS := -g -Z no-landing-pads --target thumbv7em-none-eabi -C opt-level=2 -L lib/thumbv7em-none-eabi
 
 RUSTDIR ?= rust
@@ -14,6 +14,7 @@ RUSTC_COMMIT := $(shell rustc -Vv | sed -n 's/^commit-hash: \(.*\)$$/\1/p')
 
 .PHONY: all
 all: kernel_meta doc test
+	du -b kernel.bin
 
 .PHONY: kernel_meta
 kernel_meta: checkout_rust kernel.bin lib/thumbv7em-none-eabi lib/host
@@ -29,7 +30,7 @@ kernel.elf: src/bootstrap.o src/kernel.o
 
 src/kernel.o: $(shell find src/ -type f -name '*.rs') lib/thumbv7em-none-eabi/libcore.rlib \
 		lib/thumbv7em-none-eabi/libstm32f4.rlib
-	$(RUST) $(RUSTFLAGS) src/kernel.rs -C lto --emit=obj -o $@ --extern stm32f4=lib/thumbv7em-none-eabi/libstm32f4.rlib
+	$(RUST) $(RUSTFLAGS) src/kernel.rs -C lto --emit=obj -o $@
 
 lib/thumbv7em-none-eabi/libkernel.rlib: $(shell find src/ -type f -name '*.rs') lib/host/libstm32f4.rlib
 	$(RUST) --crate-type=lib src/kernel.rs -L lib/host --out-dir lib/host

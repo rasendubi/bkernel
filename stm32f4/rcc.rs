@@ -4,9 +4,6 @@ use core::ops::Deref;
 
 use volatile::{RW, RES};
 
-#[cfg(test)]
-use core::mem;
-
 pub const RCC: Rcc = Rcc(0x40023800 as *const RccRegister);
 
 pub struct Rcc(*const RccRegister);
@@ -61,7 +58,7 @@ pub struct RccRegister {
 
 #[test]
 fn test_rcc_register_size() {
-    assert_eq!(0x90, mem::size_of::<RccRegister>());
+    assert_eq!(0x90, ::core::mem::size_of::<RccRegister>());
 }
 
 #[repr(u32)]
