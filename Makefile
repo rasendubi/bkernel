@@ -87,4 +87,4 @@ tests/stm32f4: $(shell find stm32f4/ -type f -name '*.rs') | tests
 
 .PHONY: clean
 clean:
-	rm -rf *.o *.elf *.bin lib doc
+	rm -rf *.o *.elf *.bin lib doc src/*.o
