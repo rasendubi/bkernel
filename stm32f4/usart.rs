@@ -151,8 +151,8 @@ impl Usart {
 
         unsafe {
             self.cr2.update_with_mask(Cr2::STOP as u32, config.stop_bits as u32);
-            self.cr1.update_with_mask(Cr1::M as u32 | Cr1::PCE as u32 | Cr1::TE as u32,
-                                      config.data_bits as u32 | Cr1::TE as u32);
+            self.cr1.update_with_mask(Cr1::M as u32 | Cr1::PCE as u32 | Cr1::TE as u32 | Cr1::RE as u32,
+                                      config.data_bits as u32 | Cr1::TE as u32 | Cr1::RE as u32);
             self.cr3.clear_flag(0x3FF); // No Hardware Flow-Control
             self.brr.set(0x683); // 9600 baud-rate
 
@@ -163,16 +163,25 @@ impl Usart {
 
     pub fn puts_synchronous(&self, s: &str) {
         for c in s.bytes() {
-            while !self.transmission_complete() {};
-            self.put_char(c);
+            self.put_char(c as u32);
         }
     }
 
-    pub fn put_char(&self, c: u8) {
-        unsafe { self.dr.update_with_mask(0xF, c as u32) };
+    pub fn put_char(&self, c: u32) {
+        while !self.transmission_complete() {};
+        unsafe { self.dr.set(c); }
     }
 
     pub fn transmission_complete(&self) -> bool {
-        unsafe { self.sr.get() & Sr::TC as u32 == Sr::TC as u32 }
+        unsafe { self.sr.get() & Sr::TC as u32 != 0 }
+    }
+
+    pub fn receive_complete(&self) -> bool {
+        unsafe { self.sr.get() & Sr::RXNE as u32 != 0 }
+    }
+
+    pub fn get_char(&self) -> u32 {
+        while !self.receive_complete() {}
+        unsafe { self.dr.get() & 0xff }
     }
 }

@@ -19,7 +19,10 @@ pub extern fn kmain() -> ! {
 
     USART1.puts_synchronous("Hello, world!\r\n");
 
-    loop {}
+    loop {
+        let c = USART1.get_char();
+        USART1.put_char(c);
+    }
 }
 
 fn init_usart1() {
@@ -34,6 +37,13 @@ fn init_usart1() {
      * so they work correctly with the USART1 peripheral
      */
     GPIO_B.enable(6, gpio::GpioConfig {
+        mode: gpio::GpioMode::AF,
+        ospeed: gpio::GpioOSpeed::FAST_SPEED,
+        otype: gpio::GpioOType::OPEN_DRAIN,
+        pupd: gpio::GpioPuPd::PULL_UP,
+        af: gpio::GpioAF::AF7,
+    });
+    GPIO_B.enable(7, gpio::GpioConfig {
         mode: gpio::GpioMode::AF,
         ospeed: gpio::GpioOSpeed::FAST_SPEED,
         otype: gpio::GpioOType::OPEN_DRAIN,
