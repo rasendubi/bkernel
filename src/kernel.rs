@@ -8,6 +8,7 @@
 extern crate stm32f4;
 
 mod led;
+mod terminal;
 
 use stm32f4::{rcc, gpio, usart};
 use stm32f4::rcc::RCC;
@@ -22,10 +23,9 @@ pub extern fn kmain() -> ! {
 
     USART1.puts_synchronous("Hello, world!\r\n");
 
-    loop {
-        let c = USART1.get_char();
-        USART1.put_char(c);
-    }
+    terminal::run_terminal(USART1);
+
+    loop {}
 }
 
 fn init_leds() {

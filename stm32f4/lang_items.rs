@@ -18,6 +18,18 @@ fn stack_exhausted() -> ! {
 
 #[cfg(target_os = "none")]
 #[no_mangle]
-pub unsafe fn __aeabi_unwind_cpp_pr0() -> ! {
+pub unsafe extern "C" fn __aeabi_unwind_cpp_pr0() -> ! {
     loop {}
+}
+
+#[cfg(target_os = "none")]
+#[no_mangle]
+pub unsafe extern "C" fn __aeabi_memclr4(dest: *mut u32, n: usize) {
+    let mut n = n;
+    let mut dest = dest;
+    while n != 0 {
+        *dest = 0;
+        dest = dest.offset(1);
+        n -= 4;
+    }
 }
