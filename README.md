@@ -44,6 +44,14 @@ If you have a STM32F4Discovery board, you can flash it in the following way:
 - Run openocd with `openocd -f openocd.cfg`.
 - Connect to the running server with `telnet localhost 4444` and run `flash_bkernel kernel.bin` command.
 
+# Running
+
+After booting the kernel you should see all LEDs are turned on and a terminal is running on PB6/PB7 pins.
+
+The following commands are supported:
+- `hi` - says hello
+- `+3`/`-3`/`+4`/`-4`/`+5`/`-5`/`+6`/`-6` - turn on/off LD3/4/5/6
+
 # Issues
 
 If you have any issues or questions with the bkernel, just [open and issue](https://github.com/rasendubi/bkernel/issues) or mail me at [rasen.dubi@gmail.com](mailto:rasen.dubi@gmail.com).
