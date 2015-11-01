@@ -54,4 +54,4 @@ The following commands are supported:
 
 # Issues
 
-If you have any issues or questions with the bkernel, just [open and issue](https://github.com/rasendubi/bkernel/issues) or mail me at [rasen.dubi@gmail.com](mailto:rasen.dubi@gmail.com).
+If you have any issues or questions with the bkernel, just [open an issue](https://github.com/rasendubi/bkernel/issues) or mail me at [rasen.dubi@gmail.com](mailto:rasen.dubi@gmail.com).
