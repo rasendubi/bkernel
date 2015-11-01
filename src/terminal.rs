@@ -45,6 +45,7 @@ fn process_command(usart: &Usart, command: &str) {
         "+5" => { led::LD5.turn_on(); },
         "-6" => { led::LD6.turn_off(); },
         "+6" => { led::LD6.turn_on(); },
+        "" => {},
         _ => {
             usart.puts_synchronous("Unknown command: \"");
             usart.puts_synchronous(command);
