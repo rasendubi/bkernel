@@ -33,9 +33,9 @@ Just invoke `make`.
 ## Make targets
 
 - `make` build all binaries, documentation and run tests;
+- `make build` only build kernel;
 - `make test` run tests;
-- `make doc` build documentation;
-- `make kernel_meta` only build kernel.
+- `make doc` build documentation.
 
 # Flashing
 
