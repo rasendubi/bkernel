@@ -22,7 +22,7 @@ pub extern fn kmain() -> ! {
     init_usart1();
     init_leds();
 
-    USART1.puts_synchronous("Hello, world!\r\n");
+    USART1.puts_synchronous("\r\nWelcome to bkernel\r\n");
 
     terminal::run_terminal(USART1);
 
@@ -81,9 +81,30 @@ fn init_usart1() {
 }
 
 #[cfg(target_os = "none")]
-#[lang = "panic_fmt"]
-fn panic_fmt(_fmt: ::core::fmt::Arguments, file: &str, _line: u32) -> ! {
-    USART1.puts_synchronous("\r\nPANIC\r\n");
-    USART1.puts_synchronous(file);
-    loop {}
+pub mod panicking {
+    use core::fmt;
+    use stm32f4::usart;
+    use stm32f4::usart::USART1;
+
+    struct UsartWriter(usart::Usart);
+
+    impl fmt::Write for UsartWriter {
+        fn write_str(&mut self, s: &str) -> fmt::Result {
+            self.0.puts_synchronous(s);
+            Ok(())
+        }
+
+        fn write_char(&mut self, c: char) -> fmt::Result {
+            self.0.put_char(c as u32);
+            Ok(())
+        }
+    }
+
+    #[lang = "panic_fmt"]
+    extern fn panic_fmt(fmt: fmt::Arguments, file: &str, line: u32) -> ! {
+        use core::fmt::Write;
+        USART1.puts_synchronous("\r\nPANIC\r\n");
+        let _ = write!(UsartWriter(USART1), "{}:{} {}", file, line, fmt);
+        loop {}
+    }
 }

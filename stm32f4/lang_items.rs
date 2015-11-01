@@ -18,6 +18,12 @@ pub unsafe extern "C" fn __aeabi_unwind_cpp_pr0() -> ! {
 
 #[cfg(target_os = "none")]
 #[no_mangle]
+pub unsafe extern "C" fn __aeabi_unwind_cpp_pr1() -> ! {
+    loop {}
+}
+
+#[cfg(target_os = "none")]
+#[no_mangle]
 pub unsafe extern "C" fn __aeabi_memclr4(dest: *mut u32, n: usize) {
     let mut n = n;
     let mut dest = dest;

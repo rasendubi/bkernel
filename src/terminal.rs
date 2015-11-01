@@ -54,7 +54,7 @@ fn process_command(usart: &Usart, command: &str) {
         "-6" => { led::LD6.turn_off(); },
         "+6" => { led::LD6.turn_on(); },
         "panic" => {
-            panic!("Panic as intended");
+            panic!();
         }
         "" => {},
         _ => {
