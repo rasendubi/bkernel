@@ -2,6 +2,7 @@
 //! the bootstrap that will jump to the `kmain` function.
 #![crate_type = "staticlib"]
 
+#![feature(lang_items)]
 #![feature(no_std)]
 #![no_std]
 
@@ -77,4 +78,12 @@ fn init_usart1() {
         flow_control: usart::FlowControl::No,
         baud_rate: 9600,
     });
+}
+
+#[cfg(target_os = "none")]
+#[lang = "panic_fmt"]
+fn panic_fmt(_fmt: ::core::fmt::Arguments, file: &str, _line: u32) -> ! {
+    USART1.puts_synchronous("\r\nPANIC\r\n");
+    USART1.puts_synchronous(file);
+    loop {}
 }
