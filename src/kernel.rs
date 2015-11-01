@@ -7,6 +7,8 @@
 
 extern crate stm32f4;
 
+mod led;
+
 use stm32f4::{rcc, gpio, usart};
 use stm32f4::rcc::RCC;
 use stm32f4::gpio::GPIO_B;
@@ -16,6 +18,7 @@ use stm32f4::usart::USART1;
 #[no_mangle]
 pub extern fn kmain() -> ! {
     init_usart1();
+    init_leds();
 
     USART1.puts_synchronous("Hello, world!\r\n");
 
@@ -23,6 +26,19 @@ pub extern fn kmain() -> ! {
         let c = USART1.get_char();
         USART1.put_char(c);
     }
+}
+
+fn init_leds() {
+    RCC.ahb1_clock_enable(rcc::Ahb1Enable::GPIOD);
+    led::LD3.init();
+    led::LD4.init();
+    led::LD5.init();
+    led::LD6.init();
+
+    led::LD3.turn_on();
+    led::LD4.turn_on();
+    led::LD5.turn_on();
+    led::LD6.turn_on();
 }
 
 fn init_usart1() {

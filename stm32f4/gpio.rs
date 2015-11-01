@@ -6,7 +6,17 @@ use core::ops::Deref;
 
 use volatile::RW;
 
+pub const GPIO_A: Gpio = Gpio(0x40020000 as *const GpioRegister);
 pub const GPIO_B: Gpio = Gpio(0x40020400 as *const GpioRegister);
+pub const GPIO_C: Gpio = Gpio(0x40020800 as *const GpioRegister);
+pub const GPIO_D: Gpio = Gpio(0x40020C00 as *const GpioRegister);
+pub const GPIO_E: Gpio = Gpio(0x40021000 as *const GpioRegister);
+pub const GPIO_F: Gpio = Gpio(0x40021400 as *const GpioRegister);
+pub const GPIO_G: Gpio = Gpio(0x40021800 as *const GpioRegister);
+pub const GPIO_H: Gpio = Gpio(0x40021C00 as *const GpioRegister);
+pub const GPIO_I: Gpio = Gpio(0x40022000 as *const GpioRegister);
+pub const GPIO_J: Gpio = Gpio(0x40022400 as *const GpioRegister);
+pub const GPIO_K: Gpio = Gpio(0x40022800 as *const GpioRegister);
 
 pub struct Gpio(*const GpioRegister);
 
@@ -126,6 +136,18 @@ impl Gpio {
             } else {
                 self.afrh.update_with_mask(0xf << (pin-8)*4, (config.af as u32) << (pin-8)*4);
             }
+        }
+    }
+
+    pub fn set_bit(&self, pin: u32) {
+        unsafe {
+            self.bsrr.set(0x1 << pin);
+        }
+    }
+
+    pub fn clear_bit(&self, pin: u32) {
+        unsafe {
+            self.bsrr.set(0x1 << (pin + 16));
         }
     }
 }
