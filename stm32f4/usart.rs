@@ -4,6 +4,7 @@
 #![allow(non_camel_case_types)]
 
 use core::ops::Deref;
+use core::fmt;
 
 use volatile::RW;
 
@@ -183,5 +184,17 @@ impl Usart {
     pub fn get_char(&self) -> u32 {
         while !self.receive_complete() {}
         unsafe { self.dr.get() & 0xff }
+    }
+}
+
+impl fmt::Write for Usart {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        self.puts_synchronous(s);
+        Ok(())
+    }
+
+    fn write_char(&mut self, c: char) -> fmt::Result {
+        self.put_char(c as u32);
+        Ok(())
     }
 }
