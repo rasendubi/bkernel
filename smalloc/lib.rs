@@ -85,7 +85,6 @@
 #[cfg(test)]
 extern crate alloc;
 
-use ::core::mem::size_of;
 use ::core::ptr;
 
 macro_rules! size_of {
@@ -132,24 +131,52 @@ impl Smalloc {
         *(self.start as *mut *mut FreeBlock) = self.start.offset(isize_of!(*mut u8)) as *mut FreeBlock;
         *(self.start.offset(isize_of!(*mut u8)) as *mut FreeBlock) = FreeBlock {
             prev_size: 0x0,
-            size: ((self.size - size_of::<*mut u8>()) / MIN_ALLOC) as u16,
+            size: ((self.size - size_of!(*mut u8) - size_of!(BusyBlock)) / MIN_ALLOC) as u16,
             next: ptr::null_mut(),
         };
     }
 
-    pub fn alloc(&self, _size: usize) -> *mut u8 {
+    pub fn alloc(&self, size: usize) -> *mut u8 {
         unsafe {
-            *(self.start.offset(isize_of!(*mut u8)) as *mut BusyBlock) = BusyBlock {
+            if size == 0 {
+                return ptr::null_mut();
+            }
+
+            let (_prev, cur) = self.find_free_block(size);
+            if cur.is_null() {
+                return ptr::null_mut();
+            }
+
+            let cur = cur as *mut BusyBlock;
+
+            *cur = BusyBlock {
                 prev_size: 2,
                 size: 2,
             };
-            *(self.start.offset(isize_of!(*mut u8) + isize_of!(BusyBlock) + 0x8) as *mut FreeBlock) = FreeBlock {
-                prev_size: 1,
-                size: 60,
+
+            let next = (cur as *mut u8)
+                .offset(isize_of!(BusyBlock) + ((*cur).size as usize * MIN_ALLOC) as isize) as *mut FreeBlock;
+            *next = FreeBlock {
+                prev_size: 2,
+                size: 59,
                 next: ptr::null_mut(),
             };
-            self.start.offset(isize_of!(*mut u8) + isize_of!(BusyBlock))
+
+            (cur as *mut u8).offset(isize_of!(BusyBlock))
         }
+    }
+
+    unsafe fn find_free_block(&self, size: usize) -> (*mut FreeBlock, *mut FreeBlock) {
+        let s = ((size + MIN_ALLOC - 1) / MIN_ALLOC) as u16;
+
+        let mut prev = ptr::null_mut();
+        let mut cur = *(self.start as *mut *mut FreeBlock);
+        while !cur.is_null() && (*cur).size < s {
+            prev = cur;
+            cur = (*cur).next;
+        }
+
+        (prev, cur)
     }
 }
 
@@ -160,6 +187,7 @@ mod test {
     use super::private::*;
 
     use ::core::mem::size_of;
+    use ::core::ptr;
 
     fn with_memory<F>(size: usize, f: F) where F: Fn(*mut u8, &Smalloc) -> () {
         unsafe {
@@ -184,7 +212,7 @@ mod test {
             assert_eq!(
                 FreeBlock {
                     prev_size: 0x0,
-                    size: ((256 - size_of::<*mut u8>()) / MIN_ALLOC) as u16,
+                    size: ((256 - size_of!(*mut u8) - size_of!(BusyBlock)) / MIN_ALLOC) as u16,
                     next: 0x0 as *mut FreeBlock
                 },
                 *(memory.offset(isize_of!(*mut u8)) as *const FreeBlock));
@@ -207,16 +235,56 @@ mod test {
                 *(memory.offset(isize_of!(*mut u8)) as *const BusyBlock));
             assert_eq!(
                 FreeBlock {
-                    prev_size: (0x4 / MIN_ALLOC) as u16,
-                    size: ((256 - size_of!(*mut u8) - 0x8) / MIN_ALLOC) as u16,
+                    prev_size: (0x8 / MIN_ALLOC) as u16,
+                    size: ((256 - size_of!(*mut u8) - size_of!(BusyBlock) - 0x8) / MIN_ALLOC) as u16,
                     next: 0x0 as *mut FreeBlock,
                 },
                 *(memory.offset(isize_of!(*mut u8) + isize_of!(BusyBlock) + 0x8) as *mut FreeBlock));
         });
     }
 
-    // allocates a single block (proper updated tag and tag of next block)
-    // allocate 0 bytes
+    #[test]
+    #[ignore]
+    fn test_alloc_two_blocks() {
+        with_memory(256, |memory, a| unsafe {
+            let ret1 = a.alloc(32);
+            let ret2 = a.alloc(16);
+
+            assert_eq!(memory.offset(isize_of!(*mut u8) + isize_of!(BusyBlock)), ret1);
+            assert_eq!(memory.offset(isize_of!(*mut u8) + isize_of!(BusyBlock) +
+                                     32 + isize_of!(BusyBlock)), ret2);
+        });
+    }
+
+    #[test]
+    fn test_alloc_too_big() {
+        with_memory(32, |_, a| {
+            let ret = a.alloc(32 - size_of!(*mut u8) - size_of!(BusyBlock) + 1);
+
+            assert_eq!(ptr::null_mut(), ret);
+        });
+    }
+
+    #[test]
+    #[ignore]
+    fn test_alloc_max() {
+        with_memory(32, |memory, a| unsafe {
+            let ret = a.alloc(32 - size_of!(*mut u8) - size_of!(BusyBlock));
+
+            assert_eq!(memory.offset(isize_of!(*mut u8) + isize_of!(BusyBlock)), ret);
+            assert_eq!(ptr::null_mut(), *(memory as *const *mut FreeBlock));
+        });
+    }
+
+    #[test]
+    fn test_alloc_zero() {
+        with_memory(32, |_, a| {
+            let ret = a.alloc(0);
+
+            assert_eq!(ptr::null_mut(), ret);
+        });
+    }
+
     // allocate < MIN_ALLOC
     // frees single block
     // merge free blocks
