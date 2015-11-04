@@ -95,32 +95,28 @@ macro_rules! isize_of {
     ( $t:ty ) => ( ::core::mem::size_of::<$t>() as isize )
 }
 
-mod private {
-
-    #[cfg_attr(test, derive(Debug, PartialEq))]
-    #[repr(packed)]
-    pub struct FreeBlock {
-        pub prev_size: u16,
-        pub size: u16,
-        pub next: *mut FreeBlock,
-    }
-
-    #[cfg_attr(test, derive(Debug, PartialEq))]
-    #[repr(packed)]
-    pub struct BusyBlock {
-        pub prev_size: u16,
-        pub size: u16,
-    }
-
-    pub const MIN_ALLOC: usize = 4;
-}
-use private::*;
+const MIN_ALLOC: usize = 4;
 
 pub struct Smalloc {
     /// Start of the memory served by Smalloc
     pub start: *mut u8,
     /// Size of the memory served by Smalloc
     pub size: usize,
+}
+
+#[cfg_attr(test, derive(Debug, PartialEq))]
+#[repr(packed)]
+struct FreeBlock {
+    pub prev_size: u16,
+    pub size: u16,
+    pub next: *mut FreeBlock,
+}
+
+#[cfg_attr(test, derive(Debug, PartialEq))]
+#[repr(packed)]
+struct BusyBlock {
+    pub prev_size: u16,
+    pub size: u16,
 }
 
 impl Smalloc {
@@ -182,9 +178,10 @@ impl Smalloc {
 
 #[cfg(test)]
 mod test {
-    use alloc::heap;
     use super::*;
-    use super::private::*;
+    use super::{BusyBlock, FreeBlock, MIN_ALLOC};
+
+    use alloc::heap;
 
     use ::core::mem::size_of;
     use ::core::ptr;
