@@ -1,8 +1,8 @@
-/doc/
-/tests/
+/target/
+/lib/
 /rust/
 /kernel.elf
 /kernel.bin
+Cargo.lock
 *.o
 *.a
-*.rlib

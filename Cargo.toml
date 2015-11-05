@@ -1,0 +1,25 @@
+[package]
+name = "bkernel"
+version = "0.0.1"
+authors = ["Alexey Shmalko <rasen.dubi@gmail.com>"]
+
+[lib]
+name = "kernel"
+path = "src/kernel.rs"
+crate-type = ["staticlib"]
+doctest = true
+
+[dependencies.stm32f4]
+path = "./stm32f4"
+
+[dependencies.smalloc]
+path = "./smalloc"
+
+[target.thumbv7em-none-eabi]
+rustc-link-search = ["lib/thumbv7em-none-eabi"]
+
+[profile.release]
+opt-level = 3
+lto = true
+debug = true
+debug-assertions = false

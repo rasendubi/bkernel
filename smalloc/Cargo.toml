@@ -1,0 +1,9 @@
+[package]
+name = "smalloc"
+version = "0.0.1"
+authors = ["Alexey Shmalko <rasen.dubi@gmail.com>"]
+
+[lib]
+name = "smalloc"
+path = "lib.rs"
+crate-type = ["rlib"]
