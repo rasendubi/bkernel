@@ -120,12 +120,16 @@ struct BusyBlock {
 }
 
 impl Smalloc {
+    fn free_list_start(&self) -> *mut *mut FreeBlock {
+        self.start as *mut _
+    }
+
     /// Initializes memory for allocator.
     ///
     /// Must be called before any allocation.
     pub unsafe fn init(&self) {
-        *(self.start as *mut *mut FreeBlock) = self.start.offset(isize_of!(*mut u8)) as *mut FreeBlock;
-        *(self.start.offset(isize_of!(*mut u8)) as *mut FreeBlock) = FreeBlock {
+        *self.free_list_start() = self.start.offset(isize_of!(*mut u8)) as *mut FreeBlock;
+        *(self.start.offset(isize_of!(*mut u8)) as *mut _) = FreeBlock {
             prev_size: 0x0,
             size: ((self.size - size_of!(*mut u8) - size_of!(BusyBlock)) / MIN_ALLOC) as u16,
             next: ptr::null_mut(),
@@ -138,12 +142,18 @@ impl Smalloc {
                 return ptr::null_mut();
             }
 
-            let (_prev, cur) = self.find_free_block(size);
+            let (prev, cur) = self.find_free_block(size);
             if cur.is_null() {
                 return ptr::null_mut();
             }
 
             let cur = cur as *mut BusyBlock;
+
+            let prev_next_ptr = if prev.is_null() {
+                self.free_list_start()
+            } else {
+                &mut (*prev).next as *mut _
+            };
 
             *cur = BusyBlock {
                 prev_size: 2,
@@ -158,6 +168,8 @@ impl Smalloc {
                 next: ptr::null_mut(),
             };
 
+            *prev_next_ptr = next;
+
             (cur as *mut u8).offset(isize_of!(BusyBlock))
         }
     }
@@ -166,7 +178,7 @@ impl Smalloc {
         let s = ((size + MIN_ALLOC - 1) / MIN_ALLOC) as u16;
 
         let mut prev = ptr::null_mut();
-        let mut cur = *(self.start as *mut *mut FreeBlock);
+        let mut cur = *self.free_list_start();
         while !cur.is_null() && (*cur).size < s {
             prev = cur;
             cur = (*cur).next;
@@ -222,8 +234,8 @@ mod test {
             let ret = a.alloc(8);
 
             assert_eq!(memory.offset(isize_of!(*mut u8) + isize_of!(BusyBlock)), ret);
-            assert_eq!(memory.offset(isize_of!(*mut u8)) as *mut BusyBlock,
-                       *(memory as *const *mut BusyBlock));
+            assert_eq!(memory.offset(isize_of!(*mut u8) + isize_of!(BusyBlock) + 8) as *mut FreeBlock,
+                       *(memory as *const *mut FreeBlock));
             assert_eq!(
                 BusyBlock {
                     prev_size: (size_of!(*mut u8) / 4) as u16,
