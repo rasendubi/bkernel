@@ -157,12 +157,26 @@ impl Smalloc {
     ///
     /// Must be called before any allocation.
     pub unsafe fn init(&self) {
+        const MAX_ALLOC: usize = 64*1024 - 4;
+
         *self.free_list_start() = self.start.offset(ipsize()) as *mut FreeBlock;
-        *(self.start.offset(ipsize()) as *mut _) = FreeBlock {
-            prev_size: 0x1,
-            size: (self.size - psize() - bbsize()) as u16,
-            next: ptr::null_mut(),
-        };
+
+        let mut prev_size = 0;
+        let mut cur_offset = ipsize();
+        let mut size = self.size - psize();
+        while size != 0 {
+            let cur_size = ::core::cmp::min(MAX_ALLOC, size - bbsize());
+            size -= cur_size + bbsize();
+
+            *(self.start.offset(cur_offset) as *mut _) = FreeBlock {
+                prev_size: prev_size + 1,
+                size: cur_size as u16,
+                next: if size == 0 { ptr::null_mut() } else { self.start.offset(cur_offset + ibbsize() + MAX_ALLOC as isize) as *mut _ },
+            };
+
+            prev_size = cur_size as u16;
+            cur_offset += cur_size as isize + ibbsize();
+        }
     }
 
     pub fn alloc(&self, size: usize) -> *mut u8 {
@@ -262,6 +276,35 @@ mod test {
                     next: 0x0 as *mut FreeBlock
                 },
                 *(memory.offset(ipsize()) as *const FreeBlock));
+        });
+    }
+
+    #[test]
+    fn test_init_too_big() {
+        with_memory(130 * 1024, |memory, _| unsafe {
+            assert_eq!(memory.offset(ipsize()) as *mut FreeBlock,
+                       *(memory as *const *mut FreeBlock));
+            assert_eq!(
+                FreeBlock {
+                    prev_size: 0x1,
+                    size: (64*1024 - 4) as u16,
+                    next: memory.offset(ipsize() + ibbsize() + 64*1024 - 4) as *mut FreeBlock,
+                },
+                *(memory.offset(ipsize()) as *const FreeBlock));
+            assert_eq!(
+                FreeBlock {
+                    prev_size: (64*1024 - 4 + 1) as u16,
+                    size: (64*1024 - 4) as u16,
+                    next: memory.offset(ipsize() + 2*ibbsize() + 2*(64*1024 - 4)) as *mut FreeBlock,
+                },
+                *(memory.offset(ipsize() + ibbsize() + 64*1024 - 4) as *mut FreeBlock));
+            assert_eq!(
+                FreeBlock {
+                    prev_size: (64*1024 - 4 + 1) as u16,
+                    size: (130*1024 - psize() - 3*bbsize() - 2*(64*1024 - 4)) as u16,
+                    next: ptr::null_mut(),
+                },
+                *(memory.offset(ipsize() + 2*ibbsize() + 2*(64*1024 - 4)) as *mut FreeBlock));
         });
     }
 
