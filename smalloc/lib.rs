@@ -95,6 +95,36 @@ macro_rules! isize_of {
     ( $t:ty ) => ( ::core::mem::size_of::<$t>() as isize )
 }
 
+#[allow(dead_code)]
+fn psize() -> usize {
+    ::core::mem::size_of::<*mut u8>()
+}
+
+#[allow(dead_code)]
+fn ipsize() -> isize {
+    ::core::mem::size_of::<*mut u8>() as isize
+}
+
+#[allow(dead_code)]
+fn bbsize() -> usize {
+    ::core::mem::size_of::<BusyBlock>()
+}
+
+#[allow(dead_code)]
+fn ibbsize() -> isize {
+    ::core::mem::size_of::<BusyBlock>() as isize
+}
+
+#[allow(dead_code)]
+fn fbsize() -> usize {
+    ::core::mem::size_of::<FreeBlock>()
+}
+
+#[allow(dead_code)]
+fn ifbsize() -> isize {
+    ::core::mem::size_of::<FreeBlock>() as isize
+}
+
 const MIN_ALLOC: usize = 4;
 
 pub struct Smalloc {
@@ -128,10 +158,10 @@ impl Smalloc {
     ///
     /// Must be called before any allocation.
     pub unsafe fn init(&self) {
-        *self.free_list_start() = self.start.offset(isize_of!(*mut u8)) as *mut FreeBlock;
-        *(self.start.offset(isize_of!(*mut u8)) as *mut _) = FreeBlock {
+        *self.free_list_start() = self.start.offset(ipsize()) as *mut FreeBlock;
+        *(self.start.offset(ipsize()) as *mut _) = FreeBlock {
             prev_size: 0x0,
-            size: ((self.size - size_of!(*mut u8) - size_of!(BusyBlock)) / MIN_ALLOC) as u16,
+            size: ((self.size - psize() - bbsize()) / MIN_ALLOC) as u16,
             next: ptr::null_mut(),
         };
     }
@@ -161,7 +191,7 @@ impl Smalloc {
             };
 
             let next = (cur as *mut u8)
-                .offset(isize_of!(BusyBlock) + ((*cur).size as usize * MIN_ALLOC) as isize) as *mut FreeBlock;
+                .offset(ibbsize() + ((*cur).size as usize * MIN_ALLOC) as isize) as *mut FreeBlock;
             *next = FreeBlock {
                 prev_size: 2,
                 size: 59,
@@ -170,7 +200,7 @@ impl Smalloc {
 
             *prev_next_ptr = next;
 
-            (cur as *mut u8).offset(isize_of!(BusyBlock))
+            (cur as *mut u8).offset(ibbsize())
         }
     }
 
@@ -190,8 +220,10 @@ impl Smalloc {
 
 #[cfg(test)]
 mod test {
+    #![allow(unused_imports)]
+
     use super::*;
-    use super::{BusyBlock, FreeBlock, MIN_ALLOC};
+    use super::{BusyBlock, FreeBlock, MIN_ALLOC, psize, ipsize, bbsize, ibbsize, fbsize, ifbsize};
 
     use alloc::heap;
 
@@ -200,7 +232,7 @@ mod test {
 
     fn with_memory<F>(size: usize, f: F) where F: Fn(*mut u8, &Smalloc) -> () {
         unsafe {
-            let memory = heap::allocate(size, size_of::<*mut u8>());
+            let memory = heap::allocate(size, psize());
             let a: Smalloc = Smalloc {
                 start: memory,
                 size: size,
@@ -216,15 +248,15 @@ mod test {
     #[test]
     fn test_init_tags() {
         with_memory(256, |memory, _| unsafe {
-            assert_eq!(memory.offset(isize_of!(*mut u8)) as *mut FreeBlock,
+            assert_eq!(memory.offset(ipsize()) as *mut FreeBlock,
                        *(memory as *const *mut FreeBlock));
             assert_eq!(
                 FreeBlock {
                     prev_size: 0x0,
-                    size: ((256 - size_of!(*mut u8) - size_of!(BusyBlock)) / MIN_ALLOC) as u16,
+                    size: ((256 - psize() - bbsize()) / MIN_ALLOC) as u16,
                     next: 0x0 as *mut FreeBlock
                 },
-                *(memory.offset(isize_of!(*mut u8)) as *const FreeBlock));
+                *(memory.offset(ipsize()) as *const FreeBlock));
         });
     }
 
@@ -233,22 +265,22 @@ mod test {
         with_memory(256, |memory, a| unsafe {
             let ret = a.alloc(8);
 
-            assert_eq!(memory.offset(isize_of!(*mut u8) + isize_of!(BusyBlock)), ret);
-            assert_eq!(memory.offset(isize_of!(*mut u8) + isize_of!(BusyBlock) + 8) as *mut FreeBlock,
+            assert_eq!(memory.offset(ipsize() + ibbsize()), ret);
+            assert_eq!(memory.offset(ipsize() + ibbsize() + 8) as *mut FreeBlock,
                        *(memory as *const *mut FreeBlock));
             assert_eq!(
                 BusyBlock {
-                    prev_size: (size_of!(*mut u8) / 4) as u16,
+                    prev_size: (psize() / 4) as u16,
                     size: (0x8 / MIN_ALLOC) as u16,
                 },
-                *(memory.offset(isize_of!(*mut u8)) as *const BusyBlock));
+                *(memory.offset(ipsize()) as *const BusyBlock));
             assert_eq!(
                 FreeBlock {
                     prev_size: (0x8 / MIN_ALLOC) as u16,
-                    size: ((256 - size_of!(*mut u8) - size_of!(BusyBlock) - 0x8) / MIN_ALLOC) as u16,
+                    size: ((256 - psize() - bbsize() - 0x8) / MIN_ALLOC) as u16,
                     next: 0x0 as *mut FreeBlock,
                 },
-                *(memory.offset(isize_of!(*mut u8) + isize_of!(BusyBlock) + 0x8) as *mut FreeBlock));
+                *(memory.offset(ipsize() + ibbsize() + 0x8) as *mut FreeBlock));
         });
     }
 
@@ -259,16 +291,16 @@ mod test {
             let ret1 = a.alloc(32);
             let ret2 = a.alloc(16);
 
-            assert_eq!(memory.offset(isize_of!(*mut u8) + isize_of!(BusyBlock)), ret1);
-            assert_eq!(memory.offset(isize_of!(*mut u8) + isize_of!(BusyBlock) +
-                                     32 + isize_of!(BusyBlock)), ret2);
+            assert_eq!(memory.offset(ipsize() + ibbsize()), ret1);
+            assert_eq!(memory.offset(ipsize() + ibbsize() +
+                                     32 + ibbsize()), ret2);
         });
     }
 
     #[test]
     fn test_alloc_too_big() {
         with_memory(32, |_, a| {
-            let ret = a.alloc(32 - size_of!(*mut u8) - size_of!(BusyBlock) + 1);
+            let ret = a.alloc(32 - psize() - bbsize() + 1);
 
             assert_eq!(ptr::null_mut(), ret);
         });
@@ -278,9 +310,9 @@ mod test {
     #[ignore]
     fn test_alloc_max() {
         with_memory(32, |memory, a| unsafe {
-            let ret = a.alloc(32 - size_of!(*mut u8) - size_of!(BusyBlock));
+            let ret = a.alloc(32 - psize() - size_of!(BusyBlock));
 
-            assert_eq!(memory.offset(isize_of!(*mut u8) + isize_of!(BusyBlock)), ret);
+            assert_eq!(memory.offset(ipsize() + isize_of!(BusyBlock)), ret);
             assert_eq!(ptr::null_mut(), *(memory as *const *mut FreeBlock));
         });
     }
@@ -293,10 +325,4 @@ mod test {
             assert_eq!(ptr::null_mut(), ret);
         });
     }
-
-    // allocate < MIN_ALLOC
-    // frees single block
-    // merge free blocks
-    // tests for error detection
-        
 }
