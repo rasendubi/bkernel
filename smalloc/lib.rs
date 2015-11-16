@@ -176,6 +176,8 @@ impl Smalloc {
                 return ptr::null_mut();
             }
 
+            let prev_cur_size = (*cur).size;
+
             let cur = cur as *mut BusyBlock;
 
             let prev_next_ptr = if prev_empty.is_null() {
@@ -185,16 +187,15 @@ impl Smalloc {
             };
 
             *cur = BusyBlock {
-                // prev_size: (*cur).prev_size,
-                prev_size: 2,
+                prev_size: (*cur).prev_size - 1,
                 size: size as u16,
             };
 
             let next = (cur as *mut u8)
                 .offset(ibbsize() + (*cur).size as isize) as *mut FreeBlock;
             *next = FreeBlock {
-                prev_size: 9,
-                size: 236,
+                prev_size: (size + 1) as u16,
+                size: prev_cur_size - size as u16 - bbsize() as u16,
                 next: ptr::null_mut(),
             };
 
@@ -270,14 +271,14 @@ mod test {
                        *(memory as *const *mut FreeBlock));
             assert_eq!(
                 BusyBlock {
-                    prev_size: (psize() / 4) as u16,
-                    size: 0x8,
+                    prev_size: 0 as u16,
+                    size: 8,
                 },
                 *(memory.offset(ipsize()) as *const BusyBlock));
             assert_eq!(
                 FreeBlock {
                     prev_size: 0x9,
-                    size: (256 - psize() - bbsize() - 0x8) as u16,
+                    size: (256 - psize() - bbsize() - 0x8 - bbsize()) as u16,
                     next: 0x0 as *mut FreeBlock,
                 },
                 *(memory.offset(ipsize() + ibbsize() + 0x8) as *mut FreeBlock));
@@ -285,7 +286,6 @@ mod test {
     }
 
     #[test]
-    #[ignore]
     fn test_alloc_two_blocks() {
         with_memory(256, |memory, a| unsafe {
             let ret1 = a.alloc(32);
@@ -298,7 +298,7 @@ mod test {
             // - busy block for 32 bytes
             assert_eq!(
                 BusyBlock {
-                    prev_size: psize() as u16,
+                    prev_size: 0,
                     size: 32,
                 },
                 *(memory.offset(ipsize()) as *const BusyBlock));
