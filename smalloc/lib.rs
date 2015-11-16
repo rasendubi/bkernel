@@ -172,22 +172,23 @@ impl Smalloc {
                 return ptr::null_mut();
             }
 
-            let (prev, cur) = self.find_free_block(size);
+            let (prev_empty, cur) = self.find_free_block(size);
             if cur.is_null() {
                 return ptr::null_mut();
             }
 
             let cur = cur as *mut BusyBlock;
 
-            let prev_next_ptr = if prev.is_null() {
+            let prev_next_ptr = if prev_empty.is_null() {
                 self.free_list_start()
             } else {
-                &mut (*prev).next as *mut _
+                &mut (*prev_empty).next as *mut _
             };
 
             *cur = BusyBlock {
+                // prev_size: (*cur).prev_size,
                 prev_size: 2,
-                size: 2,
+                size: (size / MIN_ALLOC) as u16,
             };
 
             let next = (cur as *mut u8)
@@ -291,9 +292,37 @@ mod test {
             let ret1 = a.alloc(32);
             let ret2 = a.alloc(16);
 
+            // memory layout after test:
+            // - pointer to free block
+            assert_eq!(*(memory.offset(0) as *const *const FreeBlock),
+                       memory.offset(ipsize() + ibbsize() + 32 + ibbsize() + 16) as *const _);
+            // - busy block for 32 bytes
+            assert_eq!(
+                BusyBlock {
+                    prev_size: (psize() / MIN_ALLOC) as u16,
+                    size: (32 / MIN_ALLOC) as u16,
+                },
+                *(memory.offset(ipsize()) as *const BusyBlock));
+            // - 32 bytes of data
             assert_eq!(memory.offset(ipsize() + ibbsize()), ret1);
-            assert_eq!(memory.offset(ipsize() + ibbsize() +
-                                     32 + ibbsize()), ret2);
+            // - busy block for 16 bytes
+            assert_eq!(
+                BusyBlock {
+                    prev_size: (32 / MIN_ALLOC) as u16,
+                    size: (16 / MIN_ALLOC) as u16,
+                },
+                *(memory.offset(ipsize() + ibbsize() + 32) as *const BusyBlock));
+            // - 16 bytes of data
+            assert_eq!(memory.offset(ipsize() + ibbsize() + 32 + ibbsize()),
+                       ret2);
+            // - free block till end
+            assert_eq!(
+                FreeBlock {
+                    prev_size: (16 / MIN_ALLOC) as u16,
+                    size: ((256 - psize() - bbsize() - 32 - bbsize() - 16 - bbsize()) / MIN_ALLOC) as u16,
+                    next: 0x0 as *mut _,
+                },
+                *(memory.offset(ipsize() + ibbsize() + 32 + ibbsize() + 16) as *const FreeBlock));
         });
     }
 
