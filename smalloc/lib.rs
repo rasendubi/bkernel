@@ -193,13 +193,17 @@ impl Smalloc {
 
             let next = (cur as *mut u8)
                 .offset(ibbsize() + (*cur).size as isize) as *mut FreeBlock;
-            *next = FreeBlock {
-                prev_size: (size + 1) as u16,
-                size: prev_cur_size - size as u16 - bbsize() as u16,
-                next: ptr::null_mut(),
-            };
+            if next < self.start.offset(self.size as isize) as *mut _ {
+                *next = FreeBlock {
+                    prev_size: (size + 1) as u16,
+                    size: prev_cur_size - size as u16 - bbsize() as u16,
+                    next: ptr::null_mut(),
+                };
 
-            *prev_next_ptr = next;
+                *prev_next_ptr = next;
+            } else {
+                *prev_next_ptr = ptr::null_mut();
+            }
 
             (cur as *mut u8).offset(ibbsize())
         }
@@ -335,7 +339,6 @@ mod test {
     }
 
     #[test]
-    #[ignore]
     fn test_alloc_max() {
         with_memory(32, |memory, a| unsafe {
             let ret = a.alloc(32 - psize() - size_of!(BusyBlock));
