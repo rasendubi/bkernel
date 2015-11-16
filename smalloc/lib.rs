@@ -223,6 +223,9 @@ impl Smalloc {
         }
     }
 
+    pub fn free(&self, _ptr: *mut u8) {
+    }
+
     unsafe fn find_free_block(&self, size: usize) -> (*mut FreeBlock, *mut FreeBlock) {
         let s = size as u16;
 
@@ -397,6 +400,25 @@ mod test {
             let ret = a.alloc(0);
 
             assert_eq!(ptr::null_mut(), ret);
+        });
+    }
+
+    #[test]
+    #[ignore]
+    fn test_free_single_block() {
+        with_memory(256, |memory, a| unsafe {
+            let ptr = a.alloc(32);
+            a.free(ptr);
+
+            assert_eq!(memory.offset(ipsize()) as *mut FreeBlock,
+                       *(memory as *const *mut FreeBlock));
+            assert_eq!(
+                FreeBlock {
+                    prev_size: 0x1,
+                    size: (256 - psize() - bbsize()) as u16,
+                    next: 0x0 as *mut FreeBlock
+                },
+                *(memory.offset(ipsize()) as *const FreeBlock));
         });
     }
 }
