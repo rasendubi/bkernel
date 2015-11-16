@@ -19,9 +19,8 @@
 //!
 //!    Is used to traverse blocks backward.
 //!
-//!    We don't need to traverse free blocks backward, so for free
-//!    blocks, previous size is set to 0 (that's how we can
-//!    distinguish free blocks).
+//!    The lowest bit is used to distinguish free/busy blocks. 0 is
+//!    for busy block, 1 for free.
 //! - `u16` size of current block / minimal allocation size
 //!
 //!    Is used to traverse blocks forward.
@@ -31,13 +30,15 @@
 //!    This links all free blocks in increasing size order. Sorting
 //!    speedups best-fit search.
 //!
-//! Embedded devices don't usually have allocations larger than 256
-//! kbytes, so it's perfectly safe to have 2-byte long sizes with 4
-//! byte granularity. Thus, the maximum single allocation size is
-//! 262140 bytes (almost 256 kbytes) if minimal allocation size is 4
-//! bytes. Note that allocator is still able to handle memories larger
-//! than this, the limit is active for single block sizes. Then total
-//! size of tag is 4 bytes.
+//! Embedded devices don't usually have allocations larger than 64
+//! kbytes, so it's perfectly safe to have 2-byte long sizes. Thus,
+//! the maximum single allocation size is 65535 bytes (almost 64
+//! kbytes). Note that allocator is still able to handle memories
+//! larger than this, the limit is active for single block sizes. Then
+//! total size of tag is 4 bytes.
+//!
+//! Note: it's possible to allocate whole 65536 bytes (full 64 kbytes
+//! if treat size 0 as 64 kbytes)
 //!
 //! ## Allocation
 //! The allocation is done by traversing the list of free blocks and
@@ -125,8 +126,6 @@ fn ifbsize() -> isize {
     ::core::mem::size_of::<FreeBlock>() as isize
 }
 
-const MIN_ALLOC: usize = 4;
-
 pub struct Smalloc {
     /// Start of the memory served by Smalloc
     pub start: *mut u8,
@@ -160,8 +159,8 @@ impl Smalloc {
     pub unsafe fn init(&self) {
         *self.free_list_start() = self.start.offset(ipsize()) as *mut FreeBlock;
         *(self.start.offset(ipsize()) as *mut _) = FreeBlock {
-            prev_size: 0x0,
-            size: ((self.size - psize() - bbsize()) / MIN_ALLOC) as u16,
+            prev_size: 0x1,
+            size: (self.size - psize() - bbsize()) as u16,
             next: ptr::null_mut(),
         };
     }
@@ -188,14 +187,14 @@ impl Smalloc {
             *cur = BusyBlock {
                 // prev_size: (*cur).prev_size,
                 prev_size: 2,
-                size: (size / MIN_ALLOC) as u16,
+                size: size as u16,
             };
 
             let next = (cur as *mut u8)
-                .offset(ibbsize() + ((*cur).size as usize * MIN_ALLOC) as isize) as *mut FreeBlock;
+                .offset(ibbsize() + (*cur).size as isize) as *mut FreeBlock;
             *next = FreeBlock {
-                prev_size: 2,
-                size: 59,
+                prev_size: 9,
+                size: 236,
                 next: ptr::null_mut(),
             };
 
@@ -206,7 +205,7 @@ impl Smalloc {
     }
 
     unsafe fn find_free_block(&self, size: usize) -> (*mut FreeBlock, *mut FreeBlock) {
-        let s = ((size + MIN_ALLOC - 1) / MIN_ALLOC) as u16;
+        let s = size as u16;
 
         let mut prev = ptr::null_mut();
         let mut cur = *self.free_list_start();
@@ -224,7 +223,7 @@ mod test {
     #![allow(unused_imports)]
 
     use super::*;
-    use super::{BusyBlock, FreeBlock, MIN_ALLOC, psize, ipsize, bbsize, ibbsize, fbsize, ifbsize};
+    use super::{BusyBlock, FreeBlock, psize, ipsize, bbsize, ibbsize, fbsize, ifbsize};
 
     use alloc::heap;
 
@@ -253,8 +252,8 @@ mod test {
                        *(memory as *const *mut FreeBlock));
             assert_eq!(
                 FreeBlock {
-                    prev_size: 0x0,
-                    size: ((256 - psize() - bbsize()) / MIN_ALLOC) as u16,
+                    prev_size: 0x1,
+                    size: (256 - psize() - bbsize()) as u16,
                     next: 0x0 as *mut FreeBlock
                 },
                 *(memory.offset(ipsize()) as *const FreeBlock));
@@ -272,13 +271,13 @@ mod test {
             assert_eq!(
                 BusyBlock {
                     prev_size: (psize() / 4) as u16,
-                    size: (0x8 / MIN_ALLOC) as u16,
+                    size: 0x8,
                 },
                 *(memory.offset(ipsize()) as *const BusyBlock));
             assert_eq!(
                 FreeBlock {
-                    prev_size: (0x8 / MIN_ALLOC) as u16,
-                    size: ((256 - psize() - bbsize() - 0x8) / MIN_ALLOC) as u16,
+                    prev_size: 0x9,
+                    size: (256 - psize() - bbsize() - 0x8) as u16,
                     next: 0x0 as *mut FreeBlock,
                 },
                 *(memory.offset(ipsize() + ibbsize() + 0x8) as *mut FreeBlock));
@@ -299,8 +298,8 @@ mod test {
             // - busy block for 32 bytes
             assert_eq!(
                 BusyBlock {
-                    prev_size: (psize() / MIN_ALLOC) as u16,
-                    size: (32 / MIN_ALLOC) as u16,
+                    prev_size: psize() as u16,
+                    size: 32,
                 },
                 *(memory.offset(ipsize()) as *const BusyBlock));
             // - 32 bytes of data
@@ -308,8 +307,8 @@ mod test {
             // - busy block for 16 bytes
             assert_eq!(
                 BusyBlock {
-                    prev_size: (32 / MIN_ALLOC) as u16,
-                    size: (16 / MIN_ALLOC) as u16,
+                    prev_size: 32,
+                    size: 16,
                 },
                 *(memory.offset(ipsize() + ibbsize() + 32) as *const BusyBlock));
             // - 16 bytes of data
@@ -318,8 +317,8 @@ mod test {
             // - free block till end
             assert_eq!(
                 FreeBlock {
-                    prev_size: (16 / MIN_ALLOC) as u16,
-                    size: ((256 - psize() - bbsize() - 32 - bbsize() - 16 - bbsize()) / MIN_ALLOC) as u16,
+                    prev_size: 17,
+                    size: (256 - psize() - bbsize() - 32 - bbsize() - 16 - bbsize()) as u16,
                     next: 0x0 as *mut _,
                 },
                 *(memory.offset(ipsize() + ibbsize() + 32 + ibbsize() + 16) as *const FreeBlock));
