@@ -194,11 +194,7 @@ impl Smalloc {
 
             let cur = cur as *mut BusyBlock;
 
-            let prev_next_ptr = if prev_empty.is_null() {
-                self.free_list_start()
-            } else {
-                &mut (*prev_empty).next as *mut _
-            };
+            let prev_next_ptr = self.get_next_ptr(prev_empty);
 
             *cur = BusyBlock {
                 prev_size: (*cur).prev_size - 1,
@@ -230,7 +226,15 @@ impl Smalloc {
             // mark block as free
             (*block).prev_size += 1;
 
-            self.install_free_block(block);
+            // try merge with next
+            let next = (block as *mut u8).offset(ibbsize() + (*block).size as isize) as *mut FreeBlock;
+            if (*next).prev_size & 0x1 != 0 { // it's indeed free
+                (*block).size += bbsize() as u16 + (*next).size;
+                let prev = self.find_previous_block(next);
+                *self.get_next_ptr(prev) = block;
+            } else {
+                self.install_free_block(block);
+            }
         }
     }
 
@@ -246,20 +250,41 @@ impl Smalloc {
     }
 
     unsafe fn install_free_block(&self, block: *mut FreeBlock) {
+        // TODO: maybe sort them by memory address when the size is same.
+        // That will allow one neat optimization in the future
         let (prev, next) = self.find_free_block((*block).size);
 
-        let prev_next = if prev.is_null() { self.free_list_start() } else { &mut (*prev).next as *mut _ };
+        let prev_next = self.get_next_ptr(prev);
 
         *prev_next = block;
         (*block).next = next;
+    }
+
+    unsafe fn find_previous_block(&self, block: *mut FreeBlock) -> *mut FreeBlock {
+        let mut prev = ptr::null_mut();
+        let mut cur = *self.free_list_start();
+
+        while cur != block {
+            prev = cur;
+            cur = (*cur).next;
+        }
+
+        prev
+    }
+
+    unsafe fn get_next_ptr(&self, block: *mut FreeBlock) -> *mut *mut FreeBlock {
+        if block.is_null() {
+            self.free_list_start()
+        } else {
+            &mut (*block).next as *mut _
+        }
     }
 }
 
 #[cfg(test)]
 mod test {
-    #![allow(unused_imports)]
-
     use super::*;
+    #[allow(unused_imports)]
     use super::{BusyBlock, FreeBlock, psize, ipsize, bbsize, ibbsize, fbsize, ifbsize};
 
     use alloc::heap;
@@ -419,7 +444,6 @@ mod test {
     }
 
     #[test]
-    #[ignore]
     fn test_free_single_block() {
         with_memory(256, |memory, a| unsafe {
             let ptr = a.alloc(32);
