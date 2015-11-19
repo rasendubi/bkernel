@@ -185,7 +185,7 @@ impl Smalloc {
                 return ptr::null_mut();
             }
 
-            let (prev_empty, cur) = self.find_free_block(size);
+            let (prev_empty, cur) = self.find_free_block(size as u16);
             if cur.is_null() {
                 return ptr::null_mut();
             }
@@ -223,20 +223,35 @@ impl Smalloc {
         }
     }
 
-    pub fn free(&self, _ptr: *mut u8) {
+    pub fn free(&self, ptr: *mut u8) {
+        unsafe {
+            let block = ptr.offset(-ibbsize()) as *mut FreeBlock;
+
+            // mark block as free
+            (*block).prev_size += 1;
+
+            self.install_free_block(block);
+        }
     }
 
-    unsafe fn find_free_block(&self, size: usize) -> (*mut FreeBlock, *mut FreeBlock) {
-        let s = size as u16;
-
+    unsafe fn find_free_block(&self, size: u16) -> (*mut FreeBlock, *mut FreeBlock) {
         let mut prev = ptr::null_mut();
         let mut cur = *self.free_list_start();
-        while !cur.is_null() && (*cur).size < s {
+        while !cur.is_null() && (*cur).size < size {
             prev = cur;
             cur = (*cur).next;
         }
 
         (prev, cur)
+    }
+
+    unsafe fn install_free_block(&self, block: *mut FreeBlock) {
+        let (prev, next) = self.find_free_block((*block).size);
+
+        let prev_next = if prev.is_null() { self.free_list_start() } else { &mut (*prev).next as *mut _ };
+
+        *prev_next = block;
+        (*block).next = next;
     }
 }
 
@@ -419,6 +434,47 @@ mod test {
                     next: 0x0 as *mut FreeBlock
                 },
                 *(memory.offset(ipsize()) as *const FreeBlock));
+        });
+    }
+
+    #[test]
+    fn test_free_first() {
+        // This test is similar to test_alloc_two_blocks
+        with_memory(256, |memory, a| unsafe {
+            let ptr1 = a.alloc(32);
+            let _ptr2 = a.alloc(16);
+            a.free(ptr1);
+
+            // The memory now is:
+            // - pointer to new free block
+            assert_eq!(memory.offset(ipsize()) as *mut FreeBlock,
+                      *(memory as *const *mut FreeBlock));
+
+            // - free block itself (points to next big block
+            assert_eq!(
+                FreeBlock {
+                    prev_size: 1,
+                    size: 32,
+                    next: memory.offset(ipsize() + ibbsize() + 32 + ibbsize() + 16) as *mut _,
+                },
+                *(memory.offset(ipsize()) as *const FreeBlock));
+
+            // - second busy block
+            assert_eq!(
+                BusyBlock {
+                    prev_size: 32,
+                    size: 16,
+                },
+                *(memory.offset(ipsize() + ibbsize() + 32) as *const BusyBlock));
+
+            // - free block till the end
+            assert_eq!(
+                FreeBlock {
+                    prev_size: 17,
+                    size: (256 - psize() - bbsize() - 32 - bbsize() - 16 - bbsize()) as u16,
+                    next: 0x0 as *mut _,
+                },
+                *(memory.offset(ipsize() + ibbsize() + 32 + ibbsize() + 16) as *const FreeBlock));
         });
     }
 }
