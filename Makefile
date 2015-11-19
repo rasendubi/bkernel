@@ -1,6 +1,5 @@
 CC := arm-none-eabi-gcc
 LD := arm-none-eabi-gcc
-AR := arm-none-eabi-ar
 OBJCOPY := arm-none-eabi-objcopy
 RUST := rustc
 
@@ -30,14 +29,11 @@ kernel.bin: kernel.elf
 kernel.elf: src/bootstrap.o target/$(TARGET)/release/libkernel.a
 	$(LD) $(LDFLAGS) -o $@ $^
 
-target/$(TARGET)/release/libkernel.a: $(SOURCES) lib/$(TARGET)/libcore.rlib lib/$(TARGET)/libcompiler-rt.a
+target/$(TARGET)/release/libkernel.a: $(SOURCES) lib/$(TARGET)/libcore.rlib
 	cargo rustc --target=thumbv7em-none-eabi --release -- -Z no-landing-pads
 
 %.o: %.s
 	$(CC) $(CFLAGS) -o $@ -c $^
-
-lib/$(TARGET)/libcompiler-rt.a: compiler-rt.o
-	$(AR) rcs $@ $^
 
 lib/$(TARGET)/libcore.rlib: $(RUSTDIR)/src/libcore | checkout_rust lib/$(TARGET)
 	$(RUST) $(RUSTFLAGS) $(RUSTDIR)/src/libcore/lib.rs --out-dir lib/$(TARGET)

@@ -14,5 +14,6 @@
     "morestack": false,
     "disable-redzone": true,
     "executables": true,
-    "dynamic_linking": false
+    "dynamic_linking": false,
+    "no-compiler-rt": true
 }
