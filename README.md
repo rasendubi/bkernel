@@ -14,6 +14,17 @@ If you don't know where to get one, you can get it [there](https://launchpad.net
 - Unpack
 - Add `<path_to_toolchain>/bin` to your `$PATH` variable
 
+## Rust version
+
+This project needs lots of nightly features:
+
+- inline assembly
+- no stdlib
+- intrinsics
+- lang items
+
+Nightly builds are not backward-compatible, so only the latest version is supported (it changes every 6 weeks). That's why you need a reasonably up-to-date nightly rust.
+
 ## Rust sources
 
 bkernel needs Rust sources to build libcore for the target. If you don't have one, don't worry: it will be automatically downloaded to `rust` directory.
