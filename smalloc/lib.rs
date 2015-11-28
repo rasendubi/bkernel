@@ -81,7 +81,6 @@
 #![no_std]
 
 #![cfg_attr(test, feature(alloc, heap_api))]
-#![cfg_attr(test, allow(raw_pointer_derive))]
 
 #[cfg(test)]
 extern crate alloc;

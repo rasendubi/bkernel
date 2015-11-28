@@ -52,7 +52,10 @@ checkout_rust: $(RUSTDIR)
 
 .PHONY: doc
 doc: lib/$(TARGET)/libcore.rlib
-	cargo doc --target=$(TARGET)
+	# Cargo doesn't pass custom link directory to `cargo doc`,
+	# so building doc for thumbv7em-none-eabi with cargo is impossible now.
+	# See https://github.com/rust-lang/cargo/issues/2175
+	cargo doc #--target=$(TARGET)
 
 .PHONY: test
 test:

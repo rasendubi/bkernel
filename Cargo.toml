@@ -2,6 +2,7 @@
 name = "bkernel"
 version = "0.0.1"
 authors = ["Alexey Shmalko <rasen.dubi@gmail.com>"]
+build = "build.rs"
 
 [lib]
 name = "kernel"
@@ -14,9 +15,6 @@ path = "./stm32f4"
 
 [dependencies.smalloc]
 path = "./smalloc"
-
-[target.thumbv7em-none-eabi]
-rustc-link-search = ["lib/thumbv7em-none-eabi"]
 
 [profile.release]
 opt-level = 3

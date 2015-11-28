@@ -2,6 +2,7 @@
 name = "stm32f4"
 version = "0.0.1"
 authors = ["Alexey Shmalko <rasen.dubi@gmail.com>"]
+build = "../build.rs"
 
 [lib]
 name = "stm32f4"
