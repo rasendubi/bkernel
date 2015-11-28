@@ -48,7 +48,7 @@ rust/src/libcore: rust
 
 .PHONY: checkout_rust
 checkout_rust: $(RUSTDIR)
-	cd $(RUSTDIR) && [ "$$(git rev-parse HEAD)" = "$(RUSTC_COMMIT)" ] || git checkout -q $(RUSTC_COMMIT)
+	cd $(RUSTDIR) && [ "$$(git rev-parse HEAD)" = "$(RUSTC_COMMIT)" ] || git checkout -q $(RUSTC_COMMIT) || ( git fetch && git checkout -q $(RUSTC_COMMIT) )
 
 .PHONY: doc
 doc: lib/$(TARGET)/libcore.rlib
