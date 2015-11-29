@@ -135,16 +135,30 @@ pub struct Smalloc {
 #[cfg_attr(test, derive(Debug, PartialEq))]
 #[repr(packed)]
 struct FreeBlock {
-    pub prev_size: u16,
-    pub size: u16,
-    pub next: *mut FreeBlock,
+    prev_size: u16,
+    size: u16,
+    next: *mut FreeBlock,
 }
 
 #[cfg_attr(test, derive(Debug, PartialEq))]
 #[repr(packed)]
 struct BusyBlock {
-    pub prev_size: u16,
-    pub size: u16,
+    prev_size: u16,
+    size: u16,
+}
+
+impl FreeBlock {
+    pub fn is_free(&self) -> bool {
+        self.prev_size & 0x1 != 0
+    }
+}
+
+impl BusyBlock {
+    // It's here for symmetry
+    #[allow(dead_code)]
+    pub fn is_free(&self) -> bool {
+        self.prev_size & 0x1 != 0
+    }
 }
 
 impl Smalloc {
@@ -226,7 +240,7 @@ impl Smalloc {
             let prev_block = (block as *mut u8).offset(-((*block).prev_size as isize) - ibbsize()) as *mut FreeBlock;
             let next_block = (block as *mut u8).offset(ibbsize() + (*block).size as isize) as *mut FreeBlock;
 
-            if (*block).prev_size != 0 && (*prev_block).prev_size & 0x1 != 0 {
+            if (*block).prev_size != 0 && (*prev_block).is_free() {
                 let prev = self.find_previous_block(prev_block);
                 // remove prev_block from list temporary
                 *self.get_next_ptr(prev) = (*prev_block).next;
@@ -243,7 +257,7 @@ impl Smalloc {
 
             // try merge with next
             if (next_block as *mut u8) < self.start.offset(self.size as isize) &&
-                (*next_block).prev_size & 0x1 != 0 { // it's indeed free
+                (*next_block).is_free() {
                     let prev = self.find_previous_block(next_block);
                     *self.get_next_ptr(prev) = (*next_block).next;
 
@@ -260,8 +274,13 @@ impl Smalloc {
     }
 
     unsafe fn find_free_block(&self, size: u16) -> (*mut FreeBlock, *mut FreeBlock) {
-        let mut prev = ptr::null_mut();
-        let mut cur = *self.free_list_start();
+        self.find_free_after(size, ptr::null_mut())
+    }
+
+    unsafe fn find_free_after(&self, size: u16, after: *mut FreeBlock) -> (*mut FreeBlock, *mut FreeBlock) {
+        let mut prev = after;
+        let mut cur = *self.get_next_ptr(prev);
+
         while !cur.is_null() && (*cur).size < size {
             prev = cur;
             cur = (*cur).next;
@@ -271,13 +290,16 @@ impl Smalloc {
     }
 
     unsafe fn install_free_block(&self, block: *mut FreeBlock) {
-        // TODO: maybe sort them by memory address when the size is same.
-        // That will allow one neat optimization in the future
-        let (prev, next) = self.find_free_block((*block).size);
+        let (mut prev, mut next) = self.find_free_block((*block).size);
 
-        let prev_next = self.get_next_ptr(prev);
+        // sort them by memory address when the size is same.
+        // That allows one neat optimization in the free.
+        while !next.is_null() && (*next).size == (*block).size && block > next {
+            prev = next;
+            next = (*next).next;
+        }
 
-        *prev_next = block;
+        *self.get_next_ptr(prev) = block;
         (*block).next = next;
     }
 
@@ -696,6 +718,36 @@ mod test {
                     next: 0x0 as *mut FreeBlock
                 },
                 *(memory.offset(ipsize()) as *const FreeBlock));
+        });
+    }
+
+    #[test]
+    fn test_free_list_is_sorted() {
+        with_memory(512, |memory, a| unsafe {
+            let ptr1 = a.alloc(16);
+            let _ptr2 = a.alloc(8);
+            let ptr3 = a.alloc(16);
+            let _ptr4 = a.alloc(8);
+            let ptr5 = a.alloc(16);
+            let _ptr6 = a.alloc(8);
+
+            a.free(ptr1);
+            a.free(ptr5);
+            a.free(ptr3);
+
+            // free list now is:
+            // - start -> ptr1
+            assert_eq!(ptr1.offset(-ibbsize()) as *mut FreeBlock,
+                       *(memory as *const *mut FreeBlock));
+            // - ptr1 -> ptr3
+            assert_eq!(ptr3.offset(-ibbsize()) as *mut FreeBlock,
+                       *(ptr1 as *const *mut FreeBlock));
+            // - ptr3 -> ptr5
+            assert_eq!(ptr5.offset(-ibbsize()) as *mut FreeBlock,
+                       *(ptr3 as *const *mut FreeBlock));
+            // - ptr5 -> rest
+            assert_eq!(memory.offset(ipsize() + 6*ibbsize() + 3*16 + 3*8) as *mut FreeBlock,
+                       *(ptr5 as *const *mut FreeBlock));
         });
     }
 }
