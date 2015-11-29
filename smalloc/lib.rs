@@ -192,11 +192,13 @@ impl Smalloc {
         }
     }
 
-    pub fn alloc(&self, size: usize) -> *mut u8 {
+    pub fn alloc(&self, mut size: usize) -> *mut u8 {
         unsafe {
             if size == 0 {
                 return ptr::null_mut();
             }
+
+            size = (size + psize() - 1) & !(psize() - 1);
 
             let (prev_empty, cur) = self.find_free_block(size as u16);
             if cur.is_null() {
@@ -460,8 +462,8 @@ mod test {
 
     #[test]
     fn test_alloc_too_big() {
-        with_memory(32, |_, a| {
-            let ret = a.alloc(32 - psize() - bbsize() + 1);
+        with_memory(36 + psize(), |_, a| {
+            let ret = a.alloc(32 + 1);
 
             assert_eq!(ptr::null_mut(), ret);
         });
@@ -469,10 +471,10 @@ mod test {
 
     #[test]
     fn test_alloc_max() {
-        with_memory(32, |memory, a| unsafe {
-            let ret = a.alloc(32 - psize() - size_of!(BusyBlock));
+        with_memory(36 + psize(), |memory, a| unsafe {
+            let ret = a.alloc(32);
 
-            assert_eq!(memory.offset(ipsize() + isize_of!(BusyBlock)), ret);
+            assert_eq!(memory.offset(ipsize() + ibbsize()), ret);
             assert_eq!(ptr::null_mut(), *(memory as *const *mut FreeBlock));
         });
     }
@@ -748,6 +750,25 @@ mod test {
             // - ptr5 -> rest
             assert_eq!(memory.offset(ipsize() + 6*ibbsize() + 3*16 + 3*8) as *mut FreeBlock,
                        *(ptr5 as *const *mut FreeBlock));
+        });
+    }
+
+    #[test]
+    fn test_alloc_align() {
+        fn round_up(value: u16) -> u16 {
+            (value + psize() as u16 - 1) / psize() as u16 * psize() as u16
+        }
+
+        with_memory(512, |_, a| unsafe {
+            let ptr1 = a.alloc(1);
+            let ptr2 = a.alloc(14);
+            let ptr3 = a.alloc(17);
+
+            // allocation granularity is size of pointer (it should be
+            // larger than size of BusyBlock)
+            assert_eq!(round_up(1),  (*(ptr1.offset(-ibbsize()) as *const BusyBlock)).size);
+            assert_eq!(round_up(14), (*(ptr2.offset(-ibbsize()) as *const BusyBlock)).size);
+            assert_eq!(round_up(17), (*(ptr3.offset(-ibbsize()) as *const BusyBlock)).size);
         });
     }
 }
