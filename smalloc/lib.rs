@@ -135,16 +135,16 @@ pub struct Smalloc {
 #[cfg_attr(test, derive(Debug, PartialEq))]
 #[repr(packed)]
 struct FreeBlock {
-    prev_size: u16,
-    size: u16,
-    next: *mut FreeBlock,
+    pub prev_size: u16,
+    pub size: u16,
+    pub next: *mut FreeBlock,
 }
 
 #[cfg_attr(test, derive(Debug, PartialEq))]
 #[repr(packed)]
 struct BusyBlock {
-    prev_size: u16,
-    size: u16,
+    pub prev_size: u16,
+    pub size: u16,
 }
 
 impl FreeBlock {
@@ -205,30 +205,30 @@ impl Smalloc {
                 return ptr::null_mut();
             }
 
+            // remove block from free list
+            *self.get_next_ptr(prev_empty) = (*cur).next;
+
             let prev_cur_size = (*cur).size;
-
-            let cur = cur as *mut BusyBlock;
-
-            let prev_next_ptr = self.get_next_ptr(prev_empty);
-
-            *cur = BusyBlock {
-                prev_size: (*cur).prev_size - 1,
-                size: size as u16,
-            };
-
-            let next = (cur as *mut u8)
-                .offset(ibbsize() + (*cur).size as isize) as *mut FreeBlock;
-            if next < self.start.offset(self.size as isize) as *mut _ {
-                *next = FreeBlock {
+            if (prev_cur_size as isize) - (size as isize) < ifbsize() {
+                size = prev_cur_size as usize;
+            } else {
+                let split_next = (cur as *mut u8)
+                    .offset(ibbsize() + size as isize) as *mut FreeBlock;
+                *split_next = FreeBlock {
                     prev_size: (size + 1) as u16,
                     size: prev_cur_size - size as u16 - bbsize() as u16,
                     next: ptr::null_mut(),
                 };
 
-                *prev_next_ptr = next;
-            } else {
-                *prev_next_ptr = ptr::null_mut();
+                self.install_free_block(split_next);
             }
+
+            let cur = cur as *mut BusyBlock;
+
+            *cur = BusyBlock {
+                prev_size: (*cur).prev_size - 1,
+                size: size as u16,
+            };
 
             (cur as *mut u8).offset(ibbsize())
         }
@@ -769,6 +769,46 @@ mod test {
             assert_eq!(round_up(1),  (*(ptr1.offset(-ibbsize()) as *const BusyBlock)).size);
             assert_eq!(round_up(14), (*(ptr2.offset(-ibbsize()) as *const BusyBlock)).size);
             assert_eq!(round_up(17), (*(ptr3.offset(-ibbsize()) as *const BusyBlock)).size);
+        });
+    }
+
+    #[test]
+    fn test_dont_split_too_small() {
+        with_memory(512, |memory, a| unsafe {
+            let ptr1 = a.alloc(32);
+            let _ptr2 = a.alloc(8);
+            a.free(ptr1);
+            let ptr3 = a.alloc(32 - psize());
+
+            // block of ptr1 should be reused
+            assert_eq!(ptr1, ptr3);
+
+            // The memory is:
+            // - pointer to only free block in memory
+            assert_eq!(memory.offset(ipsize() + 2*ibbsize() + 32 + 8) as *mut FreeBlock,
+                       *(memory as *mut _));
+            // - BusyBlock as for ptr1
+            assert_eq!(
+                BusyBlock {
+                    prev_size: 0,
+                    size: 32,
+                },
+                *(memory.offset(ipsize()) as *mut _));
+            // - BusyBlock for ptr3
+            assert_eq!(
+                BusyBlock {
+                    prev_size: 32,
+                    size: 8,
+                },
+                *(memory.offset(ipsize() + ibbsize() + 32) as *mut _));
+            // - free block till end
+            assert_eq!(
+                FreeBlock {
+                    prev_size: 9,
+                    size: 512 - (psize() + 3*bbsize() + 32 + 8) as u16,
+                    next: ptr::null_mut(),
+                },
+                *(memory.offset(ipsize() + 2*ibbsize() + 32 + 8) as *mut _));
         });
     }
 }
