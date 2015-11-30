@@ -192,87 +192,83 @@ impl Smalloc {
         }
     }
 
-    pub fn alloc(&self, mut size: usize) -> *mut u8 {
-        unsafe {
-            if size == 0 {
-                return ptr::null_mut();
-            }
+    pub unsafe fn alloc(&self, mut size: usize) -> *mut u8 {
+        if size == 0 {
+            return ptr::null_mut();
+        }
 
-            size = (size + psize() - 1) & !(psize() - 1);
+        size = (size + psize() - 1) & !(psize() - 1);
 
-            let (prev_empty, cur) = self.find_free_block(size as u16);
-            if cur.is_null() {
-                return ptr::null_mut();
-            }
+        let (prev_empty, cur) = self.find_free_block(size as u16);
+        if cur.is_null() {
+            return ptr::null_mut();
+        }
 
-            // remove block from free list
-            *self.get_next_ptr(prev_empty) = (*cur).next;
+        // remove block from free list
+        *self.get_next_ptr(prev_empty) = (*cur).next;
 
-            let prev_cur_size = (*cur).size;
-            if (prev_cur_size as isize) - (size as isize) < ifbsize() {
-                size = prev_cur_size as usize;
-            } else {
-                let split_next = (cur as *mut u8)
-                    .offset(ibbsize() + size as isize) as *mut FreeBlock;
-                *split_next = FreeBlock {
-                    prev_size: (size + 1) as u16,
-                    size: prev_cur_size - size as u16 - bbsize() as u16,
-                    next: ptr::null_mut(),
-                };
-
-                self.install_free_block(split_next);
-            }
-
-            let cur = cur as *mut BusyBlock;
-
-            *cur = BusyBlock {
-                prev_size: (*cur).prev_size - 1,
-                size: size as u16,
+        let prev_cur_size = (*cur).size;
+        if (prev_cur_size as isize) - (size as isize) < ifbsize() {
+            size = prev_cur_size as usize;
+        } else {
+            let split_next = (cur as *mut u8)
+                .offset(ibbsize() + size as isize) as *mut FreeBlock;
+            *split_next = FreeBlock {
+                prev_size: (size + 1) as u16,
+                size: prev_cur_size - size as u16 - bbsize() as u16,
+                next: ptr::null_mut(),
             };
 
-            (cur as *mut u8).offset(ibbsize())
+            self.install_free_block(split_next);
         }
+
+        let cur = cur as *mut BusyBlock;
+
+        *cur = BusyBlock {
+            prev_size: (*cur).prev_size - 1,
+            size: size as u16,
+        };
+
+        (cur as *mut u8).offset(ibbsize())
     }
 
-    pub fn free(&self, ptr: *mut u8) {
-        unsafe {
-            let mut block = ptr.offset(-ibbsize()) as *mut FreeBlock;
+    pub unsafe fn free(&self, ptr: *mut u8) {
+        let mut block = ptr.offset(-ibbsize()) as *mut FreeBlock;
 
-            // try merge with previous
-            let prev_block = (block as *mut u8).offset(-((*block).prev_size as isize) - ibbsize()) as *mut FreeBlock;
-            let next_block = (block as *mut u8).offset(ibbsize() + (*block).size as isize) as *mut FreeBlock;
+        // try merge with previous
+        let prev_block = (block as *mut u8).offset(-((*block).prev_size as isize) - ibbsize()) as *mut FreeBlock;
+        let next_block = (block as *mut u8).offset(ibbsize() + (*block).size as isize) as *mut FreeBlock;
 
-            if (*block).prev_size != 0 && (*prev_block).is_free() {
-                let prev = self.find_previous_block(prev_block);
-                // remove prev_block from list temporary
-                *self.get_next_ptr(prev) = (*prev_block).next;
+        if (*block).prev_size != 0 && (*prev_block).is_free() {
+            let prev = self.find_previous_block(prev_block);
+            // remove prev_block from list temporary
+            *self.get_next_ptr(prev) = (*prev_block).next;
 
-                if (next_block as *mut u8) < self.start.offset(self.size as isize) {
-                    (*next_block).prev_size += (*prev_block).size + bbsize() as u16;
-                }
-                (*prev_block).size += (*block).size + bbsize() as u16;
-                block = prev_block;
-            } else {
-                // mark block as free
-                (*block).prev_size += 1;
+            if (next_block as *mut u8) < self.start.offset(self.size as isize) {
+                (*next_block).prev_size += (*prev_block).size + bbsize() as u16;
             }
-
-            // try merge with next
-            if (next_block as *mut u8) < self.start.offset(self.size as isize) &&
-                (*next_block).is_free() {
-                    let prev = self.find_previous_block(next_block);
-                    *self.get_next_ptr(prev) = (*next_block).next;
-
-                    let next_next = (next_block as *mut u8).offset(ibbsize() + (*next_block).size as isize) as *mut FreeBlock;
-                    if (next_next as *mut u8) < self.start.offset(self.size as isize) {
-                        (*next_next).prev_size += (*block).size + bbsize() as u16;
-                    }
-
-                    (*block).size += bbsize() as u16 + (*next_block).size;
-            }
-
-            self.install_free_block(block);
+            (*prev_block).size += (*block).size + bbsize() as u16;
+            block = prev_block;
+        } else {
+            // mark block as free
+            (*block).prev_size += 1;
         }
+
+        // try merge with next
+        if (next_block as *mut u8) < self.start.offset(self.size as isize) &&
+            (*next_block).is_free() {
+                let prev = self.find_previous_block(next_block);
+                *self.get_next_ptr(prev) = (*next_block).next;
+
+                let next_next = (next_block as *mut u8).offset(ibbsize() + (*next_block).size as isize) as *mut FreeBlock;
+                if (next_next as *mut u8) < self.start.offset(self.size as isize) {
+                    (*next_next).prev_size += (*block).size + bbsize() as u16;
+                }
+
+                (*block).size += bbsize() as u16 + (*next_block).size;
+            }
+
+        self.install_free_block(block);
     }
 
     unsafe fn find_free_block(&self, size: u16) -> (*mut FreeBlock, *mut FreeBlock) {
@@ -462,7 +458,7 @@ mod test {
 
     #[test]
     fn test_alloc_too_big() {
-        with_memory(36 + psize(), |_, a| {
+        with_memory(36 + psize(), |_, a| unsafe {
             let ret = a.alloc(32 + 1);
 
             assert_eq!(ptr::null_mut(), ret);
@@ -481,7 +477,7 @@ mod test {
 
     #[test]
     fn test_alloc_zero() {
-        with_memory(32, |_, a| {
+        with_memory(32, |_, a| unsafe {
             let ret = a.alloc(0);
 
             assert_eq!(ptr::null_mut(), ret);
