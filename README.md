@@ -67,3 +67,9 @@ The following commands are supported:
 # Issues
 
 If you have any issues or questions with the bkernel, just [open an issue](https://github.com/rasendubi/bkernel/issues) or mail me at [rasen.dubi@gmail.com](mailto:rasen.dubi@gmail.com).
+
+# License
+
+The bkernel source code is licensed by a modified GNU General Public License - the modification taking a form of an exception. The exception permits the source code of applications that use bkernel and are distributed as executables to remain closed source, thus permitting the use of bkernel in commercial applications without necessitating that the whole application be open sourced. The exception can only be used if you wish to combine bkernel with a proprietary product, and you comply with the terms stated in the exception itself.
+
+The full text of the bkernel license is available [here](https://github.com/rasendubi/bkernel/blob/master/LICENSE).
