@@ -26,8 +26,8 @@ build: checkout_rust kernel.bin lib/$(TARGET)
 kernel.bin: kernel.elf
 	$(OBJCOPY) -O binary $^ $@
 
-kernel.elf: src/bootstrap.o target/$(TARGET)/release/libkernel.a
-	$(LD) $(LDFLAGS) -o $@ $^
+kernel.elf: target/$(TARGET)/release/libkernel.a stm32_flash.ld
+	$(LD) $(LDFLAGS) -o $@ target/$(TARGET)/release/libkernel.a
 
 target/$(TARGET)/release/libkernel.a: $(SOURCES) lib/$(TARGET)/libcore.rlib
 	cargo rustc --target=thumbv7em-none-eabi --release -- -Z no-landing-pads

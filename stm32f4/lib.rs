@@ -12,6 +12,8 @@
 
 #![allow(dead_code)]
 
+pub mod isr_vector;
+
 #[macro_use]
 pub mod volatile;
 pub mod rcc;
