@@ -1,5 +1,9 @@
 //! lang_items and functions needed to start Rust on bare metal.
 
+// This file defines the builtin functions, so it would be a shame for
+// LLVM to optimize these function calls to themselves!
+#![no_builtins]
+
 #[cfg(target_os = "none")]
 #[lang = "eh_personality"]
 extern fn eh_personality() {}
