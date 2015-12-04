@@ -159,6 +159,12 @@ impl Usart {
         }
     }
 
+    pub fn put_bytes(&self, bytes: &[u8]) {
+        for b in bytes {
+            self.put_char(*b as u32);
+        }
+    }
+
     pub fn put_char(&self, c: u32) {
         while !self.transmission_complete() {};
         unsafe { self.dr.set(c); }

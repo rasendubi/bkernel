@@ -37,29 +37,27 @@ pub fn handle_command(usart: &Usart) {
     }
     usart.puts_synchronous("\r\n");
 
-    process_command(
-        usart,
-        unsafe { ::core::str::from_utf8_unchecked(&command[0 .. cur])});
+    process_command(usart, &command[0 .. cur]);
 }
 
-fn process_command(usart: &Usart, command: &str) {
+fn process_command(usart: &Usart, command: &[u8]) {
     match command {
-        "hi" => { usart.puts_synchronous("Hi, there!\r\n"); },
-        "-3" => { led::LD3.turn_off(); },
-        "+3" => { led::LD3.turn_on(); },
-        "-4" => { led::LD4.turn_off(); },
-        "+4" => { led::LD4.turn_on(); },
-        "-5" => { led::LD5.turn_off(); },
-        "+5" => { led::LD5.turn_on(); },
-        "-6" => { led::LD6.turn_off(); },
-        "+6" => { led::LD6.turn_on(); },
-        "panic" => {
+        b"hi" => { usart.puts_synchronous("Hi, there!\r\n"); },
+        b"-3" => { led::LD3.turn_off(); },
+        b"+3" => { led::LD3.turn_on(); },
+        b"-4" => { led::LD4.turn_off(); },
+        b"+4" => { led::LD4.turn_on(); },
+        b"-5" => { led::LD5.turn_off(); },
+        b"+5" => { led::LD5.turn_on(); },
+        b"-6" => { led::LD6.turn_off(); },
+        b"+6" => { led::LD6.turn_on(); },
+        b"panic" => {
             panic!();
         }
-        "" => {},
+        b"" => {},
         _ => {
             usart.puts_synchronous("Unknown command: \"");
-            usart.puts_synchronous(command);
+            usart.put_bytes(command);
             usart.puts_synchronous("\"\r\n");
         },
     }
