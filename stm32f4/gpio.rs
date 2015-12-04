@@ -2,36 +2,24 @@
 
 #![allow(non_camel_case_types)]
 
-use core::ops::Deref;
-
 use volatile::RW;
 
-pub const GPIO_A: Gpio = Gpio(0x40020000 as *const GpioRegister);
-pub const GPIO_B: Gpio = Gpio(0x40020400 as *const GpioRegister);
-pub const GPIO_C: Gpio = Gpio(0x40020800 as *const GpioRegister);
-pub const GPIO_D: Gpio = Gpio(0x40020C00 as *const GpioRegister);
-pub const GPIO_E: Gpio = Gpio(0x40021000 as *const GpioRegister);
-pub const GPIO_F: Gpio = Gpio(0x40021400 as *const GpioRegister);
-pub const GPIO_G: Gpio = Gpio(0x40021800 as *const GpioRegister);
-pub const GPIO_H: Gpio = Gpio(0x40021C00 as *const GpioRegister);
-pub const GPIO_I: Gpio = Gpio(0x40022000 as *const GpioRegister);
-pub const GPIO_J: Gpio = Gpio(0x40022400 as *const GpioRegister);
-pub const GPIO_K: Gpio = Gpio(0x40022800 as *const GpioRegister);
-
-pub struct Gpio(*const GpioRegister);
-
-impl Deref for Gpio {
-    type Target = GpioRegister;
-
-    fn deref(&self) -> &GpioRegister {
-        unsafe { &*self.0 }
-    }
+extern {
+    pub static GPIO_A: Gpio;
+    pub static GPIO_B: Gpio;
+    pub static GPIO_C: Gpio;
+    pub static GPIO_D: Gpio;
+    pub static GPIO_E: Gpio;
+    pub static GPIO_F: Gpio;
+    pub static GPIO_G: Gpio;
+    pub static GPIO_H: Gpio;
+    pub static GPIO_I: Gpio;
+    pub static GPIO_J: Gpio;
+    pub static GPIO_K: Gpio;
 }
 
-/// This is public to only make compiler happy. Don't use this in your
-/// module.
 #[repr(C)]
-pub struct GpioRegister {
+pub struct Gpio {
     moder:   RW<u32>, // 0x0
     otyper:  RW<u32>, // 0x4
     ospeedr: RW<u32>, // 0x8

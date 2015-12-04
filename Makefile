@@ -15,6 +15,7 @@ RUSTDIR ?= rust
 RUSTC_COMMIT := $(shell rustc -Vv | sed -n 's/^commit-hash: \(.*\)$$/\1/p')
 
 SOURCES := $(shell find src/ stm32f4/ smalloc/ -type f -name '*.rs')
+LD_SOURCES := $(wildcard *.ld)
 
 .PHONY: all
 all: build doc test
@@ -26,7 +27,7 @@ build: checkout_rust kernel.bin lib/$(TARGET)
 kernel.bin: kernel.elf
 	$(OBJCOPY) -O binary $^ $@
 
-kernel.elf: target/$(TARGET)/release/libkernel.a stm32_flash.ld
+kernel.elf: target/$(TARGET)/release/libkernel.a $(LD_SOURCES)
 	$(LD) $(LDFLAGS) -o $@ target/$(TARGET)/release/libkernel.a
 
 target/$(TARGET)/release/libkernel.a: $(SOURCES) lib/$(TARGET)/libcore.rlib

@@ -3,7 +3,7 @@ use led;
 
 const PROMPT: &'static str = "> ";
 
-pub fn run_terminal(usart: Usart) {
+pub fn run_terminal(usart: &Usart) {
     loop {
         handle_command(&usart);
     }

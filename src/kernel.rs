@@ -24,7 +24,7 @@ pub extern fn kmain() -> ! {
 
     USART1.puts_synchronous("\r\nWelcome to bkernel\r\n");
 
-    terminal::run_terminal(USART1);
+    terminal::run_terminal(&USART1);
 
     loop {}
 }
@@ -83,13 +83,13 @@ fn init_usart1() {
 #[cfg(target_os = "none")]
 pub mod panicking {
     use core::fmt;
-    use stm32f4::usart::USART1;
+    use stm32f4::usart::{USART1, UsartProxy};
 
     #[lang = "panic_fmt"]
     extern fn panic_fmt(fmt: fmt::Arguments, file: &str, line: u32) -> ! {
         use core::fmt::Write;
         USART1.puts_synchronous("\r\nPANIC\r\n");
-        let _ = write!(USART1, "{}:{} {}", file, line, fmt);
+        let _ = write!(UsartProxy(&USART1), "{}:{} {}", file, line, fmt);
         loop {}
     }
 }

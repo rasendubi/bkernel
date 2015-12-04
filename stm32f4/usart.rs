@@ -3,25 +3,16 @@
 // Stupid compiler thinks Bits0_5 is not camel case, but Bits05 is.
 #![allow(non_camel_case_types)]
 
-use core::ops::Deref;
 use core::fmt;
 
 use volatile::RW;
 
-pub const USART1: Usart = Usart(0x40011000 as *const UsartRegister);
-
-pub struct Usart(*const UsartRegister);
-
-impl Deref for Usart {
-    type Target = UsartRegister;
-
-    fn deref(&self) -> &UsartRegister {
-        unsafe { &*self.0 }
-    }
+extern {
+    pub static USART1: Usart;
 }
 
 #[repr(C)]
-pub struct UsartRegister {
+pub struct Usart {
     sr:   RW<u32>, // 0x00
     dr:   RW<u32>, // 0x04
     brr:  RW<u32>, // 0x08
@@ -33,7 +24,7 @@ pub struct UsartRegister {
 
 #[test]
 fn test_usart_register_size() {
-    assert_eq!(0x1C, ::core::mem::size_of::<UsartRegister>());
+    assert_eq!(0x1C, ::core::mem::size_of::<Usart>());
 }
 
 #[repr(u32)]
@@ -187,14 +178,19 @@ impl Usart {
     }
 }
 
-impl fmt::Write for Usart {
+// This is needed because fmt::Write impl on Usart is useless.
+// All USART instances are immutable, so methods on &mut self are
+// useless.
+pub struct UsartProxy<'a>(pub &'a Usart);
+
+impl<'a> fmt::Write for UsartProxy<'a> {
     fn write_str(&mut self, s: &str) -> fmt::Result {
-        self.puts_synchronous(s);
+        self.0.puts_synchronous(s);
         Ok(())
     }
 
     fn write_char(&mut self, c: char) -> fmt::Result {
-        self.put_char(c as u32);
+        self.0.put_char(c as u32);
         Ok(())
     }
 }

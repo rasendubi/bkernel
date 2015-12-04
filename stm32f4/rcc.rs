@@ -1,23 +1,13 @@
 //! Reset and clock control.
 
-use core::ops::Deref;
-
 use volatile::{RW, RES};
 
-pub const RCC: Rcc = Rcc(0x40023800 as *const RccRegister);
-
-pub struct Rcc(*const RccRegister);
-
-impl Deref for Rcc {
-    type Target = RccRegister;
-
-    fn deref(&self) -> &RccRegister {
-        unsafe { &*self.0 }
-    }
+extern {
+    pub static RCC: Rcc;
 }
 
 #[repr(C)]
-pub struct RccRegister {
+pub struct Rcc {
     cr:          RW<u32>,  // 0x00
     pllcfgr:     RW<u32>,  // 0x04
     cfgr:        RW<u32>,  // 0x08
@@ -58,7 +48,7 @@ pub struct RccRegister {
 
 #[test]
 fn test_rcc_register_size() {
-    assert_eq!(0x90, ::core::mem::size_of::<RccRegister>());
+    assert_eq!(0x90, ::core::mem::size_of::<Rcc>());
 }
 
 #[repr(u32)]

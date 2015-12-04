@@ -1,24 +1,24 @@
 use stm32f4::gpio;
 
-pub const LD3: Led = Led {
-    gpio: gpio::GPIO_D,
+pub static LD3: Led = Led {
+    gpio: &gpio::GPIO_D,
     pin: 13,
 };
-pub const LD4: Led = Led {
-    gpio: gpio::GPIO_D,
+pub static LD4: Led = Led {
+    gpio: &gpio::GPIO_D,
     pin: 12,
 };
-pub const LD5: Led = Led {
-    gpio: gpio::GPIO_D,
+pub static LD5: Led = Led {
+    gpio: &gpio::GPIO_D,
     pin: 14,
 };
-pub const LD6: Led = Led {
-    gpio: gpio::GPIO_D,
+pub static LD6: Led = Led {
+    gpio: &gpio::GPIO_D,
     pin: 15,
 };
 
 pub struct Led {
-    gpio: gpio::Gpio,
+    gpio: &'static gpio::Gpio,
     pin: u32,
 }
 
