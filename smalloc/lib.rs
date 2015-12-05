@@ -1,5 +1,7 @@
 //! Small memory allocator
 //!
+//! *Warning: allocator has issues on memory sizes bigger than 64 Kb*
+//!
 //! # Advantages of small memory allocator
 //! - Fully ANSI/POSIX compatible
 //! - Low memory overhead
@@ -161,6 +163,8 @@ impl BusyBlock {
     }
 }
 
+const MAX_ALLOC: usize = 64*1024 - 4;
+
 impl Smalloc {
     fn free_list_start(&self) -> *mut *mut FreeBlock {
         self.start as *mut _
@@ -170,8 +174,6 @@ impl Smalloc {
     ///
     /// Must be called before any allocation.
     pub unsafe fn init(&self) {
-        const MAX_ALLOC: usize = 64*1024 - 4;
-
         *self.free_list_start() = self.start.offset(ipsize()) as *mut FreeBlock;
 
         let mut prev_size = 0;
@@ -239,7 +241,9 @@ impl Smalloc {
         let prev_block = (block as *mut u8).offset(-((*block).prev_size as isize) - ibbsize()) as *mut FreeBlock;
         let next_block = (block as *mut u8).offset(ibbsize() + (*block).size as isize) as *mut FreeBlock;
 
-        if (*block).prev_size != 0 && (*prev_block).is_free() {
+        if (*block).prev_size != 0 && (*prev_block).is_free() &&
+            (*block).size as usize + (*prev_block).size as usize + bbsize() < MAX_ALLOC
+        {
             let prev = self.find_previous_block(prev_block);
             // remove prev_block from list temporary
             *self.get_next_ptr(prev) = (*prev_block).next;
@@ -256,7 +260,8 @@ impl Smalloc {
 
         // try merge with next
         if (next_block as *mut u8) < self.start.offset(self.size as isize) &&
-            (*next_block).is_free() {
+            (*next_block).is_free() &&
+            (*block).size as usize + (*next_block).size as usize + bbsize() < MAX_ALLOC {
                 let prev = self.find_previous_block(next_block);
                 *self.get_next_ptr(prev) = (*next_block).next;
 
@@ -805,6 +810,30 @@ mod test {
                     next: ptr::null_mut(),
                 },
                 *(memory.offset(ipsize() + 2*ibbsize() + 32 + 8) as *mut _));
+        });
+    }
+
+    #[test]
+    fn test_dont_merge_too_big_with_next() {
+        with_memory(168*1024, |_memory, a| unsafe {
+            let ptr1 = a.alloc(48*1024);
+            let ptr2 = a.alloc(48*1024);
+            let _ptr3 = a.alloc(48*1024);
+
+            a.free(ptr2);
+            a.free(ptr1);
+        });
+    }
+
+    #[test]
+    fn test_dont_merge_too_big_with_prev() {
+        with_memory(256*1024, |_memory, a| unsafe {
+            let ptr1 = a.alloc(48*1024);
+            let ptr2 = a.alloc(48*1024);
+            let _ptr3 = a.alloc(48*1024);
+
+            a.free(ptr1);
+            a.free(ptr2);
         });
     }
 }
