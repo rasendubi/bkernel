@@ -3,6 +3,17 @@ use led;
 
 const PROMPT: &'static str = "> ";
 
+const HELP_MESSAGE: &'static str = "
+Available commands:\r
+hi    -- welcomes you\r
+-3/+3 -- turn off/on LED3\r
+-4/+4 -- turn off/on LED4\r
+-5/+5 -- turn off/on LED5\r
+-6/+6 -- turn off/on LED6\r
+panic -- throw a panic\r
+help  -- print this help\r
+";
+
 pub fn run_terminal(usart: &Usart) {
     loop {
         handle_command(&usart);
@@ -42,6 +53,7 @@ pub fn handle_command(usart: &Usart) {
 
 fn process_command(usart: &Usart, command: &[u8]) {
     match command {
+        b"help" => { usart.puts_synchronous(HELP_MESSAGE); },
         b"hi" => { usart.puts_synchronous("Hi, there!\r\n"); },
         b"-3" => { led::LD3.turn_off(); },
         b"+3" => { led::LD3.turn_on(); },

@@ -22,7 +22,8 @@ pub extern fn kmain() -> ! {
     init_usart1();
     init_leds();
 
-    USART1.puts_synchronous("\r\nWelcome to bkernel\r\n");
+    USART1.puts_synchronous("\r\nWelcome to bkernel!\r\n");
+    USART1.puts_synchronous("Type 'help' to get a list of available commands.\r\n");
 
     terminal::run_terminal(&USART1);
 
