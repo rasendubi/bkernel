@@ -235,6 +235,10 @@ impl Smalloc {
     }
 
     pub unsafe fn free(&self, ptr: *mut u8) {
+        if ptr.is_null() {
+            return;
+        }
+
         let mut block = ptr.offset(-ibbsize()) as *mut FreeBlock;
 
         // try merge with previous
@@ -834,6 +838,13 @@ mod test {
 
             a.free(ptr1);
             a.free(ptr2);
+        });
+    }
+
+    #[test]
+    fn test_free_null() {
+        with_memory(256, |_, a| unsafe {
+            a.free(ptr::null_mut());
         });
     }
 }
