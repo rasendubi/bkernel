@@ -1,0 +1,7 @@
+[package]
+name = "linkmem"
+version = "0.1.0"
+authors = ["Paul Colomiets <paul@colomiets.name>"]
+
+[dependencies.smalloc]
+path = "../smalloc"

@@ -16,6 +16,9 @@ path = "./stm32f4"
 [dependencies.smalloc]
 path = "./smalloc"
 
+[dependencies.linkmem]
+path = "./linkmem"
+
 [profile.release]
 opt-level = 3
 lto = true
