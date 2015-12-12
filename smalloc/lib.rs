@@ -79,12 +79,16 @@
 #![crate_name = "smalloc"]
 #![crate_type = "rlib"]
 
-#![no_std]
+#![cfg_attr(not(test), no_std)]
 
-#![cfg_attr(test, feature(alloc, heap_api))]
+#![cfg_attr(test, feature(alloc, heap_api, rand))]
 
 #[cfg(test)]
 extern crate alloc;
+#[cfg(test)]
+extern crate core;
+#[cfg(test)]
+extern crate rand;
 
 use ::core::ptr;
 
@@ -162,6 +166,27 @@ impl BusyBlock {
     }
 }
 
+#[cfg(test)]
+impl ::core::fmt::Display for FreeBlock {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+        f.debug_struct("FreeBlock")
+            .field("prev_size", &self.prev_size)
+            .field("size", &self.size)
+            .field("next", &self.next)
+            .finish()
+    }
+}
+
+#[cfg(test)]
+impl ::core::fmt::Display for BusyBlock {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+        f.debug_struct("BusyBlock")
+            .field("prev_size", &self.prev_size)
+            .field("size", &self.size)
+            .finish()
+    }
+}
+
 const MAX_ALLOC: usize = 64*1024 - 4;
 
 impl Smalloc {
@@ -219,6 +244,11 @@ impl Smalloc {
                 size: prev_cur_size - size as u16 - bbsize() as u16,
                 next: ptr::null_mut(),
             };
+
+            let split_next_next = (split_next as *mut u8).offset((*split_next).size as isize + ibbsize()) as *mut FreeBlock;
+            if split_next_next < self.start.offset(self.size as isize) as *mut FreeBlock {
+                (*split_next_next).prev_size = (*split_next).size + (*split_next_next).is_free() as u16;
+            }
 
             self.install_free_block(split_next);
         }
@@ -326,6 +356,29 @@ impl Smalloc {
             self.free_list_start()
         } else {
             &mut (*block).next as *mut _
+        }
+    }
+
+    #[cfg(test)]
+    unsafe fn debug_print(&self) {
+        // print free list
+        println!("Free list:");
+        let mut cur = *self.free_list_start();
+        while !cur.is_null() {
+            println!("{:p}", cur);
+            cur = (*cur).next;
+        }
+
+        // print block list
+        let mut block = self.start.offset(ipsize()) as *const FreeBlock;
+        while block < self.start.offset(self.size as isize) as *const _ {
+            if (*block).is_free() {
+                println!("{:p}: {}", block, *block);
+            } else {
+                println!("{:p}: {}", block, *(block as *const BusyBlock));
+            }
+
+            block = (block as *const u8).offset((*block).size as isize + ibbsize()) as *const _;
         }
     }
 }
@@ -825,6 +878,8 @@ mod test {
 
             a.free(ptr2);
             a.free(ptr1);
+
+            // TODO
         });
     }
 
@@ -837,6 +892,8 @@ mod test {
 
             a.free(ptr1);
             a.free(ptr2);
+
+            // TODO
         });
     }
 
@@ -844,6 +901,83 @@ mod test {
     fn test_free_null() {
         with_memory(256, |_, a| unsafe {
             a.free(ptr::null_mut());
+        });
+    }
+
+    #[test]
+    fn test_endurance() {
+        // That's a fucking trick because standard rand doesn't export
+        // StdRng for unknown reason
+        #[cfg(target_pointer_width = "32")]
+        use ::rand::IsaacRng as IsaacWordRng;
+        #[cfg(target_pointer_width = "64")]
+        use ::rand::Isaac64Rng as IsaacWordRng;
+
+        use ::rand::{SeedableRng, Rng};
+        use ::std::vec::Vec;
+        use ::std::intrinsics::write_bytes;
+
+        const MEMORY_SIZE: usize = 64*1024; // 64*1024;
+
+        with_memory(MEMORY_SIZE, |_, a| unsafe {
+            // Reproducability is a must
+            let mut rng = IsaacWordRng::from_seed(&[42,42,42]);
+
+            let mut allocs = Vec::new();
+
+            for _ in 1..10000 {
+                if allocs.is_empty() || rng.gen() {
+                    let size = rng.gen::<usize>() % MEMORY_SIZE;
+                    let ptr = a.alloc(size);
+
+                    if !ptr.is_null() {
+                        println!("alloc {} = {:p}", size, ptr);
+                        write_bytes(ptr, 0x00, size);
+                        allocs.push(ptr);
+                    }
+                } else {
+                    let i = rng.gen_range(0, allocs.len());
+                    let ptr = allocs.remove(i);
+
+                    println!("free {:p}", ptr);
+
+                    a.free(ptr);
+                }
+            }
+        });
+    }
+
+    #[test]
+    fn test_update_split_next_prev() {
+        const MEMORY_SIZE: usize = 64*1024;
+
+        with_memory(MEMORY_SIZE, |_, a| unsafe {
+            a.debug_print();
+
+            let ptr1 = a.alloc(36239);
+            println!("ptr1 = {:p}", ptr1);
+            a.debug_print();
+            println!("");
+
+            let ptr2 = a.alloc(20000);
+            println!("ptr2 = {:p}", ptr2);
+            a.debug_print();
+            println!("");
+
+            println!("free ptr1 {:p}", ptr1);
+            a.free(ptr1);
+            a.debug_print();
+            println!("");
+
+            let ptr3 = a.alloc(32768);
+            println!("ptr3 = {:p}", ptr3);
+            a.debug_print();
+            println!("");
+
+            println!("free ptr3 {:p}", ptr3);
+            a.free(ptr3);
+            a.debug_print();
+            println!("");
         });
     }
 }
