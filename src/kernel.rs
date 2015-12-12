@@ -2,10 +2,15 @@
 //! the bootstrap that will jump to the `kmain` function.
 #![crate_type = "staticlib"]
 
-#![feature(lang_items)]
+#![feature(lang_items, alloc, core_intrinsics, collections)]
 #![no_std]
 
 extern crate stm32f4;
+#[cfg(not(test))]
+extern crate linkmem;
+extern crate smalloc;
+extern crate alloc;
+extern crate collections;
 
 mod led;
 mod terminal;
@@ -15,11 +20,30 @@ use stm32f4::rcc::RCC;
 use stm32f4::gpio::GPIO_B;
 use stm32f4::usart::USART1;
 
+#[cfg(not(test))]
+static mut MEMORY: [u8; 64*1024] = [0; 64*1024];
+
+#[cfg(not(test))]
+fn init_memory() {
+    ::linkmem::init(smalloc::Smalloc {
+        start: unsafe { ::core::mem::transmute(&mut MEMORY) },
+        size: 64*1024,
+    });
+}
+
+#[cfg(test)]
+fn init_memory() {}
+
 /// The main entry of the kernel.
 #[no_mangle]
 pub extern fn kmain() -> ! {
+    init_memory();
     init_usart1();
     init_leds();
+
+    // Test that allocator works
+    let mut b = ::alloc::boxed::Box::new(5);
+    unsafe { ::core::intrinsics::volatile_store(&mut *b as *mut _, 4); }
 
     USART1.puts_synchronous("\r\nWelcome to bkernel!\r\n");
     USART1.puts_synchronous("Type 'help' to get a list of available commands.\r\n");

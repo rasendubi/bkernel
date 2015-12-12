@@ -30,7 +30,7 @@ kernel.bin: kernel.elf
 kernel.elf: target/$(TARGET)/release/libkernel.a $(LD_SOURCES)
 	$(LD) $(LDFLAGS) -o $@ target/$(TARGET)/release/libkernel.a
 
-target/$(TARGET)/release/libkernel.a: $(SOURCES) lib/$(TARGET)/libcore.rlib
+target/$(TARGET)/release/libkernel.a: $(SOURCES) lib/$(TARGET)/libcore.rlib lib/$(TARGET)/liballoc.rlib lib/$(TARGET)/libcollections.rlib
 	cargo rustc --target=thumbv7em-none-eabi --release -- -Z no-landing-pads
 
 %.o: %.s
@@ -39,6 +39,15 @@ target/$(TARGET)/release/libkernel.a: $(SOURCES) lib/$(TARGET)/libcore.rlib
 lib/$(TARGET)/libcore.rlib: $(RUSTDIR)/src/libcore | checkout_rust lib/$(TARGET)
 	$(RUST) $(RUSTFLAGS) $(RUSTDIR)/src/libcore/lib.rs --out-dir lib/$(TARGET)
 
+lib/$(TARGET)/liballoc.rlib: $(RUSTDIR)/src/liballoc lib/$(TARGET)/libcore.rlib | checkout_rust lib/$(TARGET)
+	$(RUST) $(RUSTFLAGS) $(RUSTDIR)/src/liballoc/lib.rs --out-dir lib/$(TARGET)
+
+lib/$(TARGET)/libcollections.rlib: $(RUSTDIR)/src/libcollections lib/$(TARGET)/liballoc.rlib lib/$(TARGET)/libcore.rlib lib/$(TARGET)/librustc_unicode.rlib | checkout_rust lib/$(TARGET)
+	$(RUST) $(RUSTFLAGS) $(RUSTDIR)/src/libcollections/lib.rs --out-dir lib/$(TARGET)
+
+lib/$(TARGET)/librustc_unicode.rlib: $(RUSTDIR)/src/librustc_unicode lib/$(TARGET)/libcore.rlib | checkout_rust lib/$(TARGET)
+	$(RUST) $(RUSTFLAGS) $(RUSTDIR)/src/librustc_unicode/lib.rs --out-dir lib/$(TARGET)
+
 lib/$(TARGET):
 	mkdir -p $@
 
@@ -46,6 +55,9 @@ rust:
 	git clone https://github.com/rust-lang/rust
 
 rust/src/libcore: rust
+rust/src/liballoc: rust
+rust/src/libcollections: rust
+rust/src/librustc_unicode: rust
 
 .PHONY: checkout_rust
 checkout_rust: $(RUSTDIR)
