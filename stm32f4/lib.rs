@@ -5,8 +5,7 @@
 #![cfg_attr(test, allow(unused_features))]
 
 #![feature(lang_items)]
-#![feature(no_std)]
-#![feature(core_intrinsics, core_str_ext)]
+#![feature(core_intrinsics)]
 
 #![no_std]
 

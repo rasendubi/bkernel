@@ -3,7 +3,6 @@
 #![crate_type = "staticlib"]
 
 #![feature(lang_items)]
-#![feature(no_std)]
 #![no_std]
 
 extern crate stm32f4;

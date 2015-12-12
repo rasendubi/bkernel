@@ -79,7 +79,6 @@
 #![crate_name = "smalloc"]
 #![crate_type = "rlib"]
 
-#![feature(no_std)]
 #![no_std]
 
 #![cfg_attr(test, feature(alloc, heap_api))]
