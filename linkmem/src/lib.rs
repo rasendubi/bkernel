@@ -1,8 +1,11 @@
+//! This module is a rust interface to smalloc.
+//!
+//! To get more info on custom allocators see:
+//! https://doc.rust-lang.org/nightly/book/custom-allocators.html
+
 #![feature(allocator)]
 #![allocator]
 #![no_std]
-
-//! Hello
 
 extern crate smalloc;
 
@@ -18,6 +21,7 @@ static mut allocator: Smalloc = Smalloc {
 pub fn init(alloc: Smalloc) {
     unsafe {
         allocator = alloc;
+        allocator.init();
     }
 }
 
@@ -52,8 +56,4 @@ pub extern fn __rust_reallocate_inplace(_ptr: *mut u8, old_size: usize,
 #[no_mangle]
 pub extern fn __rust_usable_size(size: usize, _align: usize) -> usize {
     return size;
-}
-
-#[test]
-fn it_works() {
 }

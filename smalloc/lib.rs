@@ -130,7 +130,6 @@ fn ifbsize() -> isize {
     ::core::mem::size_of::<FreeBlock>() as isize
 }
 
-
 pub struct Smalloc {
     /// Start of the memory served by Smalloc
     pub start: *mut u8,
