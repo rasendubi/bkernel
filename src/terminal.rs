@@ -1,20 +1,22 @@
 use stm32f4::usart::Usart;
 use led;
 use brainfuck;
+use led_music;
 
 const PROMPT: &'static str = "> ";
 
 const HELP_MESSAGE: &'static str = "
 Available commands:\r
-hi    -- welcomes you\r
-pony  -- surprise!\r
--3/+3 -- turn off/on LED3\r
--4/+4 -- turn off/on LED4\r
--5/+5 -- turn off/on LED5\r
--6/+6 -- turn off/on LED6\r
-panic -- throw a panic\r
-b     -- f*ck your brain\r
-help  -- print this help\r
+hi      -- welcomes you\r
+pony    -- surprise!\r
+-3/+3   -- turn off/on LED3\r
+-4/+4   -- turn off/on LED4\r
+-5/+5   -- turn off/on LED5\r
+-6/+6   -- turn off/on LED6\r
+led-fun -- some fun with LEDs\r
+b       -- f*ck your brain\r
+panic   -- throw a panic\r
+help    -- print this help\r
 ";
 
 pub fn run_terminal(usart: &Usart) {
@@ -104,6 +106,7 @@ fn process_command(usart: &Usart, command: &[u8]) {
         b"+5" => { led::LD5.turn_on(); },
         b"-6" => { led::LD6.turn_off(); },
         b"+6" => { led::LD6.turn_on(); },
+        b"led-fun" => { led_music::led_fun(71000); },
         b"panic" => {
             panic!();
         }

@@ -13,6 +13,7 @@ extern crate alloc;
 extern crate collections;
 
 mod led;
+mod led_music;
 mod terminal;
 mod brainfuck;
 mod bfuckio;
