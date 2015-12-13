@@ -55,3 +55,15 @@ pub unsafe extern "C" fn memcmp(mut str1: *const u8, mut str2: *const u8, mut si
 
     return 0;
 }
+
+#[cfg(target_os = "none")]
+#[no_mangle]
+pub unsafe extern "C" fn __aeabi_memcpy(mut dst: *mut u8, mut src: *const u8, mut size: usize) {
+    while size != 0 {
+        *dst = *src;
+
+        dst = dst.offset(1);
+        src = src.offset(1);
+        size -= 1;
+    }
+}
