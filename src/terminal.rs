@@ -1,7 +1,6 @@
 use stm32f4::usart::Usart;
 use led;
 use brainfuck;
-use core;
 
 const PROMPT: &'static str = "> ";
 
@@ -56,8 +55,8 @@ pub fn handle_command(usart: &Usart) {
 
 fn process_command(usart: &Usart, command: &[u8]) {
     if command.len() >= 2 && &command[..2] == b"b " {
-        let x = core::str::from_utf8(command).unwrap();
-        brainfuck::interpret(x, usart);
+        brainfuck::interpret(&command[2..], &mut ::stm32f4::usart::UsartProxy(usart));
+        return;
     }
     match command {
         b"help" => { usart.puts_synchronous(HELP_MESSAGE); },

@@ -1,11 +1,11 @@
-use stm32f4::usart::Usart;
+use stm32f4::usart::UsartProxy;
 use brainfuck::Io;
 
-impl Io for Usart {
-    fn read_byte(&self) -> u8 {
-        self.get_char() as u8
+impl<'a> Io for UsartProxy<'a> {
+    fn read_byte(&mut self) -> u8 {
+        self.0.get_char() as u8
     }
-    fn write_byte(&self, byte: u8) {
-        self.put_char(byte as u32)
+    fn write_byte(&mut self, byte: u8) {
+        self.0.put_char(byte as u32)
     }
 }
