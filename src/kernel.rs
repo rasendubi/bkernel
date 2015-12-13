@@ -23,13 +23,16 @@ use stm32f4::gpio::GPIO_B;
 use stm32f4::usart::USART1;
 
 #[cfg(not(test))]
-static mut MEMORY: [u8; 64*1024] = [0; 64*1024];
+const MEMORY_SIZE: usize = 64*1024;
+
+#[cfg(not(test))]
+static mut MEMORY: [u8; MEMORY_SIZE] = [0; MEMORY_SIZE];
 
 #[cfg(not(test))]
 fn init_memory() {
     ::linkmem::init(smalloc::Smalloc {
         start: unsafe { ::core::mem::transmute(&mut MEMORY) },
-        size: 64*1024,
+        size: MEMORY_SIZE,
     });
 }
 
