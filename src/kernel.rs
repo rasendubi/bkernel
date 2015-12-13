@@ -14,6 +14,8 @@ extern crate collections;
 
 mod led;
 mod terminal;
+mod brainfuck;
+mod bfuckio;
 
 use stm32f4::{rcc, gpio, usart};
 use stm32f4::rcc::RCC;

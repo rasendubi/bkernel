@@ -1,5 +1,7 @@
 use stm32f4::usart::Usart;
 use led;
+use brainfuck;
+use core;
 
 const PROMPT: &'static str = "> ";
 
@@ -11,6 +13,7 @@ hi    -- welcomes you\r
 -5/+5 -- turn off/on LED5\r
 -6/+6 -- turn off/on LED6\r
 panic -- throw a panic\r
+b     -- f*ck your brain\r
 help  -- print this help\r
 ";
 
@@ -52,6 +55,10 @@ pub fn handle_command(usart: &Usart) {
 }
 
 fn process_command(usart: &Usart, command: &[u8]) {
+    if command.len() >= 2 && &command[..2] == b"b " {
+        let x = core::str::from_utf8(command).unwrap();
+        brainfuck::interpret(x, usart);
+    }
     match command {
         b"help" => { usart.puts_synchronous(HELP_MESSAGE); },
         b"hi" => { usart.puts_synchronous("Hi, there!\r\n"); },
