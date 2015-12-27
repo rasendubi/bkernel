@@ -63,16 +63,16 @@ rust/src/librustc_unicode: rust
 checkout_rust: $(RUSTDIR)
 	cd $(RUSTDIR) && [ "$$(git rev-parse HEAD)" = "$(RUSTC_COMMIT)" ] || git checkout -q $(RUSTC_COMMIT) || ( git fetch && git checkout -q $(RUSTC_COMMIT) )
 
+# Cargo doesn't pass custom link directory to `cargo doc`,
+# so building doc for thumbv7em-none-eabi with cargo is impossible now.
+# See https://github.com/rust-lang/cargo/issues/2175
 .PHONY: doc
-doc: lib/$(TARGET)/libcore.rlib
-	# Cargo doesn't pass custom link directory to `cargo doc`,
-	# so building doc for thumbv7em-none-eabi with cargo is impossible now.
-	# See https://github.com/rust-lang/cargo/issues/2175
+doc: # lib/$(TARGET)/libcore.rlib
 	cargo doc #--target=$(TARGET)
 
 .PHONY: test
 test:
-	cargo test -p bkernel -p stm32f4 -p smalloc
+	cargo test -p bkernel -p stm32f4 -p smalloc -p bscheduler
 
 .PHONY: clean
 clean:

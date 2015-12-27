@@ -19,6 +19,9 @@ path = "./smalloc"
 [dependencies.linkmem]
 path = "./linkmem"
 
+[dependencies.bscheduler]
+path = "./bscheduler"
+
 [profile.release]
 opt-level = 3
 lto = true
