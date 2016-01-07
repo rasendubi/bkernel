@@ -36,11 +36,13 @@ impl<'a> Scheduler<'a> {
     }
 
     pub fn schedule(&mut self) {
-
+        while let Some(task) = self.tasks.pop_front() {
+            (task.function)();
+        }
     }
 
-    pub fn add_task(&mut self, _priority: i32, task: Task) {
-        (task.function)();
+    pub fn add_task(&mut self, _priority: u32, task: Task<'a>) {
+        self.tasks.push_back(task);
     }
 }
 
@@ -76,4 +78,47 @@ mod test {
 
         assert_eq!(true, task_executed);
     }
+
+    #[test]
+    fn dont_call_schedule() {
+        let mut task_executed = false;
+
+        {
+            let task = Task {
+                name: "random",
+                function: &mut || { task_executed = true; },
+            };
+
+            let mut scheduler = Scheduler::new();
+            scheduler.add_task(0, task);
+        }
+
+        assert_eq!(false, task_executed);
+    }
+
+    #[test]
+    fn schedule_twice() {
+        let mut call_counter = 0;
+
+        {
+            let task = Task {
+                name: "random",
+                function: &mut || { call_counter += 1; },
+            };
+
+            let mut scheduler = Scheduler::new();
+            scheduler.add_task(0, task);
+            scheduler.schedule();
+            scheduler.schedule();
+        }
+
+        assert_eq!(1, call_counter);
+    }
+
+    // add multiple tasks
+    // add task from within another task
+    // priorities
+    // priority boost? (priority inversion)
+    // task preemption?
+    // locks?
 }
