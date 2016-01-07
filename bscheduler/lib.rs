@@ -115,7 +115,34 @@ mod test {
         assert_eq!(1, call_counter);
     }
 
-    // add multiple tasks
+    #[test]
+    fn multiple_tasks() {
+        let mut task2_executed = false;
+        let mut task1_executed = false;
+
+        {
+            // Not sure why I have to create this closure before task1
+            let t2 = &mut || { task2_executed = true; };
+
+            let task1 = Task {
+                name: "task1",
+                function: &mut || { task1_executed = true; },
+            };
+            let task2 = Task {
+                name: "task2",
+                function: t2,
+            };
+
+            let mut scheduler = Scheduler::new();
+            scheduler.add_task(0, task1);
+            scheduler.add_task(0, task2);
+            scheduler.schedule();
+        }
+
+        assert_eq!(true, task1_executed);
+        assert_eq!(true, task2_executed);
+    }
+
     // add task from within another task
     // priorities
     // priority boost? (priority inversion)
