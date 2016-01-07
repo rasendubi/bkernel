@@ -22,9 +22,10 @@ pub struct Scheduler<'a> {
     tasks: VecDeque<Task<'a>>,
 }
 
-struct Task<'a> {
+pub struct Task<'a> {
     #[allow(dead_code)]
-    name: &'a str,
+    pub name: &'a str,
+    pub function: &'a mut FnMut() -> (),
 }
 
 impl<'a> Scheduler<'a> {
@@ -36,6 +37,10 @@ impl<'a> Scheduler<'a> {
 
     pub fn schedule(&mut self) {
 
+    }
+
+    pub fn add_task(&mut self, _priority: i32, task: Task) {
+        (task.function)();
     }
 }
 
@@ -52,5 +57,23 @@ mod test {
     fn schedule_empty() {
         let mut scheduler = Scheduler::new();
         scheduler.schedule();
+    }
+
+    #[test]
+    fn add_task() {
+        let mut task_executed = false;
+
+        {
+            let task = Task {
+                name: "random",
+                function: &mut || { task_executed = true; },
+            };
+
+            let mut scheduler = Scheduler::new();
+            scheduler.add_task(0, task);
+            scheduler.schedule();
+        }
+
+        assert_eq!(true, task_executed);
     }
 }
