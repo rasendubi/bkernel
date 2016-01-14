@@ -11,6 +11,7 @@
 //! as they're blocking).
 
 #![feature(collections, alloc, fnbox)]
+#![cfg_attr(test, feature(as_unsafe_cell))]
 #![no_std]
 
 extern crate alloc;
@@ -51,7 +52,7 @@ mod test {
     use super::*;
     use ::alloc::boxed::Box;
     use ::alloc::rc::Rc;
-    use ::core::cell::Cell;
+    use ::core::cell::{Cell, RefCell};
 
     #[test]
     fn has_new() {
@@ -141,7 +142,42 @@ mod test {
         assert_eq!(true, task2_executed.get());
     }
 
-    // add task from within another task
+    // Ok, I really hate this test now. But it should get better with
+    // the global scheduler and hiding of some ops under unsafe (you
+    // don't need to wrap scheduler if it's static mut). Going to
+    // write a macro for that.
+    #[test]
+    fn add_task_from_task() {
+        let task1_executed = Rc::new(Cell::new(false));
+        let task2_executed = Rc::new(Cell::new(false));
+
+        let t1e = task1_executed.clone();
+        let t2e = task2_executed.clone();
+
+        let scheduler = Rc::new(RefCell::new(Scheduler::new()));
+
+        let scheduler_copy = scheduler.clone();
+        let task1 = Task {
+            name: "task1",
+            function: Box::new(move || {
+                t1e.set(true);
+                let task2 = Task {
+                    name: "task2",
+                    function: Box::new(move || {
+                        t2e.set(true);
+                    }),
+                };
+                unsafe { (*scheduler_copy.as_unsafe_cell().get()).add_task(0, task2) };
+            }),
+        };
+        
+        scheduler.borrow_mut().add_task(0, task1);
+        scheduler.borrow_mut().schedule();
+
+        assert_eq!(true, task1_executed.get());
+        assert_eq!(true, task2_executed.get());
+    }
+
     // priorities
     // priority boost? (priority inversion)
     // task preemption?
