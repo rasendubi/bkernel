@@ -10,22 +10,22 @@
 //! thoughts on proper resource management (bkernel won't have mutexes
 //! as they're blocking).
 
-#![feature(collections)]
+#![feature(collections, alloc, fnbox)]
 #![no_std]
 
+extern crate alloc;
 extern crate collections;
 
+use ::alloc::boxed::{Box, FnBox};
 use ::collections::vec_deque::VecDeque;
 
 pub struct Scheduler<'a> {
-    #[allow(dead_code)]
     tasks: VecDeque<Task<'a>>,
 }
 
 pub struct Task<'a> {
-    #[allow(dead_code)]
     pub name: &'a str,
-    pub function: &'a mut FnMut() -> (),
+    pub function: Box<FnBox()>,
 }
 
 impl<'a> Scheduler<'a> {
@@ -49,6 +49,9 @@ impl<'a> Scheduler<'a> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use ::alloc::boxed::Box;
+    use ::alloc::rc::Rc;
+    use ::core::cell::Cell;
 
     #[test]
     fn has_new() {
@@ -63,84 +66,79 @@ mod test {
 
     #[test]
     fn add_task() {
-        let mut task_executed = false;
+        let task_executed = Rc::new(Cell::new(false));
 
-        {
-            let task = Task {
-                name: "random",
-                function: &mut || { task_executed = true; },
-            };
+        let te = task_executed.clone();
+        let task = Task {
+            name: "random",
+            function: Box::new(move || { te.set(true); }),
+        };
 
-            let mut scheduler = Scheduler::new();
-            scheduler.add_task(0, task);
-            scheduler.schedule();
-        }
+        let mut scheduler = Scheduler::new();
+        scheduler.add_task(0, task);
+        scheduler.schedule();
 
-        assert_eq!(true, task_executed);
+        assert_eq!(true, task_executed.get());
     }
 
     #[test]
     fn dont_call_schedule() {
-        let mut task_executed = false;
+        let task_executed = Rc::new(Cell::new(false));
 
-        {
-            let task = Task {
-                name: "random",
-                function: &mut || { task_executed = true; },
-            };
+        let te = task_executed.clone();
+        let task = Task {
+            name: "random",
+            function: Box::new(move || { te.set(true); }),
+        };
 
-            let mut scheduler = Scheduler::new();
-            scheduler.add_task(0, task);
-        }
+        let mut scheduler = Scheduler::new();
+        scheduler.add_task(0, task);
 
-        assert_eq!(false, task_executed);
+        assert_eq!(false, task_executed.get());
     }
 
     #[test]
     fn schedule_twice() {
-        let mut call_counter = 0;
+        let call_counter = Rc::new(Cell::new(0));
 
-        {
-            let task = Task {
-                name: "random",
-                function: &mut || { call_counter += 1; },
-            };
+        let cc = call_counter.clone();
+        let task = Task {
+            name: "random",
+            function: Box::new(move || { cc.set(cc.get() + 1); }),
+        };
 
-            let mut scheduler = Scheduler::new();
-            scheduler.add_task(0, task);
-            scheduler.schedule();
-            scheduler.schedule();
-        }
+        let mut scheduler = Scheduler::new();
+        scheduler.add_task(0, task);
+        scheduler.schedule();
+        scheduler.schedule();
 
-        assert_eq!(1, call_counter);
+        assert_eq!(1, call_counter.get());
     }
 
     #[test]
     fn multiple_tasks() {
-        let mut task2_executed = false;
-        let mut task1_executed = false;
+        let task1_executed = Rc::new(Cell::new(false));
+        let task2_executed = Rc::new(Cell::new(false));
 
-        {
-            // Not sure why I have to create this closure before task1
-            let t2 = &mut || { task2_executed = true; };
+        let t1e = task1_executed.clone();
+        let t2e = task2_executed.clone();
 
-            let task1 = Task {
-                name: "task1",
-                function: &mut || { task1_executed = true; },
-            };
-            let task2 = Task {
-                name: "task2",
-                function: t2,
-            };
+        let task1 = Task {
+            name: "task1",
+            function: Box::new(move || { t1e.set(true); }),
+        };
+        let task2 = Task {
+            name: "task2",
+            function: Box::new(move || { t2e.set(true); }),
+        };
 
-            let mut scheduler = Scheduler::new();
-            scheduler.add_task(0, task1);
-            scheduler.add_task(0, task2);
-            scheduler.schedule();
-        }
+        let mut scheduler = Scheduler::new();
+        scheduler.add_task(0, task1);
+        scheduler.add_task(0, task2);
+        scheduler.schedule();
 
-        assert_eq!(true, task1_executed);
-        assert_eq!(true, task2_executed);
+        assert_eq!(true, task1_executed.get());
+        assert_eq!(true, task2_executed.get());
     }
 
     // add task from within another task
