@@ -10,8 +10,7 @@
 //! thoughts on proper resource management (bkernel won't have mutexes
 //! as they're blocking).
 
-#![feature(collections, alloc, fnbox)]
-#![cfg_attr(test, feature(as_unsafe_cell))]
+#![feature(collections, alloc, fnbox, const_fn)]
 #![no_std]
 
 extern crate alloc;
@@ -32,7 +31,7 @@ pub struct Task<'a> {
 impl<'a> Scheduler<'a> {
     pub fn new() -> Scheduler<'a> {
         Scheduler {
-            tasks: VecDeque::new()
+            tasks: VecDeque::new(),
         }
     }
 
@@ -52,7 +51,36 @@ mod test {
     use super::*;
     use ::alloc::boxed::Box;
     use ::alloc::rc::Rc;
-    use ::core::cell::{Cell, RefCell};
+    use ::core::cell::Cell;
+
+    mod scheduler {
+        
+        use super::super::*;
+        use ::core::cell::UnsafeCell;
+
+        struct SyncCell(UnsafeCell<Option<Scheduler<'static>>>);
+        unsafe impl Sync for SyncCell { }
+
+        static SCHEDULER: SyncCell = SyncCell(UnsafeCell::new(None));
+
+        pub fn init() {
+            unsafe {
+                *SCHEDULER.0.get() = Some(Scheduler::new());
+            }
+        }
+
+        pub fn schedule() {
+            unsafe {
+                (*SCHEDULER.0.get()).as_mut().unwrap().schedule();
+            }
+        }
+
+        pub fn add_task(priority: u32, task: Task<'static>) {
+            unsafe {
+                (*SCHEDULER.0.get()).as_mut().unwrap().add_task(priority, task);
+            }
+        }
+    }
 
     #[test]
     fn has_new() {
@@ -142,21 +170,16 @@ mod test {
         assert_eq!(true, task2_executed.get());
     }
 
-    // Ok, I really hate this test now. But it should get better with
-    // the global scheduler and hiding of some ops under unsafe (you
-    // don't need to wrap scheduler if it's static mut). Going to
-    // write a macro for that.
     #[test]
     fn add_task_from_task() {
+        scheduler::init();
+
         let task1_executed = Rc::new(Cell::new(false));
         let task2_executed = Rc::new(Cell::new(false));
 
         let t1e = task1_executed.clone();
         let t2e = task2_executed.clone();
 
-        let scheduler = Rc::new(RefCell::new(Scheduler::new()));
-
-        let scheduler_copy = scheduler.clone();
         let task1 = Task {
             name: "task1",
             function: Box::new(move || {
@@ -167,12 +190,11 @@ mod test {
                         t2e.set(true);
                     }),
                 };
-                unsafe { (*scheduler_copy.as_unsafe_cell().get()).add_task(0, task2) };
+                scheduler::add_task(0, task2);
             }),
         };
-        
-        scheduler.borrow_mut().add_task(0, task1);
-        scheduler.borrow_mut().schedule();
+        scheduler::add_task(0, task1);
+        scheduler::schedule();
 
         assert_eq!(true, task1_executed.get());
         assert_eq!(true, task2_executed.get());
