@@ -67,3 +67,41 @@ pub unsafe extern "C" fn __aeabi_memcpy(mut dst: *mut u8, mut src: *const u8, mu
         size -= 1;
     }
 }
+
+#[cfg(target_os = "none")]
+#[no_mangle]
+pub unsafe extern "C" fn __aeabi_memcpy4(mut dst: *mut u32, mut src: *const u32, mut size: usize) {
+    while size != 0 {
+        *dst = *src;
+
+        dst = dst.offset(1);
+        src = src.offset(1);
+        size -= 4;
+    }
+}
+
+#[cfg(target_os = "none")]
+#[no_mangle]
+pub unsafe extern "C" fn __aeabi_memmove4(mut dst: *mut u32, mut src: *mut u32, mut size: usize) {
+    if dst == src {
+        return;
+    }
+
+    let offset;
+    if dst < src {
+        offset = 1;
+    } else {
+        offset = -1;
+
+        src = src.offset((size / 4 - 1) as isize);
+        dst = src.offset((size / 4 - 1) as isize);
+    }
+
+    while size != 0 {
+        *dst = *src;
+
+        dst = dst.offset(offset);
+        src = src.offset(offset);
+        size -= 4;
+    }
+}

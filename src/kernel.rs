@@ -2,7 +2,7 @@
 //! the bootstrap that will jump to the `kmain` function.
 #![crate_type = "staticlib"]
 
-#![feature(lang_items, alloc, core_intrinsics, collections)]
+#![feature(lang_items, alloc, core_intrinsics, collections, const_fn)]
 #![no_std]
 
 extern crate stm32f4;
@@ -11,12 +11,16 @@ extern crate linkmem;
 extern crate smalloc;
 extern crate alloc;
 extern crate collections;
+extern crate bscheduler;
 
 mod led;
 mod led_music;
 mod terminal;
 mod brainfuck;
 mod bfuckio;
+mod scheduler;
+
+use ::alloc::boxed::Box;
 
 use stm32f4::{rcc, gpio, usart};
 use stm32f4::rcc::RCC;
@@ -47,15 +51,24 @@ pub extern fn kmain() -> ! {
     init_usart1();
     init_leds();
 
+    scheduler::init();
+
     // Test that allocator works
     let mut b = ::alloc::boxed::Box::new(5);
     unsafe { ::core::intrinsics::volatile_store(&mut *b as *mut _, 4); }
 
-    USART1.puts_synchronous("\r\nWelcome to bkernel!\r\n");
-    USART1.puts_synchronous("Type 'help' to get a list of available commands.\r\n");
+    scheduler::add_task(scheduler::Task {
+        name: "terminal",
+        priority: 5,
+        function: Box::new(move || {
+            USART1.puts_synchronous("\r\nWelcome to bkernel!\r\n");
+            USART1.puts_synchronous("Type 'help' to get a list of available commands.\r\n");
 
-    terminal::run_terminal(&USART1);
+            terminal::run_terminal(&USART1);
+        }),
+    });
 
+    scheduler::schedule();
     loop {}
 }
 
