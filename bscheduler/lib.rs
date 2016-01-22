@@ -11,16 +11,21 @@
 //! as they're blocking).
 
 #![feature(collections, alloc, fnbox, const_fn)]
+#![cfg_attr(test, feature(static_mutex))]
 #![no_std]
 
 extern crate alloc;
 extern crate collections;
 
+#[cfg(test)]
+extern crate std;
+
+use ::core::cell::UnsafeCell;
 use ::alloc::boxed::{Box, FnBox};
 use ::collections::vec_deque::VecDeque;
 
 pub struct Scheduler<'a> {
-    tasks: VecDeque<Task<'a>>,
+    tasks: UnsafeCell<VecDeque<Task<'a>>>,
 }
 
 pub struct Task<'a> {
@@ -32,25 +37,25 @@ pub struct Task<'a> {
 impl<'a> Scheduler<'a> {
     pub fn new() -> Scheduler<'a> {
         Scheduler {
-            tasks: VecDeque::new(),
+            tasks: UnsafeCell::new(VecDeque::new()),
         }
     }
 
-    pub fn schedule(&mut self) {
-        while let Some(task) = self.tasks.pop_front() {
+    pub unsafe fn schedule(&self) {
+        while let Some(task) = (*self.tasks.get()).pop_front() {
             (task.function)();
         }
     }
 
-    pub fn add_task(&mut self, task: Task<'a>) {
+    pub unsafe fn add_task(&self, task: Task<'a>) {
         let i = self.index_to_insert(&task);
-        self.tasks.insert(i, task);
+        (*self.tasks.get()).insert(i, task);
     }
 
-    fn index_to_insert(&self, task: &Task<'a>) -> usize {
+    unsafe fn index_to_insert(&self, task: &Task<'a>) -> usize {
         // tasks are sorted by priority
         let mut i = 0;
-        let mut it = self.tasks.iter();
+        let mut it = (*self.tasks.get()).iter();
         while let Some(x) = it.next() {
             if x.priority > task.priority {
                 break;
@@ -72,15 +77,22 @@ mod test {
         use super::super::*;
         use ::core::cell::UnsafeCell;
 
+        use ::std::sync::{StaticMutex, MUTEX_INIT, MutexGuard};
+
+        static LOCK: StaticMutex = MUTEX_INIT;
+
         struct SyncCell(UnsafeCell<Option<Scheduler<'static>>>);
         unsafe impl Sync for SyncCell { }
 
         static SCHEDULER: SyncCell = SyncCell(UnsafeCell::new(None));
 
-        pub fn init() {
+        #[must_use]
+        pub fn test_init() -> MutexGuard<'static,()> {
+            let lock = LOCK.lock().unwrap();
             unsafe {
                 *SCHEDULER.0.get() = Some(Scheduler::new());
             }
+            lock
         }
 
         pub fn schedule() {
@@ -103,8 +115,10 @@ mod test {
 
     #[test]
     fn schedule_empty() {
-        let mut scheduler = Scheduler::new();
-        scheduler.schedule();
+        unsafe {
+            let scheduler = Scheduler::new();
+            scheduler.schedule();
+        }
     }
 
     #[test]
@@ -118,9 +132,11 @@ mod test {
             function: Box::new(move || { te.set(true); }),
         };
 
-        let mut scheduler = Scheduler::new();
-        scheduler.add_task(task);
-        scheduler.schedule();
+        unsafe {
+            let scheduler = Scheduler::new();
+            scheduler.add_task(task);
+            scheduler.schedule();
+        }
 
         assert_eq!(true, task_executed.get());
     }
@@ -136,8 +152,10 @@ mod test {
             function: Box::new(move || { te.set(true); }),
         };
 
-        let mut scheduler = Scheduler::new();
-        scheduler.add_task(task);
+        unsafe {
+            let scheduler = Scheduler::new();
+            scheduler.add_task(task);
+        }
 
         assert_eq!(false, task_executed.get());
     }
@@ -153,10 +171,12 @@ mod test {
             function: Box::new(move || { cc.set(cc.get() + 1); }),
         };
 
-        let mut scheduler = Scheduler::new();
-        scheduler.add_task(task);
-        scheduler.schedule();
-        scheduler.schedule();
+        unsafe {
+            let scheduler = Scheduler::new();
+            scheduler.add_task(task);
+            scheduler.schedule();
+            scheduler.schedule();
+        }
 
         assert_eq!(1, call_counter.get());
     }
@@ -180,10 +200,12 @@ mod test {
             function: Box::new(move || { t2e.set(true); }),
         };
 
-        let mut scheduler = Scheduler::new();
-        scheduler.add_task(task1);
-        scheduler.add_task(task2);
-        scheduler.schedule();
+        unsafe {
+            let scheduler = Scheduler::new();
+            scheduler.add_task(task1);
+            scheduler.add_task(task2);
+            scheduler.schedule();
+        }
 
         assert_eq!(true, task1_executed.get());
         assert_eq!(true, task2_executed.get());
@@ -191,7 +213,7 @@ mod test {
 
     #[test]
     fn add_task_from_task() {
-        scheduler::init();
+        let _lock = scheduler::test_init();
 
         let task1_executed = Rc::new(Cell::new(false));
         let task2_executed = Rc::new(Cell::new(false));
@@ -222,8 +244,15 @@ mod test {
     }
 
     #[test]
+    fn add_task_from_task_multiple() {
+        for _ in 1..10000 {
+            add_task_from_task();
+        }
+    }
+
+    #[test]
     fn priorities() {
-        scheduler::init();
+        let _lock = scheduler::test_init();
 
         let task1_executed = Rc::new(Cell::new(false));
         let task2_executed = Rc::new(Cell::new(false));
