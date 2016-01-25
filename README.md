@@ -19,7 +19,6 @@ If you don't know where to get one, you can get it [there](https://launchpad.net
 This project needs lots of nightly features:
 
 - inline assembly
-- no stdlib
 - intrinsics
 - lang items
 
