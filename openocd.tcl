@@ -1,4 +1,4 @@
-proc  flash_bkernel { filename } {
+proc flash_bkernel { filename } {
     poll
     reset halt
     flash probe 0

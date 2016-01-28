@@ -51,8 +51,9 @@ Just invoke `make`.
 
 If you have a STM32F4Discovery board, you can flash it in the following way:
 
-- Run openocd with `openocd -f openocd.cfg`.
-- Connect to the running server with `telnet localhost 4444` and run `flash_bkernel kernel.bin` command.
+```sh
+openocd -f openocd.cfg -c 'flash_bkernel kernel.bin; exit'
+```
 
 # Running
 
