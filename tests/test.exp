@@ -1,0 +1,43 @@
+#!/usr/bin/env expect
+
+# exp_internal 1
+
+if {$argc != 1} {
+    puts "usage: test.exp port"
+    exit
+}
+
+set port $argv
+set spawned [spawn -open [open $port w+]]
+set baud 9600
+
+stty ispeed $baud ospeed $baud raw -echo cs8 -parenb -cstopb onlcr < $port
+
+proc reset {} {
+    system "openocd -f openocd.cfg -c 'reset; exit'"
+}
+
+proc expect_or_die {pattern} {
+    expect {
+        -e $pattern { }
+        default { send_user "\n\nError waiting for \"$pattern\"\n"; exit 1; }
+    }
+}
+
+proc expect_prompt {} {
+    expect_or_die "> "
+}
+
+# test welcome prompt
+reset
+expect_or_die "Welcome to bkernel!\r\n"
+expect_or_die "Type 'help' to get a list of available commands.\r\n"
+expect_prompt
+
+# test hi
+send "hi\r"
+expect_or_die "Hi, there!\r\n"
+
+expect_prompt
+
+send_user "\n\nTests successful\n"

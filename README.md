@@ -64,6 +64,26 @@ The following commands are supported:
 - `+3`/`-3`/`+4`/`-4`/`+5`/`-5`/`+6`/`-6` - turn on/off LD3/4/5/6
 - `panic` - throw a panic
 
+# Device tests
+
+There are device tests that are executed with [expect](https://en.wikipedia.org/wiki/Expect). It must be installed on your system.
+
+You must flash the device before testing.
+
+To run device tests, execute:
+
+```sh
+./tests/test.exp /dev/ttyUSB0
+```
+
+or
+
+```sh
+expect tests/test.exp /dev/ttyUSB0
+```
+
+Note: device path can be different on your platform.
+
 # Issues
 
 If you have any issues or questions with the bkernel, just [open an issue](https://github.com/rasendubi/bkernel/issues) or mail me at [rasen.dubi@gmail.com](mailto:rasen.dubi@gmail.com).
