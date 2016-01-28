@@ -69,13 +69,13 @@ You must flash the device before testing.
 To run device tests, execute:
 
 ```sh
-make device_tests
+make device_test
 ```
 
 or
 
 ```sh
-make device_tests DEVICE=/dev/ttyUSB0
+make device_test DEVICE=/dev/ttyUSB0
 ```
 
 Note: device path can be different on your platform.
