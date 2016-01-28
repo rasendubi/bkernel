@@ -14,30 +14,61 @@ set baud 9600
 stty ispeed $baud ospeed $baud raw -echo cs8 -parenb -cstopb onlcr < $port
 
 proc reset {} {
-    system "openocd -f openocd.cfg -c 'reset; exit'"
+    system "openocd -f openocd.cfg -c 'reset; exit' 2> /dev/null"
 }
 
-proc expect_or_die {pattern} {
+proc expect_exact {pattern} {
     expect {
-        -e $pattern { }
-        default { send_user "\n\nError waiting for \"$pattern\"\n"; exit 1; }
+        default {
+            error "\n\nTimed out waiting for \"$pattern\"\n";
+            exit 1;
+        }
+        "^$pattern"
     }
 }
 
 proc expect_prompt {} {
-    expect_or_die "> "
+    expect_exact "> "
+}
+
+proc send_command {cmd} {
+    send -- "$cmd\r"
+    expect "\n"
 }
 
 # test welcome prompt
 reset
-expect_or_die "Welcome to bkernel!\r\n"
-expect_or_die "Type 'help' to get a list of available commands.\r\n"
+expect_exact "*Welcome to bkernel!\r\n"
+expect_exact "Type 'help' to get a list of available commands.\r\n"
 expect_prompt
 
 # test hi
-send "hi\r"
-expect_or_die "Hi, there!\r\n"
+send_command "hi"
+expect_exact "Hi, there!\r\n"
+expect_prompt
 
+# test LED commands
+send_command "-3"
+expect_prompt
+send_command "-4"
+expect_prompt
+send_command "-5"
+expect_prompt
+send_command "-6"
+expect_prompt
+
+send_command "+3"
+expect_prompt
+send_command "+4"
+expect_prompt
+send_command "+5"
+expect_prompt
+send_command "+6"
+expect_prompt
+
+# test unknown command
+send_command "+7"
+expect_exact "Unknown command: \"+7\"\r\n"
 expect_prompt
 
 send_user "\n\nTests successful\n"

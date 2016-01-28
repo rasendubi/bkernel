@@ -11,6 +11,7 @@ LDFLAGS := -N -nostdlib -T stm32_flash.ld -Wl,--gc-sections
 RUSTFLAGS := -g -Z no-landing-pads --target $(TARGET) -C opt-level=3 -L lib/$(TARGET)
 
 RUSTDIR ?= rust
+DEVICE ?= /dev/ttyUSB0
 
 RUSTC_COMMIT := $(shell rustc -Vv | sed -n 's/^commit-hash: \(.*\)$$/\1/p')
 
@@ -73,6 +74,18 @@ doc: # lib/$(TARGET)/libcore.rlib
 .PHONY: test
 test:
 	cargo test -p bkernel -p stm32f4 -p smalloc -p bscheduler
+
+.PHONY: flash
+flash: kernel.bin
+	openocd -f openocd.cfg -c 'flash_bkernel kernel.bin; exit'
+
+.PHONY: reset
+reset:
+	openocd -f openocd.cfg -c 'reset; exit'
+
+.PHONY: device_test
+device_test:
+	expect tests/test.exp $(DEVICE)
 
 .PHONY: clean
 clean:

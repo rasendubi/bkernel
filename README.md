@@ -45,7 +45,10 @@ Just invoke `make`.
 - `make` build all binaries, documentation and run tests;
 - `make build` only build kernel;
 - `make test` run tests;
-- `make doc` build documentation.
+- `make doc` build documentation;
+- `make flash` flash kernel;
+- `make reset` reset the device;
+- `make device_test` run device tests. $DEVICE can be set to point to the device tty (defaults to `/dev/ttyUSB0`).
 
 # Flashing
 
