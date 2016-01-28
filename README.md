@@ -48,15 +48,7 @@ Just invoke `make`.
 - `make doc` build documentation;
 - `make flash` flash kernel;
 - `make reset` reset the device;
-- `make device_test` run device tests. $DEVICE can be set to point to the device tty (defaults to `/dev/ttyUSB0`).
-
-# Flashing
-
-If you have a STM32F4Discovery board, you can flash it in the following way:
-
-```sh
-openocd -f openocd.cfg -c 'flash_bkernel kernel.bin; exit'
-```
+- `make device_test` run device tests. `$DEVICE` can be set to point to the device tty (defaults to `/dev/ttyUSB0`).
 
 # Running
 
@@ -66,6 +58,7 @@ The following commands are supported:
 - `hi` - says hello
 - `+3`/`-3`/`+4`/`-4`/`+5`/`-5`/`+6`/`-6` - turn on/off LD3/4/5/6
 - `panic` - throw a panic
+- `help` - for more commands
 
 # Device tests
 
@@ -76,13 +69,13 @@ You must flash the device before testing.
 To run device tests, execute:
 
 ```sh
-./tests/test.exp /dev/ttyUSB0
+make device_tests
 ```
 
 or
 
 ```sh
-expect tests/test.exp /dev/ttyUSB0
+make device_tests DEVICE=/dev/ttyUSB0
 ```
 
 Note: device path can be different on your platform.
