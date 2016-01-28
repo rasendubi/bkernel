@@ -1,6 +1,7 @@
 #!/usr/bin/env expect
 
 # exp_internal 1
+log_user 0
 
 if {$argc != 1} {
     puts "usage: test.exp port"
@@ -13,6 +14,30 @@ set baud 9600
 
 stty ispeed $baud ospeed $baud raw -echo cs8 -parenb -cstopb onlcr < $port
 
+proc test_flow {str} {
+    if {[log_user -info] == 0} { send_user $str }
+}
+
+proc test {name} {
+    global current_test
+    set current_test $name
+    test_flow "test $name ... "
+}
+
+proc green {str} {
+    return "\033\[01;32m$str\033\[1;0;40m"
+}
+
+proc red {str} {
+    return "\033\[1;31;40m$str\033\[1;0;40m"
+}
+
+proc test_done { } {
+    global current_test
+    unset current_test
+    test_flow [green "ok\n"]
+}
+
 proc reset {} {
     system "openocd -f openocd.cfg -c 'reset; exit' 2> /dev/null"
 }
@@ -20,6 +45,7 @@ proc reset {} {
 proc expect_exact {pattern} {
     expect {
         default {
+            test_flow [red "FAIL\n"]
             error "\n\nTimed out waiting for \"$pattern\"\n";
             exit 1;
         }
@@ -36,39 +62,45 @@ proc send_command {cmd} {
     expect "\n"
 }
 
-# test welcome prompt
-reset
-expect_exact "*Welcome to bkernel!\r\n"
-expect_exact "Type 'help' to get a list of available commands.\r\n"
-expect_prompt
+send_user "\n"
 
-# test hi
-send_command "hi"
-expect_exact "Hi, there!\r\n"
-expect_prompt
+test "welcome prompt"
+    reset
+    expect_exact "*Welcome to bkernel!\r\n"
+    expect_exact "Type 'help' to get a list of available commands.\r\n"
+    expect_prompt
+test_done
 
-# test LED commands
-send_command "-3"
-expect_prompt
-send_command "-4"
-expect_prompt
-send_command "-5"
-expect_prompt
-send_command "-6"
-expect_prompt
+test "hi"
+    send_command "hi"
+    expect_exact "Hi, there!\r\n"
+    expect_prompt
+test_done
 
-send_command "+3"
-expect_prompt
-send_command "+4"
-expect_prompt
-send_command "+5"
-expect_prompt
-send_command "+6"
-expect_prompt
+test "LED"
+    send_command "-3"
+    expect_prompt
+    send_command "-4"
+    expect_prompt
+    send_command "-5"
+    expect_prompt
+    send_command "-6"
+    expect_prompt
 
-# test unknown command
-send_command "+7"
-expect_exact "Unknown command: \"+7\"\r\n"
-expect_prompt
+    send_command "+3"
+    expect_prompt
+    send_command "+4"
+    expect_prompt
+    send_command "+5"
+    expect_prompt
+    send_command "+6"
+    expect_prompt
+test_done
 
-send_user "\n\nTests successful\n"
+test "unknown command"
+    send_command "+7"
+    expect_exact "Unknown command: \"+7\"\r\n"
+    expect_prompt
+test_done
+
+send_user "\nAll tests are successful\n"
