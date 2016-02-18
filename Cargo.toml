@@ -6,7 +6,6 @@ build = "build.rs"
 
 [lib]
 name = "kernel"
-path = "src/kernel.rs"
 crate-type = ["staticlib"]
 doctest = true
 
