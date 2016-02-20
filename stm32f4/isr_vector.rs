@@ -142,9 +142,11 @@ extern {
     pub fn __isr_fpu();
 }
 
+#[no_mangle]
 #[link_section = ".stack_end"]
 pub static STACK_END: &'static u32 = &__stack_end;
 
+#[no_mangle]
 #[link_section = ".isr_vector"]
 pub static ISR_VECTOR: [Option<unsafe extern fn()>; 97] = [
     Some(__isr_reset),
@@ -162,7 +164,7 @@ pub static ISR_VECTOR: [Option<unsafe extern fn()>; 97] = [
     None,
     Some(__isr_pendsv),
     Some(__isr_systick),
-    
+
     Some(__isr_wwdg),
     Some(__isr_pvd),
     Some(__isr_tamp_stamp),
