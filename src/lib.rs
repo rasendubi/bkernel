@@ -22,7 +22,7 @@ mod scheduler;
 
 use ::alloc::boxed::Box;
 
-use stm32f4::{rcc, gpio, usart, timer};
+use stm32f4::{rcc, gpio, usart, timer, nvic};
 use stm32f4::rcc::RCC;
 use stm32f4::gpio::GPIO_B;
 use stm32f4::usart::USART1;
@@ -71,20 +71,7 @@ pub extern fn kmain() -> ! {
     });
 
     scheduler::schedule();
-
-    let mut val = true;
-    loop {
-        if TIM2.it_status(timer::Dier::UIE) {
-            TIM2.it_clear_pending(timer::Dier::UIE);
-
-            val = !val;
-            if val {
-                led::LD3.turn_on();
-            } else {
-                led::LD3.turn_off();
-            }
-        }
-    }
+    loop {}
 }
 
 fn init_timer() {
@@ -101,6 +88,13 @@ fn init_timer() {
     TIM2.it_enable(timer::Dier::UIE);
 
     TIM2.enable();
+
+    nvic::init(&nvic::NvicInit {
+        irq_channel: nvic::IrqChannel::TIM2,
+        preemption_priority: 0,
+        channel_subpriority: 1,
+        enable: true,
+    });
 }
 
 fn init_leds() {
@@ -165,5 +159,23 @@ pub mod panicking {
         USART1.puts_synchronous("\r\nPANIC\r\n");
         let _ = write!(UsartProxy(&USART1), "{}:{} {}", file, line, fmt);
         loop {}
+    }
+}
+
+static mut led3_value: bool = false;
+
+#[no_mangle]
+pub extern fn __isr_tim2() {
+    if TIM2.it_status(timer::Dier::UIE) {
+        TIM2.it_clear_pending(timer::Dier::UIE);
+
+        unsafe {
+            led3_value = !led3_value;
+            if led3_value {
+                led::LD3.turn_on();
+            } else {
+                led::LD3.turn_off();
+            }
+        }
     }
 }
