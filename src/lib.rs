@@ -162,20 +162,18 @@ pub mod panicking {
     }
 }
 
-static mut led3_value: bool = false;
-
 #[no_mangle]
-pub extern fn __isr_tim2() {
+pub unsafe extern fn __isr_tim2() {
+    static mut led3_value: bool = false;
+
     if TIM2.it_status(timer::Dier::UIE) {
         TIM2.it_clear_pending(timer::Dier::UIE);
 
-        unsafe {
-            led3_value = !led3_value;
-            if led3_value {
-                led::LD3.turn_on();
-            } else {
-                led::LD3.turn_off();
-            }
+        led3_value = !led3_value;
+        if led3_value {
+            led::LD3.turn_on();
+        } else {
+            led::LD3.turn_off();
         }
     }
 }
