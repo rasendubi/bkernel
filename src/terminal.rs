@@ -17,49 +17,50 @@ led-fun -- some fun with LEDs\r
 b       -- f*ck your brain\r
 panic   -- throw a panic\r
 help    -- print this help\r
-exit    -- exits the terminal. That will make LED blink\r
 ";
 
+static mut COMMAND: [u8; 256] = [0; 256];
+static mut CUR: usize = 0;
+
 pub fn run_terminal(usart: &Usart) {
-    while handle_command(&usart) {}
+    usart.puts_synchronous(PROMPT);
 }
 
-pub fn handle_command(usart: &Usart) -> bool {
-    let mut command: [u8; 256] = unsafe { ::core::mem::uninitialized() };
-    let mut cur = 0;
-
-    usart.puts_synchronous(PROMPT);
-
-    let mut c = usart.get_char();
-    while c != '\r' as u32 {
-        if c == 0x8 { // backspace
-            if cur != 0 {
-                usart.puts_synchronous("\x08 \x08");
-
-                cur -= 1;
-            }
-        } else {
-            command[cur] = c as u8;
-            cur += 1;
-            usart.put_char(c);
-
-            if cur == 256 {
-                break;
-            }
+pub fn process_char(usart: &Usart, c: u32) {
+    unsafe {
+        if c == '\r' as u32 {
+            usart.puts_synchronous("\r\n");
+            process_command(usart, &COMMAND[0 .. CUR]);
+            CUR = 0;
+            return;
         }
 
-        c = usart.get_char();
-    }
-    usart.puts_synchronous("\r\n");
+        if c == 0x8 { // backspace
+            if CUR != 0 {
+                usart.puts_synchronous("\x08 \x08");
 
-    process_command(usart, &command[0 .. cur])
+                CUR -= 1;
+            }
+        } else {
+            COMMAND[CUR] = c as u8;
+            CUR += 1;
+            usart.put_char(c);
+
+            if CUR == 256 {
+                usart.puts_synchronous("\r\n");
+                process_command(usart, &COMMAND[0 .. CUR]);
+                CUR = 0;
+            }
+        }
+    }
 }
 
 // return true if should continue
-fn process_command(usart: &Usart, command: &[u8]) -> bool {
+fn process_command(usart: &Usart, command: &[u8]) {
     if command.len() >= 2 && &command[..2] == b"b " {
         brainfuck::interpret(&command[2..], &mut ::stm32f4::usart::UsartProxy(usart));
-        return true;
+        usart.puts_synchronous("> ");
+        return;
     }
     match command {
         b"help" => { usart.puts_synchronous(HELP_MESSAGE); },
@@ -110,7 +111,6 @@ fn process_command(usart: &Usart, command: &[u8]) -> bool {
         b"panic" => {
             panic!();
         }
-        b"exit" => { return false },
         b"" => {},
         _ => {
             usart.puts_synchronous("Unknown command: \"");
@@ -118,5 +118,6 @@ fn process_command(usart: &Usart, command: &[u8]) -> bool {
             usart.puts_synchronous("\"\r\n");
         },
     }
-    true
+
+    usart.puts_synchronous("> ");
 }

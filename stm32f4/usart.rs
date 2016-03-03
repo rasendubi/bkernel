@@ -131,6 +131,38 @@ pub struct UsartConfig {
     pub baud_rate: u32,
 }
 
+#[derive(Copy, Clone)]
+#[repr(u32)]
+pub enum Interrupt {
+    PE     = 0x0028,
+    TXE    = 0x0727,
+    TC     = 0x0626,
+    RXNE   = 0x0525,
+    ORE_RX = 0x0325,
+    IDLE   = 0x0424,
+    LBD    = 0x0846,
+    CTS    = 0x096A,
+    ERR    = 0x0060,
+    ORE_ER = 0x0360,
+    NE     = 0x0260,
+    FE     = 0x0160,
+}
+
+#[derive(Copy, Clone)]
+#[repr(u32)]
+pub enum InterruptFlag {
+    CTS  = 0x0200,
+    LBD  = 0x0100,
+    TXE  = 0x0080,
+    TC   = 0x0040,
+    RXNE = 0x0020,
+    IDLE = 0x0010,
+    ORE  = 0x0008,
+    NE   = 0x0004,
+    FE   = 0x0002,
+    PE   = 0x0001,
+}
+
 impl Usart {
     /// Enables USART with given config.
     /// # Known bugs
@@ -181,6 +213,80 @@ impl Usart {
     pub fn get_char(&self) -> u32 {
         while !self.receive_complete() {}
         unsafe { self.dr.get() & 0xff }
+    }
+
+    pub unsafe fn get_unsafe(&self) -> u32 {
+        self.dr.get() & 0xFF
+    }
+
+    pub fn it_enable(&self, it: Interrupt) {
+        self.it_set(it, true);
+    }
+
+    pub fn it_disable(&self, it: Interrupt) {
+        self.it_set(it, false);
+    }
+
+    fn it_set(&self, it: Interrupt, enable: bool) {
+        let itpos = it as u32 & 0x001F;
+        let itmask = 0x01 << itpos;
+
+        let usartreg = (it as u32 & 0xFF) >> 5;
+        let reg = match usartreg {
+            0x01 => &self.cr1,
+            0x02 => &self.cr2,
+            _    => &self.cr3,
+        };
+
+        unsafe {
+            if enable {
+                reg.set_flag(itmask);
+            } else {
+                reg.clear_flag(itmask);
+            }
+        }
+    }
+
+    pub fn it_flag_status(&self, it: InterruptFlag) -> bool {
+        unsafe {
+            self.sr.get() & it as u32 != 0
+        }
+    }
+
+    pub fn it_clear_flag(&self, it: InterruptFlag) {
+        unsafe {
+            self.sr.set((!(it as u16)) as u32);
+        }
+    }
+
+    pub fn it_status(&self, it: Interrupt) -> bool {
+        unsafe {
+            let itpos = it as u32 & 0x001F;
+            let mut itmask = 0x01 << itpos;
+
+            let usartreg = (it as u8) >> 5;
+            let reg = match usartreg {
+                0x01 => &self.cr1,
+                0x02 => &self.cr2,
+                _    => &self.cr3,
+            };
+
+            itmask = itmask & reg.get();
+
+            let mut bitpos = it as u32 >> 8;
+            bitpos = 0x01 << bitpos;
+            bitpos = bitpos & self.sr.get();
+
+            bitpos != 0 && itmask != 0
+        }
+    }
+
+    pub fn it_clear_pending(&self, it: Interrupt) {
+        unsafe {
+            let bitpos = it as u32 >> 8;
+            let itmask = 1 << bitpos;
+            self.sr.set(!(itmask as u16) as u32);
+        }
     }
 }
 

@@ -146,6 +146,15 @@ fn init_usart1() {
         flow_control: usart::FlowControl::No,
         baud_rate: 9600,
     });
+
+    USART1.it_enable(usart::Interrupt::RXNE);
+
+    nvic::init(&nvic::NvicInit {
+        irq_channel: nvic::IrqChannel::USART1,
+        priority: 0,
+        subpriority: 1,
+        enable: true,
+    });
 }
 
 #[cfg(target_os = "none")]
@@ -175,5 +184,20 @@ pub unsafe extern fn __isr_tim2() {
         } else {
             led::LD3.turn_off();
         }
+    }
+}
+
+#[no_mangle]
+pub unsafe extern fn __isr_usart1() {
+    if USART1.it_status(usart::Interrupt::RXNE) {
+        if USART1.it_flag_status(usart::InterruptFlag::RXNE) {
+            let c = USART1.get_unsafe();
+            terminal::process_char(&USART1, c);
+            // USART1.put_char(c);
+        } else {
+            panic!("USART1 unknown interrupt flag");
+        }
+    } else {
+        panic!("USART1 unknown interrupt source");
     }
 }
