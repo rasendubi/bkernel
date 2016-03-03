@@ -40,7 +40,6 @@ pub fn init(nvic: &NvicInit) {
             tmppriority = tmppriority << 0x04;
 
             IPR[nvic.irq_channel as usize].set(tmppriority);
-            // ISER[0].set(0x1 << 28);
             ISER[nvic.irq_channel as usize >> 5].set(0x1 << (nvic.irq_channel as u8 & 0x1F));
         } else {
             ICER[nvic.irq_channel as usize >> 5].set(0x1 << (nvic.irq_channel as u8 & 0x1F));
