@@ -91,8 +91,8 @@ fn init_timer() {
 
     nvic::init(&nvic::NvicInit {
         irq_channel: nvic::IrqChannel::TIM2,
-        preemption_priority: 0,
-        channel_subpriority: 1,
+        priority: 0,
+        subpriority: 1,
         enable: true,
     });
 }
