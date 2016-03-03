@@ -72,12 +72,17 @@ pub extern fn kmain() -> ! {
 
     scheduler::schedule();
 
+    let mut val = true;
     loop {
-        let counter = TIM2.get_counter();
-        if counter % 250 < 125 {
-            led::LD3.turn_off();
-        } else {
-            led::LD3.turn_on();
+        if TIM2.it_status(timer::Dier::UIE) {
+            TIM2.it_clear_pending(timer::Dier::UIE);
+
+            val = !val;
+            if val {
+                led::LD3.turn_on();
+            } else {
+                led::LD3.turn_off();
+            }
         }
     }
 }
@@ -88,10 +93,12 @@ fn init_timer() {
     TIM2.init(&timer::TimInit {
         prescaler: 40000,
         counter_mode: timer::CounterMode::Up,
-        period: 500,
+        period: 128,
         clock_division: timer::ClockDivision::Div1,
         repetition_counter: 0,
     });
+
+    TIM2.it_enable(timer::Dier::UIE);
 
     TIM2.enable();
 }

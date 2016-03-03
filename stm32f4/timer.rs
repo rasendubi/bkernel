@@ -48,6 +48,23 @@ enum Cr1 {
 }
 
 #[repr(u32)]
+#[derive(Copy, Clone)]
+pub enum Dier {
+    UIE   = 1 << 0,
+    CC1IE = 1 << 1,
+    CC2IE = 1 << 2,
+    CC3IE = 1 << 3,
+    CC4IE = 1 << 4,
+    TIE   = 1 << 6,
+    UDE   = 1 << 8,
+    CC1DE = 1 << 9,
+    CC2DE = 1 << 10,
+    CC3DE = 1 << 11,
+    CC4DE = 1 << 12,
+    TDE   = 1 << 14,
+}
+
+#[repr(u32)]
 enum Egr {
     UG   = 1 << 0,
     CC1G = 1 << 1,
@@ -112,6 +129,32 @@ impl Tim {
     pub fn get_counter(&self) -> u32 {
         unsafe {
             self.cnt.get()
+        }
+    }
+
+    pub fn it_enable(&self, it: Dier) {
+        unsafe {
+            self.dier.set_flag(it as u32);
+        }
+    }
+
+    pub fn it_disable(&self, it: Dier) {
+        unsafe {
+            self.dier.clear_flag(it as u32);
+        }
+    }
+
+    pub fn it_status(&self, it: Dier) -> bool {
+        unsafe {
+            let itstatus = self.sr.get() & it as u32;
+            let itenable = self.dier.get() & it as u32;
+            itstatus != 0 && itenable != 0
+        }
+    }
+
+    pub fn it_clear_pending(&self, it: Dier) {
+        unsafe {
+            self.sr.clear_flag(it as u32);
         }
     }
 }

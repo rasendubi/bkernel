@@ -37,7 +37,6 @@ impl Led {
         self.gpio.set_bit(self.pin);
     }
 
-    #[allow(dead_code)]
     pub fn turn_off(&self) {
         self.gpio.clear_bit(self.pin);
     }
