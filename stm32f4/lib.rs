@@ -18,5 +18,6 @@ pub mod volatile;
 pub mod rcc;
 pub mod gpio;
 pub mod usart;
+pub mod timer;
 
 pub mod lang_items;

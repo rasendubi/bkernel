@@ -17,15 +17,14 @@ led-fun -- some fun with LEDs\r
 b       -- f*ck your brain\r
 panic   -- throw a panic\r
 help    -- print this help\r
+exit    -- exits the terminal. That will make LED blink\r
 ";
 
 pub fn run_terminal(usart: &Usart) {
-    loop {
-        handle_command(&usart);
-    }
+    while handle_command(&usart) {}
 }
 
-pub fn handle_command(usart: &Usart) {
+pub fn handle_command(usart: &Usart) -> bool {
     let mut command: [u8; 256] = unsafe { ::core::mem::uninitialized() };
     let mut cur = 0;
 
@@ -53,13 +52,14 @@ pub fn handle_command(usart: &Usart) {
     }
     usart.puts_synchronous("\r\n");
 
-    process_command(usart, &command[0 .. cur]);
+    process_command(usart, &command[0 .. cur])
 }
 
-fn process_command(usart: &Usart, command: &[u8]) {
+// return true if should continue
+fn process_command(usart: &Usart, command: &[u8]) -> bool {
     if command.len() >= 2 && &command[..2] == b"b " {
         brainfuck::interpret(&command[2..], &mut ::stm32f4::usart::UsartProxy(usart));
-        return;
+        return true;
     }
     match command {
         b"help" => { usart.puts_synchronous(HELP_MESSAGE); },
@@ -110,6 +110,7 @@ fn process_command(usart: &Usart, command: &[u8]) {
         b"panic" => {
             panic!();
         }
+        b"exit" => { return false },
         b"" => {},
         _ => {
             usart.puts_synchronous("Unknown command: \"");
@@ -117,4 +118,5 @@ fn process_command(usart: &Usart, command: &[u8]) {
             usart.puts_synchronous("\"\r\n");
         },
     }
+    true
 }

@@ -22,10 +22,11 @@ mod scheduler;
 
 use ::alloc::boxed::Box;
 
-use stm32f4::{rcc, gpio, usart};
+use stm32f4::{rcc, gpio, usart, timer};
 use stm32f4::rcc::RCC;
 use stm32f4::gpio::GPIO_B;
 use stm32f4::usart::USART1;
+use stm32f4::timer::TIM2;
 
 #[cfg(not(test))]
 const MEMORY_SIZE: usize = 64*1024;
@@ -50,6 +51,7 @@ pub extern fn kmain() -> ! {
     init_memory();
     init_usart1();
     init_leds();
+    init_timer();
 
     scheduler::init();
 
@@ -69,7 +71,29 @@ pub extern fn kmain() -> ! {
     });
 
     scheduler::schedule();
-    loop {}
+
+    loop {
+        let counter = TIM2.get_counter();
+        if counter % 250 < 125 {
+            led::LD3.turn_off();
+        } else {
+            led::LD3.turn_on();
+        }
+    }
+}
+
+fn init_timer() {
+    RCC.apb1_clock_enable(rcc::Apb1Enable::TIM2);
+
+    TIM2.init(&timer::TimInit {
+        prescaler: 40000,
+        counter_mode: timer::CounterMode::Up,
+        period: 500,
+        clock_division: timer::ClockDivision::Div1,
+        repetition_counter: 0,
+    });
+
+    TIM2.enable();
 }
 
 fn init_leds() {
