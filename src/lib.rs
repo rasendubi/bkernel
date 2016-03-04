@@ -19,6 +19,7 @@ mod terminal;
 mod brainfuck;
 mod bfuckio;
 mod scheduler;
+mod queue;
 
 use ::alloc::boxed::Box;
 
@@ -71,7 +72,6 @@ pub extern fn kmain() -> ! {
     });
 
     scheduler::schedule();
-    loop {}
 }
 
 fn init_timer() {
@@ -192,8 +192,7 @@ pub unsafe extern fn __isr_usart1() {
     if USART1.it_status(usart::Interrupt::RXNE) {
         if USART1.it_flag_status(usart::InterruptFlag::RXNE) {
             let c = USART1.get_unsafe();
-            terminal::process_char(&USART1, c);
-            // USART1.put_char(c);
+            terminal::put_char(c);
         } else {
             panic!("USART1 unknown interrupt flag");
         }

@@ -6,6 +6,7 @@
 
 #![feature(lang_items)]
 #![feature(core_intrinsics)]
+#![feature(asm)]
 
 #![no_std]
 
@@ -22,3 +23,69 @@ pub mod timer;
 pub mod nvic;
 
 pub mod lang_items;
+
+#[inline(always)]
+#[cfg(target_arch = "arm")]
+pub unsafe fn __enable_irq() {
+    asm!("cpsie i" : : : : "volatile");
+}
+
+#[inline(always)]
+#[cfg(target_arch = "arm")]
+pub unsafe fn __disable_irq() {
+    asm!("cpsid i" : : : : "volatile");
+}
+
+/// Get Priority Mask
+#[inline(always)]
+#[cfg(target_arch = "arm")]
+pub unsafe fn __get_primask() -> u32 {
+    let result: u32;
+    asm!("MRS $0, primask" : "=r" (result) : : : "volatile");
+    result
+}
+
+#[inline(always)]
+#[cfg(not(target_arch = "arm"))]
+pub unsafe fn __enable_irq() {
+    panic!("enable_irq is not implemented");
+}
+
+#[inline(always)]
+#[cfg(not(target_arch = "arm"))]
+pub unsafe fn __disable_irq() {
+    panic!("disable_irq is not implemented");
+}
+
+#[inline(always)]
+#[cfg(not(target_arch = "arm"))]
+pub unsafe fn __get_primask() -> u32{
+    panic!("get_primask is not implemented");
+}
+
+/// Saves current irq status and disables interrupts.
+/// Interrupts should always be restored with `restore_irq()`.
+///
+/// # Examples
+///
+/// ```no_run
+/// # use stm32f4::{save_irq, restore_irq};
+/// # unsafe {
+/// let irq = save_irq();
+/// // Do work with interrupts disabled
+/// restore_irq(irq);
+/// # }
+/// ```
+#[inline(always)]
+pub unsafe fn save_irq() -> u32 {
+    let primask = __get_primask();
+    __disable_irq();
+    primask
+}
+
+#[inline(always)]
+pub unsafe fn restore_irq(primask: u32) {
+    if primask == 0 {
+        __enable_irq();
+    }
+}

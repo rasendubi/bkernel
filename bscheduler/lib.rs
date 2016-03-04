@@ -26,6 +26,7 @@ use ::collections::vec_deque::VecDeque;
 
 pub struct Scheduler<'a> {
     tasks: UnsafeCell<VecDeque<Task<'a>>>,
+    current_priority: UnsafeCell<u32>,
 }
 
 pub struct Task<'a> {
@@ -38,6 +39,7 @@ impl<'a> Scheduler<'a> {
     pub fn new() -> Scheduler<'a> {
         Scheduler {
             tasks: UnsafeCell::new(VecDeque::new()),
+            current_priority: UnsafeCell::new(u32::max_value()),
         }
     }
 
@@ -45,6 +47,28 @@ impl<'a> Scheduler<'a> {
         while let Some(task) = (*self.tasks.get()).pop_front() {
             (task.function)();
         }
+    }
+
+    /// Try to preempt current task with new one.
+    /// Returns true if task was executed.
+    ///
+    /// This function should be called with interrupts disabled.
+    pub unsafe fn reschedule(&self) -> bool {
+        if let Some(task) = (*self.tasks.get()).front() {
+            if task.priority < *self.current_priority.get() {
+                match (*self.tasks.get()).pop_front() {
+                    Some(task) => {
+                        let priority = *self.current_priority.get();
+                        *self.current_priority.get() = task.priority;
+                        (task.function)();
+                        *self.current_priority.get() = priority;
+                        return true;
+                    },
+                    _ => panic!("Something went wrong!"),
+                }
+            }
+        }
+        false
     }
 
     pub unsafe fn add_task(&self, task: Task<'a>) {
