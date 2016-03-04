@@ -11,6 +11,7 @@ if {$argc != 1} {
 set port $argv
 set spawned [spawn -open [open $port w+]]
 set baud 9600
+set send_human { .01 .01 100 .005 .005 }
 
 stty ispeed $baud ospeed $baud raw -echo cs8 -parenb -cstopb onlcr < $port
 
@@ -58,7 +59,7 @@ proc expect_prompt {} {
 }
 
 proc send_command {cmd} {
-    send -- "$cmd\r"
+    send -h -- "$cmd\r"
     expect "\n"
 }
 
@@ -100,6 +101,12 @@ test_done
 test "unknown command"
     send_command "+7"
     expect_exact "Unknown command: \"+7\"\r\n"
+    expect_prompt
+test_done
+
+test "brainfuck hello world"
+    send_command "b ++++++++\[>++++\[>++>+++>+++>+<<<<-]>+>+>->>+\[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+."
+    expect_exact "Hello World!"
     expect_prompt
 test_done
 
