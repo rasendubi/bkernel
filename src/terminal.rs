@@ -60,7 +60,7 @@ static mut CUR: usize = 0;
 
 // Well, that's a trick to overcome `error: statics are not allowed to have destructors`.
 // TODO: factor it out -- it was used in scheduler module too.
-struct QueueCell(UnsafeCell<Option<Queue<u32>>>);
+struct QueueCell(UnsafeCell<Option<Queue<u8>>>);
 unsafe impl Sync for QueueCell { }
 static QUEUE: QueueCell = QueueCell(UnsafeCell::new(None));
 
@@ -92,7 +92,7 @@ fn wait_char() {
 /// Safe to call from ISR.
 pub fn put_char(c: u32) {
     unsafe {
-        (*QUEUE.0.get()).as_mut().unwrap().put(c);
+        (*QUEUE.0.get()).as_mut().unwrap().put(c as u8);
     }
 }
 
@@ -101,7 +101,7 @@ fn get_pending_char() -> Option<u32> {
         let irq = ::stm32f4::save_irq();
         let c = (*QUEUE.0.get()).as_mut().unwrap().get();
         ::stm32f4::restore_irq(irq);
-        c
+        c.map(|x| x as u32)
     }
 }
 

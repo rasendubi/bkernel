@@ -6,12 +6,12 @@ use stm32f4::usart;
 use stm32f4::usart::USART1;
 use ::core::cell::UnsafeCell;
 
-struct QueueCell(UnsafeCell<Option<Queue<u32>>>);
+struct QueueCell(UnsafeCell<Option<Queue<u8>>>);
 unsafe impl Sync for QueueCell { }
 static QUEUE: QueueCell = QueueCell(UnsafeCell::new(None));
 
 /// Return queue.
-fn get_queue() -> &'static mut Queue<u32> {
+fn get_queue() -> &'static mut Queue<u8> {
     unsafe {
         (*QUEUE.0.get()).as_mut().unwrap() as &mut _
     }
@@ -26,20 +26,20 @@ pub fn init() {
 
 pub fn write_bytes(bytes: &[u8]) {
     for b in bytes {
-        get_queue().put(*b as u32);
+        get_queue().put(*b);
     }
     new_data_added();
 }
 
 pub fn write_str(s: &str) {
-    for c in s.chars() {
-        get_queue().put(c as u32);
+    for c in s.bytes() {
+        get_queue().put(c);
     }
     new_data_added();
 }
 
 pub fn write_char(c: u32) {
-    get_queue().put(c);
+    get_queue().put(c as u8);
     new_data_added();
 }
 
@@ -50,7 +50,7 @@ fn new_data_added() {
             match get_queue().get() {
                 Some(c) => {
                     USART1.it_enable(usart::Interrupt::TXE);
-                    USART1.put_unsafe(c);
+                    USART1.put_unsafe(c as u32);
                 },
                 None => {},
             }
@@ -61,7 +61,7 @@ fn new_data_added() {
 
 pub fn usart1_txe() {
     match get_queue().get() {
-        Some(c) => unsafe { USART1.put_unsafe(c); },
+        Some(c) => unsafe { USART1.put_unsafe(c as u32); },
         None => {
             USART1.it_disable(usart::Interrupt::TXE)
         },
