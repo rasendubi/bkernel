@@ -20,6 +20,7 @@ mod brainfuck;
 mod bfuckio;
 mod scheduler;
 mod queue;
+mod log;
 
 use ::alloc::boxed::Box;
 
@@ -53,6 +54,7 @@ pub extern fn kmain() -> ! {
     init_usart1();
     init_leds();
     init_timer();
+    log::init();
 
     scheduler::init();
 
@@ -64,10 +66,10 @@ pub extern fn kmain() -> ! {
         name: "terminal",
         priority: 5,
         function: Box::new(move || {
-            USART1.puts_synchronous("\r\nWelcome to bkernel!\r\n");
-            USART1.puts_synchronous("Type 'help' to get a list of available commands.\r\n");
+            log::write_str("\r\nWelcome to bkernel!\r\n");
+            log::write_str("Type 'help' to get a list of available commands.\r\n");
 
-            terminal::run_terminal(&USART1);
+            terminal::run_terminal();
         }),
     });
 
@@ -190,13 +192,11 @@ pub unsafe extern fn __isr_tim2() {
 #[no_mangle]
 pub unsafe extern fn __isr_usart1() {
     if USART1.it_status(usart::Interrupt::RXNE) {
-        if USART1.it_flag_status(usart::InterruptFlag::RXNE) {
-            let c = USART1.get_unsafe();
-            terminal::put_char(c);
-        } else {
-            panic!("USART1 unknown interrupt flag");
-        }
-    } else {
-        panic!("USART1 unknown interrupt source");
+        let c = USART1.get_unsafe();
+        terminal::put_char(c);
+    }
+
+    if USART1.it_status(usart::Interrupt::TXE) {
+        log::usart1_txe();
     }
 }

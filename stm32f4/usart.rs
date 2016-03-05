@@ -219,6 +219,10 @@ impl Usart {
         self.dr.get() & 0xFF
     }
 
+    pub unsafe fn put_unsafe(&self, c: u32) {
+        self.dr.set(c);
+    }
+
     pub fn it_enable(&self, it: Interrupt) {
         self.it_set(it, true);
     }
@@ -256,6 +260,22 @@ impl Usart {
     pub fn it_clear_flag(&self, it: InterruptFlag) {
         unsafe {
             self.sr.set((!(it as u16)) as u32);
+        }
+    }
+
+    pub fn it_enabled(&self, it: Interrupt) -> bool {
+        unsafe {
+            let itpos = it as u32 & 0x001F;
+            let itmask = 0x01 << itpos;
+
+            let usartreg = (it as u8) >> 5;
+            let reg = match usartreg {
+                0x01 => &self.cr1,
+                0x02 => &self.cr2,
+                _    => &self.cr3,
+            };
+
+            itmask & reg.get() != 0
         }
     }
 

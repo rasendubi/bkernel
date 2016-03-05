@@ -3,7 +3,7 @@
 use ::bscheduler::Task;
 use scheduler::add_task;
 
-const N: usize = 32;
+const N: usize = 4096;
 
 pub struct Queue<T> {
     values: [T; N],

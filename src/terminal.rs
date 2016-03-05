@@ -1,7 +1,8 @@
-use stm32f4::usart::{Usart, USART1};
 use led;
 use brainfuck;
+use bfuckio::SystemLog;
 use led_music;
+use log;
 
 use queue::Queue;
 
@@ -71,10 +72,10 @@ static QUEUE: QueueCell = QueueCell(UnsafeCell::new(None));
 /// Note that terminal is non-blocking and is driven by `put_char`.
 /// (Well, it mostly non-blocking. There is no non-blocking version
 /// for `puts_synchronous`.)
-pub fn run_terminal(usart: &Usart) {
+pub fn run_terminal() {
     unsafe {
         *QUEUE.0.get() = Some(Queue::new());
-        usart.puts_synchronous(PROMPT);
+        log::write_str(PROMPT);
         wait_char();
     }
 }
@@ -112,52 +113,52 @@ fn process() {
     // TODO: this flow can be abstracted out as it's useful for many
     // queue-processing tasks.
     while let Some(c) = get_pending_char() {
-        process_char(&USART1, c);
+        process_char(c);
     }
     wait_char();
 }
 
 /// Processes one character at a time. Calls `process_command` when
 /// user presses Enter or command is too long.
-fn process_char(usart: &Usart, c: u32) {
+fn process_char(c: u32) {
     unsafe {
         if c == '\r' as u32 {
-            usart.puts_synchronous("\r\n");
-            process_command(usart, &COMMAND[0 .. CUR]);
+            log::write_str("\r\n");
+            process_command(&COMMAND[0 .. CUR]);
             CUR = 0;
             return;
         }
 
         if c == 0x8 { // backspace
             if CUR != 0 {
-                usart.puts_synchronous("\x08 \x08");
+                log::write_str("\x08 \x08");
 
                 CUR -= 1;
             }
         } else {
             COMMAND[CUR] = c as u8;
             CUR += 1;
-            usart.put_char(c);
+            log::write_char(c);
 
             if CUR == 256 {
-                usart.puts_synchronous("\r\n");
-                process_command(usart, &COMMAND[0 .. CUR]);
+                log::write_str("\r\n");
+                process_command(&COMMAND[0 .. CUR]);
                 CUR = 0;
             }
         }
     }
 }
 
-fn process_command(usart: &Usart, command: &[u8]) {
+fn process_command(command: &[u8]) {
     if command.len() >= 2 && &command[..2] == b"b " {
-        brainfuck::interpret(&command[2..], &mut ::stm32f4::usart::UsartProxy(usart));
-        usart.puts_synchronous("> ");
+        brainfuck::interpret(&command[2..], &mut SystemLog::Log);
+        log::write_str("> ");
         return;
     }
     match command {
-        b"help" => { usart.puts_synchronous(HELP_MESSAGE); },
-        b"hi" => { usart.puts_synchronous("Hi, there!\r\n"); },
-        b"pony" | b"p" => { usart.puts_synchronous(PONY); },
+        b"help" => { log::write_str(HELP_MESSAGE); },
+        b"hi" => { log::write_str("Hi, there!\r\n"); },
+        b"pony" | b"p" => { log::write_str(PONY); },
         b"-3" => { led::LD3.turn_off(); },
         b"+3" => { led::LD3.turn_on(); },
         b"-4" => { led::LD4.turn_off(); },
@@ -172,11 +173,11 @@ fn process_command(usart: &Usart, command: &[u8]) {
         }
         b"" => {},
         _ => {
-            usart.puts_synchronous("Unknown command: \"");
-            usart.put_bytes(command);
-            usart.puts_synchronous("\"\r\n");
+            log::write_str("Unknown command: \"");
+            log::write_bytes(command);
+            log::write_str("\"\r\n");
         },
     }
 
-    usart.puts_synchronous("> ");
+    log::write_str("> ");
 }

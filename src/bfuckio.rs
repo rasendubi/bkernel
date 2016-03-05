@@ -1,11 +1,16 @@
-use stm32f4::usart::UsartProxy;
 use brainfuck::Io;
+use log;
 
-impl<'a> Io for UsartProxy<'a> {
-    fn read_byte(&mut self) -> u8 {
-        self.0.get_char() as u8
-    }
+pub enum SystemLog {
+    Log,
+}
+
+impl Io for SystemLog {
     fn write_byte(&mut self, byte: u8) {
-        self.0.put_char(byte as u32)
+        log::write_char(byte as u32);
+    }
+
+    fn read_byte(&mut self) -> u8 {
+        panic!("Reading is not implemented for brainfuck interpreter");
     }
 }
