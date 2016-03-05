@@ -13,6 +13,7 @@ extern crate alloc;
 extern crate collections;
 extern crate bscheduler;
 
+mod global;
 mod led;
 mod led_music;
 mod terminal;

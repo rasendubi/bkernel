@@ -1,10 +1,10 @@
+use global::Global;
 use led;
 use led_music;
 use log;
 
 use queue::Queue;
 
-use ::core::cell::UnsafeCell;
 use ::alloc::boxed::Box;
 
 const PROMPT: &'static str = "> ";
@@ -58,11 +58,7 @@ const PONY: &'static str = "
 static mut COMMAND: [u8; 256] = [0; 256];
 static mut CUR: usize = 0;
 
-// Well, that's a trick to overcome `error: statics are not allowed to have destructors`.
-// TODO: factor it out -- it was used in scheduler module too.
-struct QueueCell(UnsafeCell<Option<Queue<u8>>>);
-unsafe impl Sync for QueueCell { }
-static QUEUE: QueueCell = QueueCell(UnsafeCell::new(None));
+static QUEUE: Global<Queue<u8>> = Global::new_empty();
 
 /// Starts a terminal.
 ///
@@ -70,36 +66,30 @@ static QUEUE: QueueCell = QueueCell(UnsafeCell::new(None));
 /// (Well, it mostly non-blocking. There is no non-blocking version
 /// for `puts_synchronous`.)
 pub fn run_terminal() {
-    unsafe {
-        *QUEUE.0.get() = Some(Queue::new());
-        log::write_str(PROMPT);
-        wait_char();
-    }
+    QUEUE.init(Queue::new());
+    log::write_str(PROMPT);
+    wait_char();
 }
 
 fn wait_char() {
-    unsafe {
-        (*QUEUE.0.get()).as_mut().unwrap().get_task(::bscheduler::Task {
-            name: "terminal::next_char",
-            priority: 5,
-            function: Box::new(process),
-        });
-    }
+    QUEUE.get().get_task(::bscheduler::Task {
+        name: "terminal::next_char",
+        priority: 5,
+        function: Box::new(process),
+    });
 }
 
 /// Puts a char to process.
 ///
 /// Safe to call from ISR.
 pub fn put_char(c: u32) {
-    unsafe {
-        (*QUEUE.0.get()).as_mut().unwrap().put(c as u8);
-    }
+    QUEUE.get().put(c as u8);
 }
 
 fn get_pending_char() -> Option<u32> {
     unsafe {
         let irq = ::stm32f4::save_irq();
-        let c = (*QUEUE.0.get()).as_mut().unwrap().get();
+        let c = QUEUE.get().get();
         ::stm32f4::restore_irq(irq);
         c.map(|x| x as u32)
     }
