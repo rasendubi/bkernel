@@ -1,6 +1,4 @@
 use led;
-use brainfuck;
-use bfuckio::SystemLog;
 use led_music;
 use log;
 
@@ -20,7 +18,6 @@ pony    -- surprise!\r
 -5/+5   -- turn off/on LED5\r
 -6/+6   -- turn off/on LED6\r
 led-fun -- some fun with LEDs\r
-b       -- f*ck your brain\r
 panic   -- throw a panic\r
 help    -- print this help\r
 ";
@@ -150,11 +147,6 @@ fn process_char(c: u32) {
 }
 
 fn process_command(command: &[u8]) {
-    if command.len() >= 2 && &command[..2] == b"b " {
-        brainfuck::interpret(&command[2..], &mut SystemLog::Log);
-        log::write_str("> ");
-        return;
-    }
     match command {
         b"help" => { log::write_str(HELP_MESSAGE); },
         b"hi" => { log::write_str("Hi, there!\r\n"); },
@@ -179,5 +171,5 @@ fn process_command(command: &[u8]) {
         },
     }
 
-    log::write_str("> ");
+    log::write_str(PROMPT);
 }

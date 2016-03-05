@@ -104,10 +104,4 @@ test "unknown command"
     expect_prompt
 test_done
 
-test "brainfuck hello world"
-    send_command "b ++++++++\[>++++\[>++>+++>+++>+<<<<-]>+>+>->>+\[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+."
-    expect_exact "Hello World!"
-    expect_prompt
-test_done
-
 send_user "\nAll tests are successful\n"
