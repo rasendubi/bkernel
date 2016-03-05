@@ -6,8 +6,7 @@ build = "build.rs"
 
 [lib]
 name = "kernel"
-crate-type = ["staticlib"]
-doctest = true
+crate-type = ["lib", "staticlib"]
 
 [dependencies.stm32f4]
 path = "./stm32f4"

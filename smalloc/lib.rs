@@ -16,7 +16,7 @@
 //! in memory. This makes coalescing possible.
 //!
 //! The tag for blocks is:
-//! 
+//!
 //! - `u16` size of previous block / minimal allocation size
 //!
 //!    Is used to traverse blocks backward.

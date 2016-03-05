@@ -1,19 +1,27 @@
 //! This crate is a Rust part of the kernel. It should be linked with
 //! the bootstrap that will jump to the `kmain` function.
-#![crate_type = "staticlib"]
-
 #![feature(lang_items, alloc, core_intrinsics, collections, const_fn)]
-#![no_std]
+
+#![cfg_attr(target_os = "none", no_std)]
+
+#[cfg(not(target_os = "none"))]
+extern crate core;
+
+#[cfg(target_os = "none")]
+extern crate linkmem;
 
 extern crate stm32f4;
-#[cfg(not(test))]
-extern crate linkmem;
 extern crate smalloc;
 extern crate alloc;
 extern crate collections;
 extern crate bscheduler;
 
+#[cfg(target_os = "none")]
 mod global;
+
+#[cfg(not(target_os = "none"))]
+pub mod global;
+
 mod led;
 mod led_music;
 mod terminal;
@@ -29,13 +37,13 @@ use stm32f4::gpio::GPIO_B;
 use stm32f4::usart::USART1;
 use stm32f4::timer::TIM2;
 
-#[cfg(not(test))]
+#[cfg(target_os = "none")]
 const MEMORY_SIZE: usize = 64*1024;
 
-#[cfg(not(test))]
+#[cfg(target_os = "none")]
 static mut MEMORY: [u8; MEMORY_SIZE] = [0; MEMORY_SIZE];
 
-#[cfg(not(test))]
+#[cfg(target_os = "none")]
 fn init_memory() {
     ::linkmem::init(smalloc::Smalloc {
         start: unsafe { ::core::mem::transmute(&mut MEMORY) },
@@ -43,7 +51,7 @@ fn init_memory() {
     });
 }
 
-#[cfg(test)]
+#[cfg(not(target_os = "none"))]
 fn init_memory() {}
 
 /// The main entry of the kernel.
@@ -198,4 +206,9 @@ pub unsafe extern fn __isr_usart1() {
     if USART1.it_status(usart::Interrupt::TXE) {
         log::usart1_txe();
     }
+}
+
+#[no_mangle]
+#[allow(non_snake_case)]
+pub extern "C" fn _Unwind_Resume(_ex_obj: *mut ()) {
 }

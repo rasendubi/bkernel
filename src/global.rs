@@ -15,8 +15,10 @@ impl<T> Global<T> {
     /// # Examples
     ///
     /// ```
-    /// static var: Global<u32> = Global::new(42);
-    /// assert_eq!(42, var.get());
+    /// # #![feature(const_fn)]
+    /// # use kernel::global::Global;
+    /// static VAR: Global<u32> = Global::new(42);
+    /// assert_eq!(42, *VAR.get());
     /// ```
     #[allow(dead_code)]
     pub const fn new(value: T) -> Global<T> {
@@ -29,7 +31,9 @@ impl<T> Global<T> {
     /// # Examples
     ///
     /// ```
-    /// static var: Global<u32> = Global::new_empty();
+    /// # #![feature(const_fn)]
+    /// # use kernel::global::Global;
+    /// static VAR: Global<u32> = Global::new_empty();
     /// ```
     pub const fn new_empty() -> Global<T> {
         Global(UnsafeCell::new(None))
@@ -48,10 +52,14 @@ impl<T> Global<T> {
     ///
     /// Panics if variable is empty.
     ///
+    /// # Examples
+    ///
     /// ```
-    /// static var: Global<u32> = Global::init(32);
-    /// var.get() += 10;
-    /// assert_eq!(42, var.get());
+    /// # #![feature(const_fn)]
+    /// # use kernel::global::Global;
+    /// static VAR: Global<u32> = Global::new(32);
+    /// *VAR.get() += 10;
+    /// assert_eq!(42, *VAR.get());
     /// ```
     pub fn get(&self) -> &mut T {
         unsafe {
