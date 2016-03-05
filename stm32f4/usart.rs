@@ -23,10 +23,11 @@ pub struct Usart {
 }
 
 #[test]
-fn test_usart_register_size() {
+fn test_register_size() {
     assert_eq!(0x1C, ::core::mem::size_of::<Usart>());
 }
 
+#[allow(dead_code)]
 #[repr(u32)]
 enum Sr {
     PE   = 1 << 0,
@@ -41,12 +42,14 @@ enum Sr {
     CTS  = 1 << 9,
 }
 
+#[allow(dead_code)]
 #[repr(u32)]
 enum Brr {
     DIV_Fraction = 0x000F,
     DIV_Mantissa = 0xFFF0,
 }
 
+#[allow(dead_code)]
 #[repr(u32)]
 enum Cr1 {
     SBK    = 1 << 0,
@@ -67,6 +70,7 @@ enum Cr1 {
     OVER8  = 1 << 15,
 }
 
+#[allow(dead_code)]
 #[repr(u32)]
 enum Cr2 {
     ADD   = 0xF << 0,
@@ -89,6 +93,7 @@ pub enum StopBits {
     Bits1_5 = 0x3,
 }
 
+#[allow(dead_code)]
 #[repr(u32)]
 enum Cr3 {
     EIE    = 1 << 0,
@@ -105,6 +110,7 @@ enum Cr3 {
     ONEBIT = 1 << 11,
 }
 
+#[allow(dead_code)]
 #[repr(u32)]
 enum Gtpr {
     PSC = 0x00FF,

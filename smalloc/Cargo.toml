@@ -7,4 +7,3 @@ build = "../build.rs"
 [lib]
 name = "smalloc"
 path = "lib.rs"
-crate-type = ["rlib"]

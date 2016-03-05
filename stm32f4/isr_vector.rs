@@ -1,3 +1,8 @@
+//! Interrupt Service Routines vector.
+//!
+//! This module defines order of ISRs in the vector. The vector is
+//! installed in appropriate place in the linker script.
+
 // The Void type has 0 size. It's used here to allow aliasing of
 // __data/bss_start/end. Otherwise, compiler may generate incorrect
 // code and the board will hang.
@@ -13,9 +18,10 @@ extern {
     fn kmain();
 }
 
+/// Reset handler. It copies `.data` segment, initializes `.bss` to
+/// zeros, and calls `kmain()`.
 #[no_mangle]
 pub unsafe extern fn __isr_reset() {
-
     let mut to = &mut __data_start as *mut Void as *mut u32;
     let data_end = &mut __data_end as *mut Void as *mut u32;
 
@@ -42,6 +48,7 @@ pub unsafe extern fn __isr_reset() {
     panic!("kmain returned!");
 }
 
+/// Default ISR. It just panics.
 #[no_mangle]
 pub unsafe extern fn __isr_default() {
     panic!("Unknown handler!");

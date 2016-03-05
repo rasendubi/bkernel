@@ -7,4 +7,3 @@ build = "../build.rs"
 [lib]
 name = "bscheduler"
 path = "lib.rs"
-crate-type = ["rlib"]

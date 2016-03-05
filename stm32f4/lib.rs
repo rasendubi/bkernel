@@ -1,16 +1,9 @@
 //! STM32F4xx drivers.
-#![crate_name = "stm32f4"]
-#![crate_type = "lib"]
-
-#![cfg_attr(test, allow(unused_features))]
-
 #![feature(lang_items)]
 #![feature(core_intrinsics)]
 #![feature(asm)]
 
 #![no_std]
-
-#![allow(dead_code)]
 
 pub mod isr_vector;
 
@@ -25,27 +18,6 @@ pub mod nvic;
 pub mod lang_items;
 
 #[inline(always)]
-#[cfg(target_arch = "arm")]
-pub unsafe fn __enable_irq() {
-    asm!("cpsie i" : : : : "volatile");
-}
-
-#[inline(always)]
-#[cfg(target_arch = "arm")]
-pub unsafe fn __disable_irq() {
-    asm!("cpsid i" : : : : "volatile");
-}
-
-/// Get Priority Mask
-#[inline(always)]
-#[cfg(target_arch = "arm")]
-pub unsafe fn __get_primask() -> u32 {
-    let result: u32;
-    asm!("MRS $0, primask" : "=r" (result) : : : "volatile");
-    result
-}
-
-#[inline(always)]
 #[cfg(not(target_arch = "arm"))]
 pub unsafe fn __enable_irq() {
     panic!("enable_irq is not implemented");
@@ -57,10 +29,31 @@ pub unsafe fn __disable_irq() {
     panic!("disable_irq is not implemented");
 }
 
+/// Get priority mask.
 #[inline(always)]
 #[cfg(not(target_arch = "arm"))]
 pub unsafe fn __get_primask() -> u32{
     panic!("get_primask is not implemented");
+}
+
+#[inline(always)]
+#[cfg(target_arch = "arm")]
+pub unsafe fn __enable_irq() {
+    asm!("cpsie i" : : : : "volatile");
+}
+
+#[inline(always)]
+#[cfg(target_arch = "arm")]
+pub unsafe fn __disable_irq() {
+    asm!("cpsid i" : : : : "volatile");
+}
+
+#[inline(always)]
+#[cfg(target_arch = "arm")]
+pub unsafe fn __get_primask() -> u32 {
+    let result: u32;
+    asm!("MRS $0, primask" : "=r" (result) : : : "volatile");
+    result
 }
 
 /// Saves current irq status and disables interrupts.
@@ -83,6 +76,9 @@ pub unsafe fn save_irq() -> u32 {
     primask
 }
 
+/// Enables interrupts if primask is non-zero.
+///
+/// Must be used in pair with `save_irq()`.
 #[inline(always)]
 pub unsafe fn restore_irq(primask: u32) {
     if primask == 0 {

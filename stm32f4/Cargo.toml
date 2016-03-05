@@ -7,4 +7,3 @@ build = "../build.rs"
 [lib]
 name = "stm32f4"
 path = "lib.rs"
-crate-type = ["rlib"]

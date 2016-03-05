@@ -32,6 +32,11 @@ pub struct Gpio {
     afrh:    RW<u32>, // 0x24
 }
 
+#[test]
+fn test_register_size() {
+    assert_eq!(0x28, ::core::mem::size_of::<Gpio>());
+}
+
 pub struct GpioConfig {
     pub mode: GpioMode,
     pub otype: GpioOType,
@@ -40,6 +45,7 @@ pub struct GpioConfig {
     pub af: GpioAF,
 }
 
+#[derive(Copy, Clone)]
 #[repr(u32)]
 pub enum GpioMode {
     INPUT  = 0x0,
@@ -48,12 +54,14 @@ pub enum GpioMode {
     ANALOG = 0x3,
 }
 
+#[derive(Copy, Clone)]
 #[repr(u32)]
 pub enum GpioOType {
     PUSH_PULL  = 0x0,
     OPEN_DRAIN = 0x1,
 }
 
+#[derive(Copy, Clone)]
 #[repr(u32)]
 pub enum GpioOSpeed {
     LOW_SPEED    = 0x0,
@@ -62,6 +70,7 @@ pub enum GpioOSpeed {
     HIGH_SPEED   = 0x3,
 }
 
+#[derive(Copy, Clone)]
 #[repr(u32)]
 pub enum GpioPuPd {
     NO        = 0x0,
@@ -70,6 +79,7 @@ pub enum GpioPuPd {
 }
 
 /// Alternate Function
+#[derive(Copy, Clone)]
 #[repr(u32)]
 pub enum GpioAF {
     AF0  = 0x0,
@@ -115,10 +125,6 @@ impl Gpio {
             self.otyper.update_with_mask(0x1 << pin, config.otype as u32);
             self.pupdr.update_with_mask(0x3 << pin*2, (config.pupd as u32) << pin*2);
 
-            /* The RX and TX pins are now connected to their AF
-             * so that the USART1 can take over control of the
-             * pins
-             */
             if pin < 8 {
                 self.afrl.update_with_mask(0xf << (pin*4), (config.af as u32) << pin*4);
             } else {

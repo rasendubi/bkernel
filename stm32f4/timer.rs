@@ -1,6 +1,6 @@
 //! General-purpose timers (TIM2-TIM5)
 
-use volatile::RW;
+use volatile::{RW, RES};
 
 extern {
     pub static TIM2: Tim;
@@ -23,18 +23,25 @@ pub struct Tim {
     cnt:   RW<u32>, // 0x24
     psc:   RW<u32>, // 0x28
     arr:   RW<u32>, // 0x2c
-    _0:    RW<u32>, // 0x30
+    _0:    RES<u32>, // 0x30
     ccr1:  RW<u32>, // 0x34
     ccr2:  RW<u32>, // 0x38
     ccr3:  RW<u32>, // 0x3C
     ccr4:  RW<u32>, // 0x40
-    _1:    RW<u32>, // 0x44
+    _1:    RES<u32>, // 0x44
     dcr:   RW<u32>, // 0x48
     dmar:  RW<u32>, // 0x4C
     /// Unique to TIM2 and TIM5
     or:    RW<u32>, // 0x50
 }
 
+#[test]
+fn test_register_size() {
+    assert_eq!(0x54, ::core::mem::size_of::<Tim>());
+}
+
+#[allow(dead_code)]
+#[derive(Copy, Clone)]
 #[repr(u32)]
 enum Cr1 {
     CEN  = 1 << 0,
@@ -47,8 +54,8 @@ enum Cr1 {
     CKD  = 3 << 8,
 }
 
-#[repr(u32)]
 #[derive(Copy, Clone)]
+#[repr(u32)]
 pub enum Dier {
     UIE   = 1 << 0,
     CC1IE = 1 << 1,
@@ -64,6 +71,8 @@ pub enum Dier {
     TDE   = 1 << 14,
 }
 
+#[allow(dead_code)]
+#[derive(Copy, Clone)]
 #[repr(u32)]
 enum Egr {
     UG   = 1 << 0,
@@ -82,8 +91,8 @@ pub struct TimInit {
     pub repetition_counter: u8,
 }
 
-#[repr(u32)]
 #[derive(Copy, Clone)]
+#[repr(u32)]
 pub enum CounterMode {
     Up             = 0x0000,
     Down           = 0x0010,
@@ -92,8 +101,8 @@ pub enum CounterMode {
     CenterAligned3 = 0x0060,
 }
 
-#[repr(u32)]
 #[derive(Copy, Clone)]
+#[repr(u32)]
 pub enum ClockDivision {
     Div1 = 0x0000,
     Div2 = 0x0100,

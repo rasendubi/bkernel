@@ -15,31 +15,31 @@ pub struct Rcc {
     ahb1rstr:    RW<u32>,  // 0x10
     ahb2rstr:    RW<u32>,  // 0x14
     ahb3rstr:    RW<u32>,  // 0x18
-    _reserved0:  RES<u32>, // 0x1C
+    _0:          RES<u32>, // 0x1C
     apb1rstr:    RW<u32>,  // 0x20
     apb2rstr:    RW<u32>,  // 0x24
-    _reserved1:  RES<u32>, // 0x28
-    _reserved2:  RES<u32>, // 0x2C
+    _1:          RES<u32>, // 0x28
+    _2:          RES<u32>, // 0x2C
     ahb1enr:     RW<u32>,  // 0x30
     ahb2enr:     RW<u32>,  // 0x34
     ahb3enr:     RW<u32>,  // 0x38
-    _reserved3:  RES<u32>, // 0x3C
+    _3:          RES<u32>, // 0x3C
     apb1enr:     RW<u32>,  // 0x40
     apb2enr:     RW<u32>,  // 0x44
-    _reserved4:  RES<u32>, // 0x48
-    _reserved5:  RES<u32>, // 0x4C
+    _4:          RES<u32>, // 0x48
+    _5:          RES<u32>, // 0x4C
     ahb1lpenr:   RW<u32>,  // 0x50
     ahb2lpenr:   RW<u32>,  // 0x54
     ahb3lpenr:   RW<u32>,  // 0x58
-    _reserved6:  RES<u32>, // 0x5C
+    _6:          RES<u32>, // 0x5C
     apb1lpenr:   RW<u32>,  // 0x60
     apb2lpenr:   RW<u32>,  // 0x64
-    _reserved7:  RES<u32>, // 0x68
-    _reserved8:  RES<u32>, // 0x6C
+    _7:          RES<u32>, // 0x68
+    _8:          RES<u32>, // 0x6C
     bdcr:        RW<u32>,  // 0x70
     csr:         RW<u32>,  // 0x74
-    _reserved9:  RES<u32>, // 0x78
-    _reserved10: RES<u32>, // 0x7C
+    _9:          RES<u32>, // 0x78
+    _10:         RES<u32>, // 0x7C
     sscgr:       RW<u32>,  // 0x80
     plli2scfgr:  RW<u32>,  // 0x84
     pllsaicfgr:  RW<u32>,  // 0x88
@@ -47,10 +47,11 @@ pub struct Rcc {
 }
 
 #[test]
-fn test_rcc_register_size() {
+fn test_register_size() {
     assert_eq!(0x90, ::core::mem::size_of::<Rcc>());
 }
 
+#[derive(Copy, Clone)]
 #[repr(u32)]
 pub enum Ahb1Enable {
     GPIOA      = 1 << 0,
@@ -78,6 +79,7 @@ pub enum Ahb1Enable {
     OTGHSULPI  = 1 << 30,
 }
 
+#[derive(Copy, Clone)]
 #[repr(u32)]
 pub enum Ahb2Enable {
     DCMI       = 1 << 0,
@@ -87,6 +89,7 @@ pub enum Ahb2Enable {
     OTGFS      = 1 << 7,
 }
 
+#[derive(Copy, Clone)]
 #[repr(u32)]
 pub enum Ahb3Enable {
     FMC        = 1 << 0,
@@ -96,6 +99,7 @@ pub enum Ahb3Enable {
     __Dummy,
 }
 
+#[derive(Copy, Clone)]
 #[repr(u32)]
 pub enum Apb1Enable {
     TIM2       = 1 << 0,
@@ -125,6 +129,7 @@ pub enum Apb1Enable {
     UART8      = 1 << 31,
 }
 
+#[derive(Copy, Clone)]
 #[repr(u32)]
 pub enum Apb2Enable {
     TIM1       = 1 << 0,
