@@ -5,7 +5,7 @@ use log;
 
 use queue::Queue;
 
-use ::alloc::boxed::Box;
+use scheduler::Task;
 
 const PROMPT: &'static str = "> ";
 
@@ -71,12 +71,12 @@ pub fn run_terminal() {
     wait_char();
 }
 
+static mut PROCESS_TASK: Task<'static> = unsafe { ::bscheduler::Task::new("terminal::next_char", 5, &process) };
+
 fn wait_char() {
-    QUEUE.get().get_task(::bscheduler::Task {
-        name: "terminal::next_char",
-        priority: 5,
-        function: Box::new(process),
-    });
+    unsafe {
+        QUEUE.get().get_task(&mut PROCESS_TASK);
+    }
 }
 
 /// Puts a char to process.

@@ -7,7 +7,7 @@ const N: usize = 4096;
 
 pub struct Queue<T> {
     values: [T; N],
-    handler: Option<Task<'static>>,
+    handler: Option<*mut Task<'static>>,
     start: usize,
     end: usize,
     size: usize,
@@ -39,7 +39,7 @@ impl<T> Queue<T> where T: Copy {
         }
     }
 
-    pub fn get_task(&mut self, task: Task<'static>) {
+    pub fn get_task(&mut self, task: *mut Task<'static>) {
         if self.size != 0 {
             add_task(task);
         } else {

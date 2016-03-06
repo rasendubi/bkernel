@@ -29,8 +29,6 @@ mod scheduler;
 mod queue;
 mod log;
 
-use ::alloc::boxed::Box;
-
 use stm32f4::{rcc, gpio, usart, timer, nvic};
 use stm32f4::rcc::RCC;
 use stm32f4::gpio::GPIO_B;
@@ -54,6 +52,16 @@ fn init_memory() {
 #[cfg(not(target_os = "none"))]
 fn init_memory() {}
 
+static mut STARTUP_TASK: scheduler::Task<'static> = unsafe { scheduler::Task::new(
+    "terminal",
+    5,
+    &mut || {
+        log::write_str("\r\nWelcome to bkernel!\r\n");
+        log::write_str("Type 'help' to get a list of available commands.\r\n");
+
+        terminal::run_terminal();
+    }) };
+
 /// The main entry of the kernel.
 #[no_mangle]
 pub extern fn kmain() -> ! {
@@ -69,16 +77,7 @@ pub extern fn kmain() -> ! {
     let mut b = ::alloc::boxed::Box::new(5);
     unsafe { ::core::intrinsics::volatile_store(&mut *b as *mut _, 4); }
 
-    scheduler::add_task(scheduler::Task {
-        name: "terminal",
-        priority: 5,
-        function: Box::new(move || {
-            log::write_str("\r\nWelcome to bkernel!\r\n");
-            log::write_str("Type 'help' to get a list of available commands.\r\n");
-
-            terminal::run_terminal();
-        }),
-    });
+    scheduler::add_task(unsafe { &mut STARTUP_TASK });
 
     scheduler::schedule();
 }

@@ -10,42 +10,81 @@
 //! thoughts on proper resource management (bkernel won't have mutexes
 //! as they're blocking).
 
-#![feature(collections, alloc, fnbox, const_fn)]
+#![feature(const_fn)]
 #![cfg_attr(test, feature(static_mutex))]
 #![no_std]
-
-extern crate alloc;
-extern crate collections;
 
 #[cfg(test)]
 extern crate std;
 
-use ::core::cell::UnsafeCell;
-use ::alloc::boxed::{Box, FnBox};
-use ::collections::vec_deque::VecDeque;
+use ::core::cell::Cell;
 
 pub struct Scheduler<'a> {
-    tasks: UnsafeCell<VecDeque<Task<'a>>>,
-    current_priority: UnsafeCell<u32>,
+    tasks: Cell<*mut Task<'a>>,
+    current_priority: Cell<u32>,
 }
 
 pub struct Task<'a> {
-    pub name: &'a str,
-    pub priority: u32,
-    pub function: Box<FnBox()>,
+    #[allow(dead_code)]
+    name: &'a str,
+    priority: u32,
+    ptr: *const (),
+    f: unsafe fn(*const ()),
+    next: *mut Task<'a>,
+}
+
+unsafe fn call_once_ptr<T: FnOnce()>(p: *const ()) {
+    ::core::ptr::read(::core::mem::transmute::<_, *mut T>(p))();
+}
+
+impl<'a> Task<'a> {
+    pub const unsafe fn new<T: FnOnce()>(name: &'a str, priority: u32, f: *const T) -> Task<'a> {
+        Task {
+            name: name,
+            priority: priority,
+            ptr: f as *mut (),
+            f: call_once_ptr::<T>,
+            next: 0 as *mut _,
+        }
+    }
+
+    unsafe fn call(&self) {
+        (self.f)(self.ptr);
+    }
 }
 
 impl<'a> Scheduler<'a> {
-    pub fn new() -> Scheduler<'a> {
+    pub const fn new() -> Scheduler<'a> {
         Scheduler {
-            tasks: UnsafeCell::new(VecDeque::new()),
-            current_priority: UnsafeCell::new(u32::max_value()),
+            tasks: Cell::new(0 as *mut _),
+            current_priority: Cell::new(u32::max_value()),
+        }
+    }
+
+    fn next_task(&self) -> Option<&Task<'a>> {
+        let task = self.tasks.get();
+        if task.is_null() {
+            None
+        } else {
+            Some(unsafe { &*task })
+        }
+    }
+
+    fn pop_task(&self) -> Option<&mut Task<'a>> {
+        let task = self.tasks.get();
+        if task.is_null() {
+            None
+        } else {
+            unsafe {
+                self.tasks.set((*task).next);
+                Some(&mut *task)
+            }
         }
     }
 
     pub unsafe fn schedule(&self) {
-        while let Some(task) = (*self.tasks.get()).pop_front() {
-            (task.function)();
+        while let Some(task) = self.pop_task() {
+            task.call();
         }
     }
 
@@ -54,14 +93,14 @@ impl<'a> Scheduler<'a> {
     ///
     /// This function should be called with interrupts disabled.
     pub unsafe fn reschedule(&self) -> bool {
-        if let Some(task) = (*self.tasks.get()).front() {
-            if task.priority < *self.current_priority.get() {
-                match (*self.tasks.get()).pop_front() {
+        if let Some(task) = self.next_task() {
+            if task.priority < self.current_priority.get() {
+                match self.pop_task() {
                     Some(task) => {
-                        let priority = *self.current_priority.get();
-                        *self.current_priority.get() = task.priority;
-                        (task.function)();
-                        *self.current_priority.get() = priority;
+                        let priority = self.current_priority.get();
+                        self.current_priority.set(task.priority);
+                        task.call();
+                        self.current_priority.set(priority);
                         return true;
                     },
                     _ => panic!("Something went wrong!"),
@@ -71,30 +110,26 @@ impl<'a> Scheduler<'a> {
         false
     }
 
-    pub unsafe fn add_task(&self, task: Task<'a>) {
-        let i = self.index_to_insert(&task);
-        (*self.tasks.get()).insert(i, task);
-    }
-
-    unsafe fn index_to_insert(&self, task: &Task<'a>) -> usize {
-        // tasks are sorted by priority
-        let mut i = 0;
-        let mut it = (*self.tasks.get()).iter();
-        while let Some(x) = it.next() {
-            if x.priority > task.priority {
-                break;
-            }
-            i += 1;
+    pub unsafe fn add_task(&self, task: *mut Task<'a>) {
+        let head = self.tasks.get();
+        if head.is_null() || (*head).priority > (*task).priority {
+            self.tasks.set(task);
+            return;
         }
-        i
+
+        let mut cur = head;
+        while !(*cur).next.is_null() && (*(*cur).next).priority <= (*task).priority {
+            cur = (*cur).next;
+        }
+        (*task).next = (*cur).next;
+        (*cur).next = task;
     }
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
-    use ::alloc::boxed::Box;
-    use ::alloc::rc::Rc;
+    use ::std::rc::Rc;
     use ::core::cell::Cell;
 
     mod scheduler {
@@ -125,7 +160,7 @@ mod test {
             }
         }
 
-        pub fn add_task(task: Task<'static>) {
+        pub fn add_task(task: *mut Task<'static>) {
             unsafe {
                 (*SCHEDULER.0.get()).as_mut().unwrap().add_task(task);
             }
@@ -150,19 +185,21 @@ mod test {
         let task_executed = Rc::new(Cell::new(false));
 
         let te = task_executed.clone();
-        let task = Task {
-            name: "random",
-            priority: 0,
-            function: Box::new(move || { te.set(true); }),
-        };
+        let f = move || { te.set(true) };
+        let mut task = unsafe { Task::new(
+            "random",
+            0,
+            &f,
+        ) };
 
         unsafe {
             let scheduler = Scheduler::new();
-            scheduler.add_task(task);
+            scheduler.add_task(&mut task);
             scheduler.schedule();
         }
 
         assert_eq!(true, task_executed.get());
+        ::core::mem::forget(f);
     }
 
     #[test]
@@ -170,18 +207,20 @@ mod test {
         let task_executed = Rc::new(Cell::new(false));
 
         let te = task_executed.clone();
-        let task = Task {
-            name: "random",
-            priority: 0,
-            function: Box::new(move || { te.set(true); }),
-        };
+        let f = move || { te.set(true) };
+        let mut task = unsafe { Task::new(
+            "random",
+            0,
+            &f,
+        ) };
 
         unsafe {
             let scheduler = Scheduler::new();
-            scheduler.add_task(task);
+            scheduler.add_task(&mut task);
         }
 
         assert_eq!(false, task_executed.get());
+        ::core::mem::forget(f);
     }
 
     #[test]
@@ -189,20 +228,22 @@ mod test {
         let call_counter = Rc::new(Cell::new(0));
 
         let cc = call_counter.clone();
-        let task = Task {
-            name: "random",
-            priority: 0,
-            function: Box::new(move || { cc.set(cc.get() + 1); }),
-        };
+        let f = move || { cc.set(cc.get() + 1); };
+        let mut task = unsafe { Task::new(
+            "random",
+            0,
+            &f,
+        ) };
 
         unsafe {
             let scheduler = Scheduler::new();
-            scheduler.add_task(task);
+            scheduler.add_task(&mut task);
             scheduler.schedule();
             scheduler.schedule();
         }
 
         assert_eq!(1, call_counter.get());
+        ::core::mem::forget(f);
     }
 
     #[test]
@@ -213,26 +254,30 @@ mod test {
         let t1e = task1_executed.clone();
         let t2e = task2_executed.clone();
 
-        let task1 = Task {
-            name: "task1",
-            priority: 0,
-            function: Box::new(move || { t1e.set(true); }),
-        };
-        let task2 = Task {
-            name: "task2",
-            priority: 0,
-            function: Box::new(move || { t2e.set(true); }),
-        };
+        let f1 = move || { t1e.set(true); };
+        let f2 = move || { t2e.set(true); };
+        let mut task1 = unsafe { Task::new(
+            "task1",
+            0,
+            &f1,
+        ) };
+        let mut task2 = unsafe { Task::new(
+            "task2",
+            0,
+            &f2,
+        ) };
 
         unsafe {
             let scheduler = Scheduler::new();
-            scheduler.add_task(task1);
-            scheduler.add_task(task2);
+            scheduler.add_task(&mut task1);
+            scheduler.add_task(&mut task2);
             scheduler.schedule();
         }
 
         assert_eq!(true, task1_executed.get());
         assert_eq!(true, task2_executed.get());
+        ::core::mem::forget(f1);
+        ::core::mem::forget(f2);
     }
 
     #[test]
@@ -245,26 +290,31 @@ mod test {
         let t1e = task1_executed.clone();
         let t2e = task2_executed.clone();
 
-        let task1 = Task {
-            name: "task1",
-            priority: 0,
-            function: Box::new(move || {
-                t1e.set(true);
-                let task2 = Task {
-                    name: "task2",
-                    priority: 0,
-                    function: Box::new(move || {
-                        t2e.set(true);
-                    }),
-                };
-                scheduler::add_task(task2);
-            }),
+        let f2 = move || {
+            t2e.set(true);
         };
-        scheduler::add_task(task1);
+        let mut task2 = unsafe { Task::new(
+            "task2",
+            0,
+            &f2,
+        ) };
+
+        let f1 = move || {
+            t1e.set(true);
+            scheduler::add_task(&mut task2);
+        };
+        let mut task1 = unsafe { Task::new(
+            "task1",
+            0,
+            &f1,
+        ) };
+        scheduler::add_task(&mut task1);
         scheduler::schedule();
 
         assert_eq!(true, task1_executed.get());
         assert_eq!(true, task2_executed.get());
+        ::core::mem::forget(f1);
+        ::core::mem::forget(f2);
     }
 
     #[test]
@@ -294,45 +344,53 @@ mod test {
         let t32 = task2_executed.clone();
         let t33 = task3_executed.clone();
 
-        let task1 = Task {
-            name: "task1",
-            priority: 0,
-            function: Box::new(move || {
-                assert_eq!(false, t11.get());
-                assert_eq!(false, t12.get());
-                assert_eq!(false, t13.get());
-                t11.set(true);
-            }),
+        let f1 = move || {
+            assert_eq!(false, t11.get());
+            assert_eq!(false, t12.get());
+            assert_eq!(false, t13.get());
+            t11.set(true);
         };
-        let task2 = Task {
-            name: "task2",
-            priority: 3,
-            function: Box::new(move || {
-                assert_eq!(true, t21.get());
-                assert_eq!(false, t22.get());
-                assert_eq!(true, t23.get());
-                t22.set(true);
-            }),
+        let f2 = move || {
+            assert_eq!(true, t21.get());
+            assert_eq!(false, t22.get());
+            assert_eq!(true, t23.get());
+            t22.set(true);
         };
-        let task3 = Task {
-            name: "task3",
-            priority: 2,
-            function: Box::new(move || {
-                assert_eq!(true, t31.get());
-                assert_eq!(false, t32.get());
-                assert_eq!(false, t33.get());
-                t33.set(true);
-            }),
+        let f3 = move || {
+            assert_eq!(true, t31.get());
+            assert_eq!(false, t32.get());
+            assert_eq!(false, t33.get());
+            t33.set(true);
         };
 
-        scheduler::add_task(task1);
-        scheduler::add_task(task2);
-        scheduler::add_task(task3);
+        let mut task1 = unsafe { Task::new(
+            "task1",
+            0,
+            &f1,
+        ) };
+        let mut task2 = unsafe { Task::new(
+            "task2",
+            3,
+            &f2,
+        ) };
+        let mut task3 = unsafe { Task::new(
+            "task3",
+            2,
+            &f3,
+        ) };
+
+        scheduler::add_task(&mut task1);
+        scheduler::add_task(&mut task2);
+        scheduler::add_task(&mut task3);
         scheduler::schedule();
 
         assert_eq!(true, task1_executed.get());
         assert_eq!(true, task2_executed.get());
         assert_eq!(true, task3_executed.get());
+
+        ::core::mem::forget(f1);
+        ::core::mem::forget(f2);
+        ::core::mem::forget(f3);
     }
 
     // priority boost? (priority inversion)

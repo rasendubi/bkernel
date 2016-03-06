@@ -26,7 +26,7 @@ pub fn schedule() -> ! {
     }
 }
 
-pub fn add_task(task: Task<'static>) {
+pub fn add_task(task: *mut Task<'static>) {
     unsafe {
         let irq = save_irq();
         SCHEDULER.get().add_task(task);
