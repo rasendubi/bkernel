@@ -1,6 +1,6 @@
 //! This crate is a Rust part of the kernel. It should be linked with
 //! the bootstrap that will jump to the `kmain` function.
-#![feature(lang_items, alloc, core_intrinsics, collections, const_fn)]
+#![feature(lang_items, alloc, core_intrinsics, const_fn)]
 
 #![cfg_attr(target_os = "none", no_std)]
 
@@ -13,7 +13,6 @@ extern crate linkmem;
 extern crate stm32f4;
 extern crate smalloc;
 extern crate alloc;
-extern crate collections;
 extern crate bscheduler;
 
 #[cfg(target_os = "none")]
@@ -205,9 +204,4 @@ pub unsafe extern fn __isr_usart1() {
     if USART1.it_status(usart::Interrupt::TXE) {
         log::usart1_txe();
     }
-}
-
-#[no_mangle]
-#[allow(non_snake_case)]
-pub extern "C" fn _Unwind_Resume(_ex_obj: *mut ()) {
 }
