@@ -51,15 +51,18 @@ fn init_memory() {
 #[cfg(not(target_os = "none"))]
 fn init_memory() {}
 
-static mut STARTUP_TASK: scheduler::Task<'static> = unsafe { scheduler::Task::new(
+static mut STARTUP_TASK: scheduler::Task<'static> = scheduler::Task::from_safe(
     "terminal",
     5,
-    &mut || {
-        log::write_str("\r\nWelcome to bkernel!\r\n");
-        log::write_str("Type 'help' to get a list of available commands.\r\n");
+    startup,
+    0 as *const ());
 
-        terminal::run_terminal();
-    }) };
+fn startup(_arg: *const ()) {
+    log::write_str("\r\nWelcome to bkernel!\r\n");
+    log::write_str("Type 'help' to get a list of available commands.\r\n");
+
+    terminal::run_terminal();
+}
 
 /// The main entry of the kernel.
 #[no_mangle]

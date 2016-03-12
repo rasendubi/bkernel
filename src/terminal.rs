@@ -71,7 +71,7 @@ pub fn run_terminal() {
     wait_char();
 }
 
-static mut PROCESS_TASK: Task<'static> = unsafe { ::bscheduler::Task::new("terminal::next_char", 5, &process) };
+static mut PROCESS_TASK: Task<'static> = Task::from_safe("terminal::next_char", 5, process, 0 as *const _);
 
 fn wait_char() {
     unsafe {
@@ -96,7 +96,7 @@ fn get_pending_char() -> Option<u32> {
 }
 
 /// Processes all pending characters in the queue.
-fn process() {
+fn process(_arg: *const ()) {
     // TODO: this flow can be abstracted out as it's useful for many
     // queue-processing tasks.
     while let Some(c) = get_pending_char() {

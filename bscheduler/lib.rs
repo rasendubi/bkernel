@@ -28,28 +28,75 @@ pub struct Task<'a> {
     #[allow(dead_code)]
     name: &'a str,
     priority: u32,
-    ptr: *const (),
     f: unsafe fn(*const ()),
+    arg: *const (),
     next: *mut Task<'a>,
 }
 
-unsafe fn call_once_ptr<T: FnOnce()>(p: *const ()) {
-    ::core::ptr::read(::core::mem::transmute::<_, *mut T>(p))();
-}
-
 impl<'a> Task<'a> {
-    pub const unsafe fn new<T: FnOnce()>(name: &'a str, priority: u32, f: *const T) -> Task<'a> {
+    #[inline(always)]
+    pub const unsafe fn from_fnonce<T: FnOnce() + 'a>(name: &'a str, priority: u32, f: *const T) -> Task<'a> {
+        unsafe fn call_once_ptr<T: FnOnce()>(p: *const ()) {
+            ::core::ptr::read(::core::mem::transmute::<_, *mut T>(p))();
+        }
+
         Task {
             name: name,
             priority: priority,
-            ptr: f as *mut (),
             f: call_once_ptr::<T>,
+            arg: f as *const (),
             next: 0 as *mut _,
         }
     }
 
+    #[inline(always)]
+    pub const unsafe fn from_fn<T: Fn()>(name: &'a str, priority: u32, f: &'a T) -> Task<'a> {
+        unsafe fn call_fn_ptr<T: Fn()>(p: *const ()) {
+            (*(p as *const T))();
+        }
+
+        Task {
+            name: name,
+            priority: priority,
+            f: call_fn_ptr::<T>,
+            arg: f as *const T as *const (),
+            next: 0 as *mut _,
+        }
+    }
+
+    #[inline(always)]
+    pub const unsafe fn from_fnmut<T: FnMut()>(name: &'a str, priority: u32, f: &'a mut T) -> Task<'a> {
+        unsafe fn call_fn_mut_ptr<T: FnMut()>(p: *const ()) {
+            (*(p as *mut T))();
+        }
+
+        Task {
+            name: name,
+            priority: priority,
+            f: call_fn_mut_ptr::<T>,
+            arg: f as *const T as *const (),
+            next: 0 as *mut _,
+        }
+    }
+
+    #[inline(always)]
+    pub const fn from_raw(name: &'a str, priority: u32, f: unsafe fn(*const ()), arg: *const ()) -> Task<'a> {
+        Task {
+            name: name,
+            priority: priority,
+            f: f,
+            arg: arg,
+            next: 0 as *mut _,
+        }
+    }
+
+    #[inline(always)]
+    pub const fn from_safe(name: &'a str, priority: u32, f: fn(*const ()), arg: *const ()) -> Task<'a> {
+        Task::from_raw(name, priority, f, arg)
+    }
+
     unsafe fn call(&self) {
-        (self.f)(self.ptr);
+        (self.f)(self.arg);
     }
 }
 
@@ -186,7 +233,7 @@ mod test {
 
         let te = task_executed.clone();
         let f = move || { te.set(true) };
-        let mut task = unsafe { Task::new(
+        let mut task = unsafe { Task::from_fn(
             "random",
             0,
             &f,
@@ -199,7 +246,6 @@ mod test {
         }
 
         assert_eq!(true, task_executed.get());
-        ::core::mem::forget(f);
     }
 
     #[test]
@@ -208,7 +254,7 @@ mod test {
 
         let te = task_executed.clone();
         let f = move || { te.set(true) };
-        let mut task = unsafe { Task::new(
+        let mut task = unsafe { Task::from_fn(
             "random",
             0,
             &f,
@@ -220,7 +266,6 @@ mod test {
         }
 
         assert_eq!(false, task_executed.get());
-        ::core::mem::forget(f);
     }
 
     #[test]
@@ -229,7 +274,7 @@ mod test {
 
         let cc = call_counter.clone();
         let f = move || { cc.set(cc.get() + 1); };
-        let mut task = unsafe { Task::new(
+        let mut task = unsafe { Task::from_fn(
             "random",
             0,
             &f,
@@ -243,7 +288,6 @@ mod test {
         }
 
         assert_eq!(1, call_counter.get());
-        ::core::mem::forget(f);
     }
 
     #[test]
@@ -256,12 +300,12 @@ mod test {
 
         let f1 = move || { t1e.set(true); };
         let f2 = move || { t2e.set(true); };
-        let mut task1 = unsafe { Task::new(
+        let mut task1 = unsafe { Task::from_fn(
             "task1",
             0,
             &f1,
         ) };
-        let mut task2 = unsafe { Task::new(
+        let mut task2 = unsafe { Task::from_fn(
             "task2",
             0,
             &f2,
@@ -276,8 +320,6 @@ mod test {
 
         assert_eq!(true, task1_executed.get());
         assert_eq!(true, task2_executed.get());
-        ::core::mem::forget(f1);
-        ::core::mem::forget(f2);
     }
 
     #[test]
@@ -293,7 +335,7 @@ mod test {
         let f2 = move || {
             t2e.set(true);
         };
-        let mut task2 = unsafe { Task::new(
+        let mut task2 = unsafe { Task::from_fnonce(
             "task2",
             0,
             &f2,
@@ -303,7 +345,7 @@ mod test {
             t1e.set(true);
             scheduler::add_task(&mut task2);
         };
-        let mut task1 = unsafe { Task::new(
+        let mut task1 = unsafe { Task::from_fnonce(
             "task1",
             0,
             &f1,
@@ -363,17 +405,17 @@ mod test {
             t33.set(true);
         };
 
-        let mut task1 = unsafe { Task::new(
+        let mut task1 = unsafe { Task::from_fnonce(
             "task1",
             0,
             &f1,
         ) };
-        let mut task2 = unsafe { Task::new(
+        let mut task2 = unsafe { Task::from_fnonce(
             "task2",
             3,
             &f2,
         ) };
-        let mut task3 = unsafe { Task::new(
+        let mut task3 = unsafe { Task::from_fnonce(
             "task3",
             2,
             &f3,
