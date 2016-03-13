@@ -4,6 +4,12 @@ bkernel is an experimental kernel for embedded devices written in Rust. I'm most
 
 # Prerequisites
 
+### Note for Nix users
+
+There is `shell.nix` for you. Just drop in with `nix-shell` and all dependencies are there (including nightly rust).
+
+Note: it won't work for platforms other than x86-64_linux. You should change rust-nightly hash in `shell.nix`.
+
 ## gcc-arm-none-eabi toolchain
 
 You need an gcc-arm-none-eabi toolchain before you can build the kernel.
