@@ -3,6 +3,6 @@ rust:
   - nightly
 script: make
 install:
-  - sudo add-apt-repository ppa:terry.guo/gcc-arm-embedded -y
+  - sudo add-apt-repository ppa:team-gcc-arm-embedded/ppa -y
   - sudo apt-get update -qq
-  - sudo apt-get install gcc-arm-none-eabi -y
+  - sudo apt-get install gcc-arm-embedded -y
