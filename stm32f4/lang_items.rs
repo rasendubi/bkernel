@@ -9,12 +9,6 @@
 extern fn eh_personality() {}
 
 #[cfg(target_os = "none")]
-#[lang = "stack_exhausted"]
-fn stack_exhausted() -> ! {
-    loop {}
-}
-
-#[cfg(target_os = "none")]
 #[no_mangle]
 pub unsafe extern "C" fn __aeabi_unwind_cpp_pr0() -> ! {
     loop {}
