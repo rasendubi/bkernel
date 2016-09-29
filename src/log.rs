@@ -63,7 +63,7 @@ pub fn usart1_txe() {
     match get_queue().get() {
         Some(c) => unsafe { USART1.put_unsafe(c as u32); },
         None => {
-            USART1.it_disable(usart::Interrupt::TXE)
+            unsafe{&USART1}.it_disable(usart::Interrupt::TXE)
         },
     }
 }

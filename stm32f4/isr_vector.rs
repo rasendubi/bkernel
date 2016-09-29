@@ -151,7 +151,7 @@ extern {
 
 #[no_mangle]
 #[link_section = ".stack_end"]
-pub static STACK_END: &'static u32 = &__stack_end;
+pub static STACK_END: &'static u32 = unsafe{&__stack_end};
 
 #[no_mangle]
 #[link_section = ".isr_vector"]

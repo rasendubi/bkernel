@@ -68,9 +68,11 @@ fn startup(_arg: *const ()) {
 #[no_mangle]
 pub extern fn kmain() -> ! {
     init_memory();
-    init_usart1();
-    init_leds();
-    init_timer();
+    unsafe {
+        init_usart1();
+        init_leds();
+        init_timer();
+    }
     log::init();
 
     scheduler::init();
@@ -84,7 +86,7 @@ pub extern fn kmain() -> ! {
     scheduler::schedule();
 }
 
-fn init_timer() {
+unsafe fn init_timer() {
     RCC.apb1_clock_enable(rcc::Apb1Enable::TIM2);
 
     TIM2.init(&timer::TimInit {
@@ -107,7 +109,7 @@ fn init_timer() {
     });
 }
 
-fn init_leds() {
+unsafe fn init_leds() {
     RCC.ahb1_clock_enable(rcc::Ahb1Enable::GPIOD);
     led::LD3.init();
     led::LD4.init();
@@ -120,7 +122,7 @@ fn init_leds() {
     led::LD6.turn_on();
 }
 
-fn init_usart1() {
+unsafe fn init_usart1() {
     RCC.apb2_clock_enable(rcc::Apb2Enable::USART1);
 
     /* enable the peripheral clock for the pins used by
@@ -175,8 +177,8 @@ pub mod panicking {
     #[lang = "panic_fmt"]
     extern fn panic_fmt(fmt: fmt::Arguments, file: &str, line: u32) -> ! {
         use core::fmt::Write;
-        USART1.puts_synchronous("\r\nPANIC\r\n");
-        let _ = write!(UsartProxy(&USART1), "{}:{} {}", file, line, fmt);
+        unsafe{&USART1}.puts_synchronous("\r\nPANIC\r\n");
+        let _ = write!(UsartProxy(unsafe{&USART1}), "{}:{} {}", file, line, fmt);
         loop {}
     }
 }

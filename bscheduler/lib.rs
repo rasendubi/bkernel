@@ -11,11 +11,13 @@
 //! as they're blocking).
 
 #![feature(const_fn)]
-#![cfg_attr(test, feature(static_mutex))]
 #![no_std]
 
 #[cfg(test)]
 extern crate std;
+#[macro_use]
+#[cfg(test)]
+extern crate lazy_static;
 
 use ::core::cell::Cell;
 
@@ -183,9 +185,11 @@ mod test {
         use super::super::*;
         use ::core::cell::UnsafeCell;
 
-        use ::std::sync::{StaticMutex, MUTEX_INIT, MutexGuard};
+        use ::std::sync::{Mutex, MutexGuard};
 
-        static LOCK: StaticMutex = MUTEX_INIT;
+        lazy_static! {
+            pub static ref LOCK: Mutex<()> = Mutex::new(());
+        }
 
         struct SyncCell(UnsafeCell<Option<Scheduler<'static>>>);
         unsafe impl Sync for SyncCell { }

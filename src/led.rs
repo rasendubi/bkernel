@@ -1,19 +1,19 @@
 use stm32f4::gpio;
 
 pub static LD3: Led = Led {
-    gpio: &gpio::GPIO_D,
+    gpio: unsafe { &gpio::GPIO_D },
     pin: 13,
 };
 pub static LD4: Led = Led {
-    gpio: &gpio::GPIO_D,
+    gpio: unsafe { &gpio::GPIO_D },
     pin: 12,
 };
 pub static LD5: Led = Led {
-    gpio: &gpio::GPIO_D,
+    gpio: unsafe { &gpio::GPIO_D },
     pin: 14,
 };
 pub static LD6: Led = Led {
-    gpio: &gpio::GPIO_D,
+    gpio: unsafe { &gpio::GPIO_D },
     pin: 15,
 };
 

@@ -7,3 +7,6 @@ build = "../build.rs"
 [lib]
 name = "bscheduler"
 path = "lib.rs"
+
+[target.'cfg(not(target_os = "none"))'.dependencies]
+lazy_static = "0.1.*"
