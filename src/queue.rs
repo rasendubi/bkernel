@@ -7,17 +7,27 @@ const N: usize = 4096;
 
 pub struct Queue<T> {
     values: [T; N],
-    handler: Option<*mut Task<'static>>,
+    handler: *mut Task<'static>,
     start: usize,
     end: usize,
     size: usize,
 }
 
 impl<T> Queue<T> where T: Copy {
-    pub fn new() -> Queue<T> {
+    pub fn new_empty() -> Queue<T> {
         Queue {
             values: unsafe { ::core::mem::uninitialized() },
-            handler: None,
+            handler: ::core::ptr::null_mut(),
+            start: 0,
+            end: 0,
+            size: 0,
+        }
+    }
+
+    pub fn new(handler: *mut Task<'static>) -> Queue<T> {
+        Queue {
+            values: unsafe { ::core::mem::uninitialized() },
+            handler: handler,
             start: 0,
             end: 0,
             size: 0,
@@ -30,20 +40,12 @@ impl<T> Queue<T> where T: Copy {
             self.size += 1;
             self.end = (self.end + 1) % N;
 
-            if let Some(t) = ::core::mem::replace(&mut self.handler, None) {
-                add_task(t);
+            if !self.handler.is_null() {
+                add_task(self.handler);
             }
             true
         } else {
             false
-        }
-    }
-
-    pub fn get_task(&mut self, task: *mut Task<'static>) {
-        if self.size != 0 {
-            add_task(task);
-        } else {
-            self.handler = Some(task);
         }
     }
 

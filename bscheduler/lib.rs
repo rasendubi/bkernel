@@ -26,6 +26,8 @@ pub struct Scheduler<'a> {
     current_priority: Cell<u32>,
 }
 
+unsafe impl<'a> Sync for Scheduler<'a> { }
+
 pub struct Task<'a> {
     #[allow(dead_code)]
     name: &'a str,
@@ -37,7 +39,7 @@ pub struct Task<'a> {
 
 impl<'a> Task<'a> {
     #[inline(always)]
-    pub const unsafe fn from_fnonce<T: FnOnce() + 'a>(name: &'a str, priority: u32, f: *const T) -> Task<'a> {
+    const unsafe fn from_fnonce<T: FnOnce() + 'a>(name: &'a str, priority: u32, f: *const T) -> Task<'a> {
         unsafe fn call_once_ptr<T: FnOnce()>(p: *const ()) {
             ::core::ptr::read(::core::mem::transmute::<_, *mut T>(p))();
         }
@@ -52,7 +54,7 @@ impl<'a> Task<'a> {
     }
 
     #[inline(always)]
-    pub const unsafe fn from_fn<T: Fn()>(name: &'a str, priority: u32, f: &'a T) -> Task<'a> {
+    const unsafe fn from_fn<T: Fn()>(name: &'a str, priority: u32, f: &'a T) -> Task<'a> {
         unsafe fn call_fn_ptr<T: Fn()>(p: *const ()) {
             (*(p as *const T))();
         }
@@ -67,7 +69,7 @@ impl<'a> Task<'a> {
     }
 
     #[inline(always)]
-    pub const unsafe fn from_fnmut<T: FnMut()>(name: &'a str, priority: u32, f: &'a mut T) -> Task<'a> {
+    const unsafe fn from_fnmut<T: FnMut()>(name: &'a str, priority: u32, f: &'a mut T) -> Task<'a> {
         unsafe fn call_fn_mut_ptr<T: FnMut()>(p: *const ()) {
             (*(p as *mut T))();
         }

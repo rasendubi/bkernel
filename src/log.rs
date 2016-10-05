@@ -20,7 +20,7 @@ fn get_queue() -> &'static mut Queue<u8> {
 /// Should be called before any other function from this module.
 pub fn init() {
     unsafe {
-        *QUEUE.0.get() = Some(Queue::new());
+        *QUEUE.0.get() = Some(Queue::new_empty());
     }
 }
 

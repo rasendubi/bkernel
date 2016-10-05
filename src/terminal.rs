@@ -54,37 +54,25 @@ const PONY: &'static str = "
                        \\_______)     \\_______)\r
 ";
 
-static mut COMMAND: [u8; 256] = [0; 256];
-static mut CUR: usize = 0;
-
 static mut QUEUE: Option<Queue<u8>> = None;
 
 /// Starts a terminal.
 ///
 /// Note that terminal is non-blocking and is driven by `put_char`.
-/// (Well, it mostly non-blocking. There is no non-blocking version
-/// for `puts_synchronous`.)
 pub fn run_terminal() {
     unsafe {
-        QUEUE = Some(Queue::new());
+        QUEUE = Some(Queue::new(&mut PROCESS_TASK as *mut _));
     }
     log::write_str(PROMPT);
-    wait_char();
 }
 
 static mut PROCESS_TASK: Task<'static> = Task::from_safe("terminal::next_char", 5, process, 0 as *const _);
-
-fn wait_char() {
-    unsafe {
-        QUEUE.as_mut().unwrap().get_task(&mut PROCESS_TASK);
-    }
-}
 
 /// Puts a char to process.
 ///
 /// Safe to call from ISR.
 pub fn put_char(c: u32) {
-    unsafe{QUEUE.as_mut()}.unwrap().put(c as u8);
+    unsafe{&mut QUEUE}.as_mut().unwrap().put(c as u8);
 }
 
 fn get_pending_char() -> Option<u32> {
@@ -103,36 +91,39 @@ fn process(_arg: *const ()) {
     while let Some(c) = get_pending_char() {
         process_char(c);
     }
-    wait_char();
 }
 
 /// Processes one character at a time. Calls `process_command` when
 /// user presses Enter or command is too long.
 fn process_char(c: u32) {
-    unsafe {
-        if c == '\r' as u32 {
-            log::write_str("\r\n");
-            process_command(&COMMAND[0 .. CUR]);
-            CUR = 0;
-            return;
+    static mut COMMAND: [u8; 256] = [0; 256];
+    static mut CUR: usize = 0;
+
+    let mut command = unsafe{&mut COMMAND}; // COMMAND is only used in this function
+    let mut cur = unsafe{&mut CUR};
+
+    if c == '\r' as u32 {
+        log::write_str("\r\n");
+        process_command(&command[0 .. *cur]);
+        *cur = 0;
+        return;
+    }
+
+    if c == 0x8 { // backspace
+        if *cur != 0 {
+            log::write_str("\x08 \x08");
+
+            *cur -= 1;
         }
+    } else {
+        command[*cur] = c as u8;
+        *cur += 1;
+        log::write_char(c);
 
-        if c == 0x8 { // backspace
-            if CUR != 0 {
-                log::write_str("\x08 \x08");
-
-                CUR -= 1;
-            }
-        } else {
-            COMMAND[CUR] = c as u8;
-            CUR += 1;
-            log::write_char(c);
-
-            if CUR == 256 {
-                log::write_str("\r\n");
-                process_command(&COMMAND[0 .. CUR]);
-                CUR = 0;
-            }
+        if *cur == 256 {
+            log::write_str("\r\n");
+            process_command(&command[0 .. *cur]);
+            *cur = 0;
         }
     }
 }
