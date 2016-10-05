@@ -15,12 +15,6 @@ extern crate smalloc;
 extern crate alloc;
 extern crate bscheduler;
 
-#[cfg(target_os = "none")]
-mod global;
-
-#[cfg(not(target_os = "none"))]
-pub mod global;
-
 mod led;
 mod led_music;
 mod terminal;
@@ -74,8 +68,6 @@ pub extern fn kmain() -> ! {
         init_timer();
     }
     log::init();
-
-    scheduler::init();
 
     // Test that allocator works
     let mut b = ::alloc::boxed::Box::new(5);

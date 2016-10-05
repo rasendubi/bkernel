@@ -1,4 +1,3 @@
-use global::Global;
 use led;
 use led_music;
 use log;
@@ -58,7 +57,7 @@ const PONY: &'static str = "
 static mut COMMAND: [u8; 256] = [0; 256];
 static mut CUR: usize = 0;
 
-static QUEUE: Global<Queue<u8>> = Global::new_empty();
+static mut QUEUE: Option<Queue<u8>> = None;
 
 /// Starts a terminal.
 ///
@@ -66,7 +65,9 @@ static QUEUE: Global<Queue<u8>> = Global::new_empty();
 /// (Well, it mostly non-blocking. There is no non-blocking version
 /// for `puts_synchronous`.)
 pub fn run_terminal() {
-    QUEUE.init(Queue::new());
+    unsafe {
+        QUEUE = Some(Queue::new());
+    }
     log::write_str(PROMPT);
     wait_char();
 }
@@ -75,7 +76,7 @@ static mut PROCESS_TASK: Task<'static> = Task::from_safe("terminal::next_char", 
 
 fn wait_char() {
     unsafe {
-        QUEUE.get().get_task(&mut PROCESS_TASK);
+        QUEUE.as_mut().unwrap().get_task(&mut PROCESS_TASK);
     }
 }
 
@@ -83,13 +84,13 @@ fn wait_char() {
 ///
 /// Safe to call from ISR.
 pub fn put_char(c: u32) {
-    QUEUE.get().put(c as u8);
+    unsafe{QUEUE.as_mut()}.unwrap().put(c as u8);
 }
 
 fn get_pending_char() -> Option<u32> {
     unsafe {
         let irq = ::stm32f4::save_irq();
-        let c = QUEUE.get().get();
+        let c = QUEUE.as_mut().unwrap().get();
         ::stm32f4::restore_irq(irq);
         c.map(|x| x as u32)
     }
