@@ -17,11 +17,12 @@ path = "./smalloc"
 [dependencies.linkmem]
 path = "./linkmem"
 
-[dependencies.bscheduler]
-path = "./bscheduler"
+[dependencies]
+futures = { path = "./futures-rs", default-features = false }
 
 [profile.release]
 opt-level = 3
 lto = true
 debug = true
 debug-assertions = false
+panic = 'abort'

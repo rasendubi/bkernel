@@ -13,39 +13,39 @@ use smalloc::Smalloc;
 use core::intrinsics::copy_nonoverlapping;
 
 // TODO(rasen): allow importing this from different module (use weak linkage or extern)
-static mut allocator: Smalloc = Smalloc {
+static mut ALLOCATOR: Smalloc = Smalloc {
     start: 0 as *mut u8,
     size: 0,
 };
 
 pub fn init(alloc: Smalloc) {
     unsafe {
-        allocator = alloc;
-        allocator.init();
+        ALLOCATOR = alloc;
+        ALLOCATOR.init();
     }
 }
 
 #[no_mangle]
 pub unsafe extern fn __rust_allocate(size: usize, _align: usize) -> *mut u8 {
-    allocator.alloc(size)
+    ALLOCATOR.alloc(size)
 }
 
 #[no_mangle]
 pub unsafe extern fn __rust_deallocate(ptr: *mut u8, _old_size: usize, _align: usize) {
-    allocator.free(ptr)
+    ALLOCATOR.free(ptr)
 }
 
 // TODO(tailhook): optimize me
 #[no_mangle]
 pub unsafe extern fn __rust_reallocate(ptr: *mut u8, old_size: usize, size: usize,
                                        _align: usize) -> *mut u8 {
-    let new = allocator.alloc(size);
+    let new = ALLOCATOR.alloc(size);
     if new.is_null() {
         return ::core::ptr::null_mut();
     }
 
     copy_nonoverlapping(ptr, new, old_size);
-    allocator.free(ptr);
+    ALLOCATOR.free(ptr);
     new
 }
 

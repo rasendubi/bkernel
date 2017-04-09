@@ -1,157 +1,215 @@
 use led;
 use led_music;
-use log;
 
-use queue::Queue;
+use futures::{Async, AsyncSink, Future, IntoFuture, Poll, Sink, Stream};
 
-use scheduler::Task;
+use start_send_all_string::StartSendAllString;
 
-const PROMPT: &'static str = "> ";
+const PROMPT: &'static str = "\n> ";
 
-const HELP_MESSAGE: &'static str = "
-Available commands:\r
-hi      -- welcomes you\r
-pony    -- surprise!\r
--3/+3   -- turn off/on LED3\r
--4/+4   -- turn off/on LED4\r
--5/+5   -- turn off/on LED5\r
--6/+6   -- turn off/on LED6\r
-led-fun -- some fun with LEDs\r
-panic   -- throw a panic\r
-help    -- print this help\r
-";
+const HELP_MESSAGE: &'static str =
+"Available commands:
+hi      -- welcomes you
+pony    -- surprise!
+-3/+3   -- turn off/on LED3
+-4/+4   -- turn off/on LED4
+-5/+5   -- turn off/on LED5
+-6/+6   -- turn off/on LED6
+led-fun -- some fun with LEDs
+panic   -- throw a panic
+help    -- print this help";
 
 // https://raw.githubusercontent.com/mbasaglia/ASCII-Pony/master/Ponies/vinyl-scratch-noglasses.txt
 // https://github.com/mbasaglia/ASCII-Pony/
 const PONY: &'static str = "
-                                                     __..___\r
-                                               _.-'____<'``\r
-                                         ___.-`.-'`     ```_'-.\r
-                                        /  \\.'` __.----'','/.._\\\r
-                                       ( /  \\_/` ,---''.' /   `-'\r
-                                       | |    `,._\\  ,'  /``''-.,`.\r
-                                      /( '.  \\ _____    ' )   `. `-;\r
-                                     ( /\\   __/   __\\  / `:     \\\r
-                                     || (\\_  (   /.- | |'.|      :\r
-           _..._)`-._                || : \\ ,'\\ ((WW | \\W)j       \\\r
-        .-`.--''---._'-.             |( (, \\   \\_\\_ /   ``-.  \\.   )\r
-      /.-'`  __---__ '-.'.           ' . \\`.`.         \\__/-   )`. |\r
-      /    ,'     __`-. '.\\           V(  \\ `-\\-,______.-'  `. |  `'\r
-     /    /    .'`  ```:. \\)___________/\\ .`.     /.^. /| /.  \\|\r
-    (    (    /   .'  '-':-'             \\|`.:   (/   V )/ |  )'\r
-    (    (   (   (      /   |'-..             `   \\    /,  |  '\r
-    (  ,  \\   \\   \\    |   _|``-|                  |       | /\r
-     \\ |.  \\   \\-. \\   |  (_|  _|                  |       |'\r
-      \\| `. '.  '.`.\\  |      (_|                  |\r
-       '   '.(`-._\\ ` / \\        /             \\__/\r
-              `  ..--'   |      /-,_______\\       \\\r
-               .`      _/      /     |    |\\       \\\r
-                \\     /       /     |     | `--,    \\\r
-                 \\    |      |      |     |   /      )\r
-                  \\__/|      |      |      | (       |\r
-                      |      |      |      |  \\      |\r
-                      |       \\     |       \\  `.___/\r
-                       \\_______)     \\_______)\r
+                                                     __..___
+                                               _.-'____<'``
+                                         ___.-`.-'`     ```_'-.
+                                        /  \\.'` __.----'','/.._\\
+                                       ( /  \\_/` ,---''.' /   `-'
+                                       | |    `,._\\  ,'  /``''-.,`.
+                                      /( '.  \\ _____    ' )   `. `-;
+                                     ( /\\   __/   __\\  / `:     \\
+                                     || (\\_  (   /.- | |'.|      :
+           _..._)`-._                || : \\ ,'\\ ((WW | \\W)j       \\
+        .-`.--''---._'-.             |( (, \\   \\_\\_ /   ``-.  \\.   )
+      /.-'`  __---__ '-.'.           ' . \\`.`.         \\__/-   )`. |
+      /    ,'     __`-. '.\\           V(  \\ `-\\-,______.-'  `. |  `'
+     /    /    .'`  ```:. \\)___________/\\ .`.     /.^. /| /.  \\|
+    (    (    /   .'  '-':-'             \\|`.:   (/   V )/ |  )'
+    (    (   (   (      /   |'-..             `   \\    /,  |  '
+    (  ,  \\   \\   \\    |   _|``-|                  |       | /
+     \\ |.  \\   \\-. \\   |  (_|  _|                  |       |'
+      \\| `. '.  '.`.\\  |      (_|                  |
+       '   '.(`-._\\ ` / \\        /             \\__/
+              `  ..--'   |      /-,_______\\       \\
+               .`      _/      /     |    |\\       \\
+                \\     /       /     |     | `--,    \\
+                 \\    |      |      |     |   /      )
+                  \\__/|      |      |      | (       |
+                      |      |      |      |  \\      |
+                      |       \\     |       \\  `.___/
+                       \\_______)     \\_______)
 ";
 
-static mut QUEUE: Option<Queue<u8>> = None;
+pub enum CommandResult<S> {
+    Sink(Option<S>),
+    EchoChar(Option<S>, u8),
+    EchoCharStr(StartSendAllString<'static, S>),
+    FlushString(StartSendAllString<'static, S>),
+    FlushPrompt(StartSendAllString<'static, S>),
+}
+
+impl<S> CommandResult<S>
+    where S: Sink<SinkItem = u8>
+{
+    pub fn echo_char(sink: S, c: u8) -> CommandResult<S> {
+        match c as char {
+            // backspace
+            '\u{8}' => CommandResult::EchoCharStr(StartSendAllString::new(sink, "\0x8 \0x8")),
+            _ => CommandResult::EchoChar(Some(sink), c),
+        }
+    }
+
+    pub fn flush(sink: S, string: &'static str) -> CommandResult<S> {
+        CommandResult::FlushString(StartSendAllString::new(sink, string))
+    }
+
+    pub fn flush_prompt(sink: S) -> CommandResult<S> {
+        CommandResult::FlushPrompt(StartSendAllString::new(sink, PROMPT))
+    }
+
+    pub fn sink(sink: S) -> CommandResult<S> {
+        CommandResult::Sink(Some(sink))
+    }
+}
+
+impl<S> Future for CommandResult<S>
+    where S: Sink<SinkItem=u8, SinkError=()> + 'static
+{
+    type Item = S;
+    type Error = S::SinkError;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        let next = match *self {
+            CommandResult::EchoChar(ref mut sink, c) => {
+                if let AsyncSink::NotReady(_) = try!(sink.as_mut().take().expect("").start_send(c)) {
+                    return Ok(Async::NotReady)
+                }
+
+                let sink = sink.take().expect("");
+                if c == '\r' as u8 {
+                    Some(process_enter(sink))
+                } else {
+                    return Ok(Async::Ready(sink))
+                }
+            }
+            CommandResult::EchoCharStr(ref mut f) => {
+                let sink = try_ready!(f.poll());
+                return Ok(Async::Ready(sink))
+            }
+            CommandResult::Sink(ref mut sink) => {
+                return Ok(Async::Ready(
+                    sink.take().expect("Attempted to poll CommandResult after completion")))
+            }
+            CommandResult::FlushString(ref mut f) => {
+                let sink = try_ready!(f.poll());
+                Some(CommandResult::flush_prompt(sink))
+            }
+            CommandResult::FlushPrompt(ref mut f) => {
+                let sink = try_ready!(f.poll());
+                return Ok(Async::Ready(sink))
+            }
+        };
+
+        if let Some(x) = next {
+            *self = x;
+            self.poll()
+        } else {
+            Ok(Async::NotReady)
+        }
+    }
+}
 
 /// Starts a terminal.
 ///
 /// Note that terminal is non-blocking and is driven by `put_char`.
-pub fn run_terminal() {
-    unsafe {
-        QUEUE = Some(Queue::new(&mut PROCESS_TASK as *mut _));
-    }
-    log::write_str(PROMPT);
+pub fn run_terminal<St, Si>(stream: St, sink: Si) -> impl IntoFuture<Item=Si, Error=()> + 'static
+    where St: Stream<Item=u8, Error=()> + 'static,
+          Si: Sink<SinkItem=u8, SinkError=()> + 'static
+{
+    ::futures::stream::iter(PROMPT.as_bytes().into_iter().map(|x| Ok(*x) as Result<u8, ()>))
+        .forward(sink)
+        .and_then(|(_, sink)| {
+            stream.fold(sink, |sink, c| {
+                process_char(sink, c)
+            })
+        })
 }
 
-static mut PROCESS_TASK: Task<'static> = Task::from_safe("terminal::next_char", 5, process, 0 as *const _);
-
-/// Puts a char to process.
-///
-/// Safe to call from ISR.
-pub fn put_char(c: u32) {
-    unsafe{&mut QUEUE}.as_mut().unwrap().put(c as u8);
-}
-
-fn get_pending_char() -> Option<u32> {
-    unsafe {
-        let irq = ::stm32f4::save_irq();
-        let c = QUEUE.as_mut().unwrap().get();
-        ::stm32f4::restore_irq(irq);
-        c.map(|x| x as u32)
-    }
-}
-
-/// Processes all pending characters in the queue.
-fn process(_arg: *const ()) {
-    // TODO: this flow can be abstracted out as it's useful for many
-    // queue-processing tasks.
-    while let Some(c) = get_pending_char() {
-        process_char(c);
-    }
-}
+static mut COMMAND: [u8; 256] = [0; 256];
+static mut CUR: usize = 0;
 
 /// Processes one character at a time. Calls `process_command` when
 /// user presses Enter or command is too long.
-fn process_char(c: u32) {
-    static mut COMMAND: [u8; 256] = [0; 256];
-    static mut CUR: usize = 0;
+fn process_char<Si>(sink: Si, c: u8) -> impl IntoFuture<Item=Si, Error=()> + 'static
+    where Si: Sink<SinkItem=u8, SinkError=()> + 'static
+{
+    let c = c as u32;
 
-    let mut command = unsafe{&mut COMMAND}; // COMMAND is only used in this function
+    let mut command = unsafe{&mut COMMAND};
     let mut cur = unsafe{&mut CUR};
 
-    if c == '\r' as u32 {
-        log::write_str("\r\n");
-        process_command(&command[0 .. *cur]);
-        *cur = 0;
-        return;
+    if c == '\r' as u32 && *cur == 0 {
+        return CommandResult::flush_prompt(sink)
     }
 
     if c == 0x8 { // backspace
         if *cur != 0 {
-            log::write_str("\x08 \x08");
-
             *cur -= 1;
+        } else {
+            return CommandResult::sink(sink)
         }
     } else {
         command[*cur] = c as u8;
         *cur += 1;
-        log::write_char(c);
 
         if *cur == 256 {
-            log::write_str("\r\n");
-            process_command(&command[0 .. *cur]);
             *cur = 0;
         }
     }
+
+    CommandResult::echo_char(sink, c as u8)
 }
 
-fn process_command(command: &[u8]) {
+fn process_enter<Si>(sink: Si) -> CommandResult<Si>
+    where Si: Sink<SinkItem=u8, SinkError=()> + 'static
+{
+    let command = unsafe{&mut COMMAND};
+    let mut cur = unsafe{&mut CUR};
+
+    let command = &command[0 .. *cur - 1];
+    *cur = 0;
+
     match command {
-        b"help" => { log::write_str(HELP_MESSAGE); },
-        b"hi" => { log::write_str("Hi, there!\r\n"); },
-        b"pony" | b"p" => { log::write_str(PONY); },
-        b"-3" => { led::LD3.turn_off(); },
-        b"+3" => { led::LD3.turn_on(); },
-        b"-4" => { led::LD4.turn_off(); },
-        b"+4" => { led::LD4.turn_on(); },
-        b"-5" => { led::LD5.turn_off(); },
-        b"+5" => { led::LD5.turn_on(); },
-        b"-6" => { led::LD6.turn_off(); },
-        b"+6" => { led::LD6.turn_on(); },
-        b"led-fun" => { led_music::led_fun(71000); },
+        b"help" => CommandResult::flush(sink, HELP_MESSAGE),
+        b"hi" => CommandResult::flush(sink, "Hi, there!"),
+        b"pony" | b"p" => CommandResult::flush(sink, PONY),
+        b"-3" => { led::LD3.turn_off(); CommandResult::flush_prompt(sink) },
+        b"+3" => { led::LD3.turn_on(); CommandResult::flush_prompt(sink) },
+        b"-4" => { led::LD4.turn_off(); CommandResult::flush_prompt(sink) },
+        b"+4" => { led::LD4.turn_on(); CommandResult::flush_prompt(sink) },
+        b"-5" => { led::LD5.turn_off(); CommandResult::flush_prompt(sink) },
+        b"+5" => { led::LD5.turn_on(); CommandResult::flush_prompt(sink) },
+        b"-6" => { led::LD6.turn_off(); CommandResult::flush_prompt(sink) },
+        b"+6" => { led::LD6.turn_on(); CommandResult::flush_prompt(sink) },
+        b"led-fun" => { led_music::led_fun(71000); CommandResult::flush_prompt(sink) },
         b"panic" => {
             panic!();
         }
-        b"" => {},
+        b"" => CommandResult::flush_prompt(sink),
         _ => {
-            log::write_str("Unknown command: \"");
-            log::write_bytes(command);
-            log::write_str("\"\r\n");
+            CommandResult::flush(sink, "Unknown command\n")
         },
     }
-
-    log::write_str(PROMPT);
 }

@@ -65,7 +65,7 @@ doc: # lib/$(TARGET)/libcore.rlib
 
 .PHONY: test
 test:
-	cargo test -p bkernel -p stm32f4 -p smalloc -p bscheduler
+	cargo test -p bkernel -p stm32f4
 
 .PHONY: flash
 flash: kernel.bin

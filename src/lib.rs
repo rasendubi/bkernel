@@ -1,6 +1,7 @@
 //! This crate is a Rust part of the kernel. It should be linked with
 //! the bootstrap that will jump to the `kmain` function.
 #![feature(lang_items, alloc, core_intrinsics, const_fn)]
+#![feature(conservative_impl_trait)]
 
 #![cfg_attr(target_os = "none", no_std)]
 
@@ -13,13 +14,14 @@ extern crate linkmem;
 extern crate stm32f4;
 extern crate smalloc;
 extern crate alloc;
-extern crate bscheduler;
+#[macro_use]
+extern crate futures;
 
 mod led;
 mod led_music;
 mod terminal;
-mod scheduler;
-mod queue;
+mod start_send_all;
+mod start_send_all_string;
 mod log;
 
 use stm32f4::{rcc, gpio, usart, timer, nvic};
@@ -28,35 +30,27 @@ use stm32f4::gpio::GPIO_B;
 use stm32f4::usart::USART1;
 use stm32f4::timer::TIM2;
 
-#[cfg(target_os = "none")]
-const MEMORY_SIZE: usize = 64*1024;
+use futures::stream::Stream;
+use futures::{Async, Future};
+
+pub use log::__isr_usart1;
 
 #[cfg(target_os = "none")]
-static mut MEMORY: [u8; MEMORY_SIZE] = [0; MEMORY_SIZE];
+const HEAP_SIZE: usize = 64*1024;
+
+#[cfg(target_os = "none")]
+static mut HEAP: [u8; HEAP_SIZE] = [0; HEAP_SIZE];
 
 #[cfg(target_os = "none")]
 fn init_memory() {
     ::linkmem::init(smalloc::Smalloc {
-        start: unsafe { ::core::mem::transmute(&mut MEMORY) },
-        size: MEMORY_SIZE,
+        start: unsafe { ::core::mem::transmute(&mut HEAP) },
+        size: HEAP_SIZE,
     });
 }
 
 #[cfg(not(target_os = "none"))]
 fn init_memory() {}
-
-static mut STARTUP_TASK: scheduler::Task<'static> = scheduler::Task::from_safe(
-    "terminal",
-    5,
-    startup,
-    0 as *const ());
-
-fn startup(_arg: *const ()) {
-    log::write_str("\r\nWelcome to bkernel!\r\n");
-    log::write_str("Type 'help' to get a list of available commands.\r\n");
-
-    terminal::run_terminal();
-}
 
 /// The main entry of the kernel.
 #[no_mangle]
@@ -67,15 +61,28 @@ pub extern fn kmain() -> ! {
         init_leds();
         init_timer();
     }
-    log::init();
 
     // Test that allocator works
     let mut b = ::alloc::boxed::Box::new(5);
     unsafe { ::core::intrinsics::volatile_store(&mut *b as *mut _, 4); }
 
-    scheduler::add_task(unsafe { &mut STARTUP_TASK });
+    let f = ::futures::stream::iter("\nWelcome to bkernel!\nType 'help' to get a list of available commands.".as_bytes().into_iter().map(|x| Ok(*x) as Result<u8, ()>)).forward(unsafe{&mut log::LOGGER});
 
-    scheduler::schedule();
+    let mut f = f.and_then(|(_stream, sink)| terminal::run_terminal(unsafe { &mut log::INPUT },
+                                                                    sink));
+
+    loop {
+        match f.poll() {
+            Ok(Async::NotReady) => {
+                continue;
+            }
+            _ => {
+                break;
+            }
+        }
+    }
+
+    loop { }
 }
 
 unsafe fn init_timer() {
@@ -177,28 +184,16 @@ pub mod panicking {
 
 #[no_mangle]
 pub unsafe extern fn __isr_tim2() {
-    static mut led3_value: bool = false;
+    static mut LED3_VALUE: bool = false;
 
     if TIM2.it_status(timer::Dier::UIE) {
         TIM2.it_clear_pending(timer::Dier::UIE);
 
-        led3_value = !led3_value;
-        if led3_value {
+        LED3_VALUE = !LED3_VALUE;
+        if LED3_VALUE {
             led::LD3.turn_on();
         } else {
             led::LD3.turn_off();
         }
-    }
-}
-
-#[no_mangle]
-pub unsafe extern fn __isr_usart1() {
-    if USART1.it_status(usart::Interrupt::RXNE) {
-        let c = USART1.get_unsafe();
-        terminal::put_char(c);
-    }
-
-    if USART1.it_status(usart::Interrupt::TXE) {
-        log::usart1_txe();
     }
 }

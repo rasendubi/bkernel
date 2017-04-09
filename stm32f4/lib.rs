@@ -85,3 +85,18 @@ pub unsafe fn restore_irq(primask: u32) {
         __enable_irq();
     }
 }
+
+/// A convenience wrapper around `save_irq` and `restore_irq`.
+pub struct IrqLock(u32);
+
+impl IrqLock {
+    pub unsafe fn new() -> IrqLock {
+        IrqLock(save_irq())
+    }
+}
+
+impl Drop for IrqLock {
+    fn drop(&mut self) {
+        unsafe { restore_irq(self.0); }
+    }
+}
