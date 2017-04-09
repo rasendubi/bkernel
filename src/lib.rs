@@ -30,8 +30,9 @@ use stm32f4::gpio::GPIO_B;
 use stm32f4::usart::USART1;
 use stm32f4::timer::TIM2;
 
-use futures::stream::Stream;
 use futures::{Async, Future};
+
+use start_send_all_string::StartSendAllString;
 
 pub use log::__isr_usart1;
 
@@ -66,10 +67,11 @@ pub extern fn kmain() -> ! {
     let mut b = ::alloc::boxed::Box::new(5);
     unsafe { ::core::intrinsics::volatile_store(&mut *b as *mut _, 4); }
 
-    let f = ::futures::stream::iter("\nWelcome to bkernel!\nType 'help' to get a list of available commands.".as_bytes().into_iter().map(|x| Ok(*x) as Result<u8, ()>)).forward(unsafe{&mut log::LOGGER});
-
-    let mut f = f.and_then(|(_stream, sink)| terminal::run_terminal(unsafe { &mut log::INPUT },
-                                                                    sink));
+    let mut f = StartSendAllString::new(
+        unsafe{&mut log::LOGGER},
+        "\nWelcome to bkernel!\nType 'help' to get a list of available commands."
+    ).and_then(|sink| terminal::run_terminal(unsafe { &mut log::INPUT },
+                                             sink));
 
     loop {
         match f.poll() {
