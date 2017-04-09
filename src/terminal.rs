@@ -66,7 +66,7 @@ impl<S> CommandResult<S>
     pub fn echo_char(sink: S, c: u8) -> CommandResult<S> {
         match c as char {
             // backspace
-            '\u{8}' => CommandResult::EchoCharStr(StartSendAllString::new(sink, "\0x8 \0x8")),
+            '\u{8}' => CommandResult::EchoCharStr(StartSendAllString::new(sink, "\u{8} \u{8}")),
             _ => CommandResult::EchoChar(Some(sink), c),
         }
     }

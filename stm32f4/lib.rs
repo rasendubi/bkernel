@@ -19,6 +19,18 @@ pub mod lang_items;
 
 #[inline(always)]
 #[cfg(not(target_arch = "arm"))]
+pub unsafe fn __wait_for_interrupt() {
+    panic!("__wait_for_interrupt is not implemented");
+}
+
+#[inline(always)]
+#[cfg(target_arch = "arm")]
+pub unsafe fn __wait_for_interrupt() {
+    asm!("wfi" : : : : "volatile");
+}
+
+#[inline(always)]
+#[cfg(not(target_arch = "arm"))]
 pub unsafe fn __enable_irq() {
     panic!("enable_irq is not implemented");
 }

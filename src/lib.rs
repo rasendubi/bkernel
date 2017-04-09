@@ -74,6 +74,7 @@ pub extern fn kmain() -> ! {
     loop {
         match f.poll() {
             Ok(Async::NotReady) => {
+                unsafe { stm32f4::__wait_for_interrupt() };
                 continue;
             }
             _ => {
