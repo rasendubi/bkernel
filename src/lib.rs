@@ -8,12 +8,13 @@
 #[cfg(not(target_os = "none"))]
 extern crate core;
 
+extern crate stm32f4;
+
+extern crate smalloc;
 #[cfg(target_os = "none")]
 extern crate linkmem;
-
-extern crate stm32f4;
-extern crate smalloc;
 extern crate alloc;
+
 #[macro_use]
 extern crate futures;
 
@@ -36,6 +37,8 @@ use futures::{Async, Future};
 use start_send_all_string::StartSendAllString;
 
 pub use log::__isr_usart1;
+
+use core::intrinsics::unreachable;
 
 #[cfg(target_os = "none")]
 const HEAP_SIZE: usize = 64*1024;
@@ -68,25 +71,21 @@ pub extern fn kmain() -> ! {
     let mut b = ::alloc::boxed::Box::new(5);
     unsafe { ::core::intrinsics::volatile_store(&mut *b as *mut _, 4); }
 
-    let mut f = StartSendAllString::new(
-        unsafe{&mut log::LOGGER},
-        "\r\nWelcome to bkernel!\r\nType 'help' to get a list of available commands."
-    ).and_then(|sink| terminal::run_terminal(unsafe { &mut log::INPUT },
-                                             sink));
+    let stdin = unsafe {&mut log::STDIN};
+    let stdout = unsafe {&mut log::STDOUT};
 
-    loop {
-        match f.poll() {
-            Ok(Async::NotReady) => {
-                unsafe { stm32f4::__wait_for_interrupt() };
-                continue;
-            }
-            _ => {
-                break;
-            }
+    let mut f = StartSendAllString::new(
+        stdout,
+        "\r\nWelcome to bkernel!\r\nType 'help' to get a list of available commands.\r\n"
+    ).and_then(|stdout| terminal::run_terminal(stdin, stdout));
+
+    while let Ok(Async::NotReady) = f.poll() {
+        unsafe {
+            stm32f4::__wait_for_interrupt()
         }
     }
 
-    loop { }
+    unsafe { unreachable(); }
 }
 
 unsafe fn init_timer() {

@@ -1,5 +1,7 @@
 use led;
 
+// TODO(rasen): rewrite this module to use Futures and timers.
+
 pub fn led_fun(tt: u32) {
     delay(tt);
     led::LD3.turn_off();

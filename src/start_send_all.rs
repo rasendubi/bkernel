@@ -28,19 +28,16 @@ impl<T, U> StartSendAll<T, U>
           T::SinkError: From<U::Error>,
 {
     fn sink_mut(&mut self) -> &mut T {
-        self.sink.as_mut().take().expect("Attempted to poll StartSendAll after completion")
+        self.sink.as_mut().take().expect("")
     }
 
     fn stream_mut(&mut self) -> &mut Fuse<U> {
-        self.stream.as_mut().take()
-            .expect("Attempted to poll StartSendAll after completion")
+        self.stream.as_mut().take().expect("")
     }
 
     fn take_result(&mut self) -> (T, U) {
-        let sink = self.sink.take()
-            .expect("Attempted to poll StartSendAll after completion");
-        let fuse = self.stream.take()
-            .expect("Attempted to poll StartSendAll after completion");
+        let sink = self.sink.take().expect("");
+        let fuse = self.stream.take().expect("");
         return (sink, fuse.into_inner());
     }
 

@@ -24,12 +24,12 @@ impl<'a, T> StartSendAllString<'a, T>
     where T: Sink<SinkItem = u8>,
 {
     fn sink_mut(&mut self) -> &mut T {
-        self.sink.as_mut().take().expect("Attempted to poll StartSendAllString after completion")
+        self.sink.as_mut().take().expect("")
     }
 
     fn take_result(&mut self) -> T {
         self.sink.take()
-            .expect("Attempted to poll StartSendAllString after completion")
+            .expect("")
     }
 }
 

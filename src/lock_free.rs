@@ -24,6 +24,9 @@ impl<T: Copy> CircularBuffer<T> {
     ///
     /// Note that you can't access these values and it is there merely
     /// to make this function `const`.
+    ///
+    /// ::core::mem::uninitialized would work here, but it is not
+    /// const. (Have no idea why.)
     pub const fn new(init: T) -> CircularBuffer<T> {
         CircularBuffer {
             array: [init; 32],
@@ -36,7 +39,7 @@ impl<T: Copy> CircularBuffer<T> {
         (idx + 1) % 32
     }
 
-    /// Push an item into buffer.
+    /// Push an item into the buffer.
     ///
     /// Returns `true` if push was successful.
     /// `false` means the buffer was full.
@@ -69,7 +72,7 @@ impl<T: Copy> CircularBuffer<T> {
         }
     }
 
-    /// If the buffer was empty at the time of queriying.
+    /// If the buffer was empty at the time of querying.
     ///
     /// Note that the status may have already changed by the time the
     /// function returns.

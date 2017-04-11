@@ -100,7 +100,7 @@ test_done
 
 test "unknown command"
     send_command "+7"
-    expect_exact "Unknown command: \"+7\"\r\n"
+    expect_exact "Unknown command\r\n"
     expect_prompt
 test_done
 

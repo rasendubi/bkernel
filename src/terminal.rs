@@ -5,7 +5,7 @@ use futures::{Async, AsyncSink, Future, IntoFuture, Poll, Sink, Stream};
 
 use start_send_all_string::StartSendAllString;
 
-const PROMPT: &'static str = "\r\n> ";
+const PROMPT: &'static str = "> ";
 
 const HELP_MESSAGE: &'static str =
 "Available commands:\r
@@ -17,11 +17,12 @@ pony    -- surprise!\r
 -6/+6   -- turn off/on LED6\r
 led-fun -- some fun with LEDs\r
 panic   -- throw a panic\r
-help    -- print this help";
+help    -- print this help\r
+";
 
 // https://raw.githubusercontent.com/mbasaglia/ASCII-Pony/master/Ponies/vinyl-scratch-noglasses.txt
 // https://github.com/mbasaglia/ASCII-Pony/
-const PONY: &'static str = "
+const PONY: &'static str = "\r
                                                      __..___\r
                                                _.-'____<'``\r
                                          ___.-`.-'`     ```_'-.\r
@@ -55,7 +56,7 @@ const PONY: &'static str = "
 pub enum CommandResult<S> {
     Sink(Option<S>),
     EchoChar(Option<S>, u8),
-    EchoCharStr(StartSendAllString<'static, S>),
+    EchoCharStr(u8, StartSendAllString<'static, S>),
     FlushString(StartSendAllString<'static, S>),
     FlushPrompt(StartSendAllString<'static, S>),
 }
@@ -66,7 +67,8 @@ impl<S> CommandResult<S>
     pub fn echo_char(sink: S, c: u8) -> CommandResult<S> {
         match c as char {
             // backspace
-            '\u{8}' => CommandResult::EchoCharStr(StartSendAllString::new(sink, "\u{8} \u{8}")),
+            '\u{8}' => CommandResult::EchoCharStr(c, StartSendAllString::new(sink, "\u{8} \u{8}")),
+            '\r' => CommandResult::EchoCharStr(c, StartSendAllString::new(sink, "\r\n")),
             _ => CommandResult::EchoChar(Some(sink), c),
         }
     }
@@ -91,30 +93,29 @@ impl<S> Future for CommandResult<S>
     type Error = S::SinkError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        let next = match *self {
+        *self = match *self {
             CommandResult::EchoChar(ref mut sink, c) => {
                 if let AsyncSink::NotReady(_) = try!(sink.as_mut().take().expect("").start_send(c)) {
                     return Ok(Async::NotReady)
+                } else {
+                    return Ok(Async::Ready(sink.take().expect("")))
                 }
-
-                let sink = sink.take().expect("");
+            }
+            CommandResult::EchoCharStr(c, ref mut f) => {
+                let sink = try_ready!(f.poll());
                 if c == '\r' as u8 {
-                    Some(process_enter(sink))
+                    process_enter(sink)
                 } else {
                     return Ok(Async::Ready(sink))
                 }
             }
-            CommandResult::EchoCharStr(ref mut f) => {
-                let sink = try_ready!(f.poll());
-                return Ok(Async::Ready(sink))
-            }
             CommandResult::Sink(ref mut sink) => {
                 return Ok(Async::Ready(
-                    sink.take().expect("Attempted to poll CommandResult after completion")))
+                    sink.take().expect("")))
             }
             CommandResult::FlushString(ref mut f) => {
                 let sink = try_ready!(f.poll());
-                Some(CommandResult::flush_prompt(sink))
+                CommandResult::flush_prompt(sink)
             }
             CommandResult::FlushPrompt(ref mut f) => {
                 let sink = try_ready!(f.poll());
@@ -122,32 +123,20 @@ impl<S> Future for CommandResult<S>
             }
         };
 
-        if let Some(x) = next {
-            *self = x;
-            self.poll()
-        } else {
-            Ok(Async::NotReady)
-        }
+        self.poll()
     }
 }
 
 /// Starts a terminal.
-///
-/// Note that terminal is non-blocking and is driven by `put_char`.
 pub fn run_terminal<St, Si>(stream: St, sink: Si) -> impl IntoFuture<Item=Si, Error=()> + 'static
     where St: Stream<Item=u8, Error=()> + 'static,
           Si: Sink<SinkItem=u8, SinkError=()> + 'static
 {
-    ::futures::stream::iter(PROMPT.as_bytes().into_iter().map(|x| Ok(*x) as Result<u8, ()>))
-        .forward(sink)
-        .and_then(|(_, sink)| {
-            stream.fold(sink, |sink, c| {
-                process_char(sink, c)
-            })
-        })
+    StartSendAllString::new(sink, PROMPT)
+        .and_then(|sink| stream.fold(sink, process_char))
 }
 
-static mut COMMAND: [u8; 256] = [0; 256];
+static mut COMMAND: [u8; 32] = [0; 32];
 static mut CUR: usize = 0;
 
 /// Processes one character at a time. Calls `process_command` when
@@ -160,22 +149,20 @@ fn process_char<Si>(sink: Si, c: u8) -> impl IntoFuture<Item=Si, Error=()> + 'st
     let mut command = unsafe{&mut COMMAND};
     let mut cur = unsafe{&mut CUR};
 
-    if c == '\r' as u32 && *cur == 0 {
-        return CommandResult::flush_prompt(sink)
-    }
-
     if c == 0x8 { // backspace
         if *cur != 0 {
             *cur -= 1;
         } else {
+            // If there is nothing to delete, do nothing
             return CommandResult::sink(sink)
         }
     } else {
         command[*cur] = c as u8;
         *cur += 1;
 
-        if *cur == 256 {
-            *cur = 0;
+        if *cur == command.len() {
+            // If command length is too long, emulate Enter was pressed
+            return CommandResult::echo_char(sink, '\r' as u8)
         }
     }
 
@@ -193,7 +180,7 @@ fn process_enter<Si>(sink: Si) -> CommandResult<Si>
 
     match command {
         b"help" => CommandResult::flush(sink, HELP_MESSAGE),
-        b"hi" => CommandResult::flush(sink, "Hi, there!"),
+        b"hi" => CommandResult::flush(sink, "Hi, there!\r\n"),
         b"pony" | b"p" => CommandResult::flush(sink, PONY),
         b"-3" => { led::LD3.turn_off(); CommandResult::flush_prompt(sink) },
         b"+3" => { led::LD3.turn_on(); CommandResult::flush_prompt(sink) },
@@ -209,7 +196,7 @@ fn process_enter<Si>(sink: Si) -> CommandResult<Si>
         }
         b"" => CommandResult::flush_prompt(sink),
         _ => {
-            CommandResult::flush(sink, "Unknown command\n")
+            CommandResult::flush(sink, "Unknown command\r\n")
         },
     }
 }
