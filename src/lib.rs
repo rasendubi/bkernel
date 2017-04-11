@@ -23,6 +23,7 @@ mod terminal;
 mod start_send_all;
 mod start_send_all_string;
 mod log;
+mod lock_free;
 
 use stm32f4::{rcc, gpio, usart, timer, nvic};
 use stm32f4::rcc::RCC;
@@ -69,7 +70,7 @@ pub extern fn kmain() -> ! {
 
     let mut f = StartSendAllString::new(
         unsafe{&mut log::LOGGER},
-        "\nWelcome to bkernel!\nType 'help' to get a list of available commands."
+        "\r\nWelcome to bkernel!\r\nType 'help' to get a list of available commands."
     ).and_then(|sink| terminal::run_terminal(unsafe { &mut log::INPUT },
                                              sink));
 

@@ -5,51 +5,51 @@ use futures::{Async, AsyncSink, Future, IntoFuture, Poll, Sink, Stream};
 
 use start_send_all_string::StartSendAllString;
 
-const PROMPT: &'static str = "\n> ";
+const PROMPT: &'static str = "\r\n> ";
 
 const HELP_MESSAGE: &'static str =
-"Available commands:
-hi      -- welcomes you
-pony    -- surprise!
--3/+3   -- turn off/on LED3
--4/+4   -- turn off/on LED4
--5/+5   -- turn off/on LED5
--6/+6   -- turn off/on LED6
-led-fun -- some fun with LEDs
-panic   -- throw a panic
+"Available commands:\r
+hi      -- welcomes you\r
+pony    -- surprise!\r
+-3/+3   -- turn off/on LED3\r
+-4/+4   -- turn off/on LED4\r
+-5/+5   -- turn off/on LED5\r
+-6/+6   -- turn off/on LED6\r
+led-fun -- some fun with LEDs\r
+panic   -- throw a panic\r
 help    -- print this help";
 
 // https://raw.githubusercontent.com/mbasaglia/ASCII-Pony/master/Ponies/vinyl-scratch-noglasses.txt
 // https://github.com/mbasaglia/ASCII-Pony/
 const PONY: &'static str = "
-                                                     __..___
-                                               _.-'____<'``
-                                         ___.-`.-'`     ```_'-.
-                                        /  \\.'` __.----'','/.._\\
-                                       ( /  \\_/` ,---''.' /   `-'
-                                       | |    `,._\\  ,'  /``''-.,`.
-                                      /( '.  \\ _____    ' )   `. `-;
-                                     ( /\\   __/   __\\  / `:     \\
-                                     || (\\_  (   /.- | |'.|      :
-           _..._)`-._                || : \\ ,'\\ ((WW | \\W)j       \\
-        .-`.--''---._'-.             |( (, \\   \\_\\_ /   ``-.  \\.   )
-      /.-'`  __---__ '-.'.           ' . \\`.`.         \\__/-   )`. |
-      /    ,'     __`-. '.\\           V(  \\ `-\\-,______.-'  `. |  `'
-     /    /    .'`  ```:. \\)___________/\\ .`.     /.^. /| /.  \\|
-    (    (    /   .'  '-':-'             \\|`.:   (/   V )/ |  )'
-    (    (   (   (      /   |'-..             `   \\    /,  |  '
-    (  ,  \\   \\   \\    |   _|``-|                  |       | /
-     \\ |.  \\   \\-. \\   |  (_|  _|                  |       |'
-      \\| `. '.  '.`.\\  |      (_|                  |
-       '   '.(`-._\\ ` / \\        /             \\__/
-              `  ..--'   |      /-,_______\\       \\
-               .`      _/      /     |    |\\       \\
-                \\     /       /     |     | `--,    \\
-                 \\    |      |      |     |   /      )
-                  \\__/|      |      |      | (       |
-                      |      |      |      |  \\      |
-                      |       \\     |       \\  `.___/
-                       \\_______)     \\_______)
+                                                     __..___\r
+                                               _.-'____<'``\r
+                                         ___.-`.-'`     ```_'-.\r
+                                        /  \\.'` __.----'','/.._\\\r
+                                       ( /  \\_/` ,---''.' /   `-'\r
+                                       | |    `,._\\  ,'  /``''-.,`.\r
+                                      /( '.  \\ _____    ' )   `. `-;\r
+                                     ( /\\   __/   __\\  / `:     \\\r
+                                     || (\\_  (   /.- | |'.|      :\r
+           _..._)`-._                || : \\ ,'\\ ((WW | \\W)j       \\\r
+        .-`.--''---._'-.             |( (, \\   \\_\\_ /   ``-.  \\.   )\r
+      /.-'`  __---__ '-.'.           ' . \\`.`.         \\__/-   )`. |\r
+      /    ,'     __`-. '.\\           V(  \\ `-\\-,______.-'  `. |  `'\r
+     /    /    .'`  ```:. \\)___________/\\ .`.     /.^. /| /.  \\|\r
+    (    (    /   .'  '-':-'             \\|`.:   (/   V )/ |  )'\r
+    (    (   (   (      /   |'-..             `   \\    /,  |  '\r
+    (  ,  \\   \\   \\    |   _|``-|                  |       | /\r
+     \\ |.  \\   \\-. \\   |  (_|  _|                  |       |'\r
+      \\| `. '.  '.`.\\  |      (_|                  |\r
+       '   '.(`-._\\ ` / \\        /             \\__/\r
+              `  ..--'   |      /-,_______\\       \\\r
+               .`      _/      /     |    |\\       \\\r
+                \\     /       /     |     | `--,    \\\r
+                 \\    |      |      |     |   /      )\r
+                  \\__/|      |      |      | (       |\r
+                      |      |      |      |  \\      |\r
+                      |       \\     |       \\  `.___/\r
+                       \\_______)     \\_______)\r
 ";
 
 pub enum CommandResult<S> {

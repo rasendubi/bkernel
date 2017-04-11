@@ -3,49 +3,41 @@
 use stm32f4::IrqLock;
 use stm32f4::usart::{self, USART1};
 
+use lock_free::CircularBuffer;
+
 use futures::{Async, AsyncSink, Sink, Stream, StartSend, Poll};
 
 pub struct IoBuffer {
-    buffer: [u8; 32],
-    size: usize,
-    cur: usize,
+    intern: CircularBuffer<u8>,
 }
 
 impl IoBuffer {
     pub const fn new() -> IoBuffer {
         IoBuffer {
-            buffer: [0; 32],
-            size: 0,
-            cur: 0,
+            intern: CircularBuffer::new(0),
         }
     }
 
-    pub fn try_get(&mut self) -> Option<u8> {
-        let _irq_lock = unsafe { IrqLock::new() };
-
-        if self.size > 0 {
-            let result = self.buffer[self.cur];
-            self.cur = (self.cur + 1) % self.buffer.len();
-            self.size -= 1;
-
-            Some(result)
-        } else {
-            None
-        }
+    pub fn try_pop(&mut self) -> Option<u8> {
+        self.intern.pop()
     }
 
-    pub fn force_put(&mut self, item: u8) {
-        let _irq_lock = unsafe { IrqLock::new() };
-
-        if self.size == self.buffer.len() {
-            self.size -= 1;
-            self.cur = (self.cur + 1) % self.buffer.len();
-        }
-
-        let idx = (self.cur + self.size) % self.buffer.len();
-        self.buffer[idx] = item;
-        self.size += 1;
+    pub fn try_push(&mut self, item: u8) -> bool {
+        self.intern.push(item)
     }
+
+    // pub fn force_put(&mut self, item: u8) {
+    //     let _irq_lock = unsafe { IrqLock::new() };
+
+    //     if self.size == self.buffer.len() {
+    //         self.size -= 1;
+    //         self.cur = (self.cur + 1) % self.buffer.len();
+    //     }
+
+    //     let idx = (self.cur + self.size) % self.buffer.len();
+    //     self.buffer[idx] = item;
+    //     self.size += 1;
+    // }
 }
 
 impl Sink for &'static mut IoBuffer {
@@ -53,28 +45,7 @@ impl Sink for &'static mut IoBuffer {
     type SinkError = ();
 
     fn start_send(&mut self, item: u8) -> StartSend<u8, Self::SinkError> {
-        let _irq_lock = unsafe { IrqLock::new() };
-
-        if item == '\r' as u8 || item == '\n' as u8 {
-            if self.size + 1 < self.buffer.len() {
-                let idx = (self.cur + self.size) % self.buffer.len();
-                self.buffer[idx] = '\r' as u8;
-                self.size += 1;
-                let idx = (self.cur + self.size) % self.buffer.len();
-                self.buffer[idx] = '\n' as u8;
-                self.size += 1;
-
-                new_data_added();
-
-                Ok(AsyncSink::Ready)
-            } else {
-                Ok(AsyncSink::NotReady(item))
-            }
-        } else if self.size < self.buffer.len() {
-            let idx = (self.cur + self.size) % self.buffer.len();
-            self.buffer[idx] = item;
-            self.size += 1;
-
+        if self.intern.push(item) {
             new_data_added();
 
             Ok(AsyncSink::Ready)
@@ -84,9 +55,7 @@ impl Sink for &'static mut IoBuffer {
     }
 
     fn poll_complete(&mut self) -> Poll<(), Self::SinkError> {
-        let _irq_lock = unsafe { IrqLock::new() };
-
-        if self.size == 0 {
+        if self.intern.was_empty() {
             Ok(Async::Ready(()))
         } else {
             Ok(Async::NotReady)
@@ -103,7 +72,7 @@ impl Stream for &'static mut IoBuffer {
     type Error = ();
 
     fn poll(&mut self) -> Poll<Option<u8>, Self::Error> {
-        match self.try_get() {
+        match self.try_pop() {
             Some(x) => Ok(Async::Ready(Some(x))),
             _ => Ok(Async::NotReady),
         }
@@ -118,11 +87,11 @@ pub static mut INPUT: IoBuffer = IoBuffer::new();
 pub unsafe extern fn __isr_usart1() {
     if USART1.it_status(usart::Interrupt::RXNE) {
         let c = USART1.get_unsafe();
-        INPUT.force_put(c as u8);
+        let _ = INPUT.try_push(c as u8);
     }
 
     if USART1.it_status(usart::Interrupt::TXE) {
-        match LOGGER.try_get() {
+        match LOGGER.try_pop() {
             Some(c) => {
                 USART1.put_unsafe(c as u32);
             },
@@ -138,7 +107,7 @@ fn new_data_added() {
         let _irq_lock = IrqLock::new();
 
         if !USART1.it_enabled(usart::Interrupt::TXE) {
-            match LOGGER.try_get() {
+            match LOGGER.try_pop() {
                 Some(c) => {
                     USART1.it_enable(usart::Interrupt::TXE);
                     USART1.put_unsafe(c as u32);
