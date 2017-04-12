@@ -5,6 +5,8 @@ RUST := rustc
 
 TARGET := thumbv7em-none-eabi
 
+BOARD ?= stm32f407-discovery
+
 CFLAGS := -std=c99 -pedantic -Wall -Wextra -mcpu=cortex-m4 -msoft-float -nostdlib -lnosys \
 	-fPIC -mapcs-frame -ffreestanding -O3 -mlittle-endian -mthumb
 LDFLAGS := -N -nostdlib -T stm32_flash.ld -Wl,--gc-sections
@@ -69,11 +71,11 @@ test:
 
 .PHONY: flash
 flash: kernel.bin
-	openocd -f openocd.cfg -c 'flash_bkernel kernel.bin; exit'
+	openocd -f ${BOARD}.cfg -s openocd/ -c 'flash_bkernel kernel.bin; exit'
 
 .PHONY: reset
 reset:
-	openocd -f openocd.cfg -c 'reset; exit'
+	openocd -f ${BOARD}.cfg -s openocd/ -c 'reset; exit'
 
 .PHONY: device_test
 device_test:
