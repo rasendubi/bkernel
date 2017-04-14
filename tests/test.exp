@@ -8,6 +8,12 @@ if {$argc != 1} {
     exit
 }
 
+if {[info exists env(BOARD)]} {
+    set BOARD $env(BOARD)
+} else {
+    set BOARD "stm32f407-discovery"
+}
+
 set port $argv
 set spawned [spawn -open [open $port w+]]
 set baud 115200
@@ -40,7 +46,8 @@ proc test_done { } {
 }
 
 proc reset {} {
-    system "openocd -s openocd/ -f stm32f407-discovery.cfg -c 'reset; exit' 2> /dev/null"
+    global BOARD
+    system "openocd -s openocd/ -f $BOARD.cfg -c 'reset; exit' 2> /dev/null"
 }
 
 proc expect_exact {pattern} {
