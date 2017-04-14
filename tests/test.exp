@@ -10,7 +10,7 @@ if {$argc != 1} {
 
 set port $argv
 set spawned [spawn -open [open $port w+]]
-set baud 9600
+set baud 115200
 set send_human { .01 .01 100 .005 .005 }
 
 stty ispeed $baud ospeed $baud raw -echo cs8 -parenb -cstopb onlcr < $port
@@ -40,7 +40,7 @@ proc test_done { } {
 }
 
 proc reset {} {
-    system "openocd -f openocd.cfg -c 'reset; exit' 2> /dev/null"
+    system "openocd -s openocd/ -f stm32f407-discovery.cfg -c 'reset; exit' 2> /dev/null"
 }
 
 proc expect_exact {pattern} {
