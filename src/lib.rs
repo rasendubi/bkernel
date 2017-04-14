@@ -158,7 +158,7 @@ unsafe fn init_usart1() {
         data_bits: usart::DataBits::Bits8,
         stop_bits: usart::StopBits::Bits1,
         flow_control: usart::FlowControl::No,
-        baud_rate: 9600,
+        baud_rate: 115200,
     });
 
     USART1.it_enable(usart::Interrupt::RXNE);

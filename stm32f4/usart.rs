@@ -173,18 +173,16 @@ impl Usart {
     /// Enables USART with given config.
     /// # Known bugs
     /// - No hardware flow control is supported.
-    /// - Only 9600 baud-rate is supported.
     /// - Only works with default sysclk.
     /// - Generally, this driver is a piece of crap.
     pub fn enable(&self, config: &UsartConfig) {
-        assert!(config.baud_rate == 9600);
 
         unsafe {
             self.cr2.update_with_mask(Cr2::STOP as u32, config.stop_bits as u32);
             self.cr1.update_with_mask(Cr1::M as u32 | Cr1::PCE as u32 | Cr1::TE as u32 | Cr1::RE as u32,
                                       config.data_bits as u32 | Cr1::TE as u32 | Cr1::RE as u32);
             self.cr3.clear_flag(0x3FF); // No Hardware Flow-Control
-            self.brr.set(0x683); // 9600 baud-rate
+            self.brr.set(0xF42400 / config.baud_rate); // Default SysClk Rate / Baud Rate
 
             // finally this enables the complete USART peripheral
             self.cr1.set_flag(Cr1::UE as u32);
