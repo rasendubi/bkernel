@@ -32,11 +32,11 @@ proc test {name} {
 }
 
 proc green {str} {
-    return "\033\[01;32m$str\033\[1;0;40m"
+    return "\033\[1;32m$str\033\[0m"
 }
 
 proc red {str} {
-    return "\033\[1;31;40m$str\033\[1;0;40m"
+    return "\033\[1;31m$str\033\[0m"
 }
 
 proc test_done { } {
