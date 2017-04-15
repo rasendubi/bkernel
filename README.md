@@ -24,9 +24,13 @@ If you don't know where to get one, you can get it [there](https://launchpad.net
 
 This project needs lots of nightly features:
 
-- inline assembly
-- intrinsics
+- asm
+- core intrinsics
+- const fn
 - lang items
+- allocator
+- conservative impl trait
+- integer atomics
 
 Nightly builds are not backward-compatible, so only the latest version is supported (it changes every 6 weeks). That's why you need a reasonably up-to-date nightly rust.
 
