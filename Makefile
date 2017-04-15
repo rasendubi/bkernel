@@ -58,12 +58,9 @@ rust/src/liballoc: rust
 checkout_rust: $(RUSTDIR)
 	cd $(RUSTDIR) && [ "$$(git rev-parse HEAD)" = "$(RUSTC_COMMIT)" ] || git checkout -q $(RUSTC_COMMIT) || ( git fetch && git checkout -q $(RUSTC_COMMIT) )
 
-# Cargo doesn't pass custom link directory to `cargo doc`,
-# so building doc for thumbv7em-none-eabi with cargo is impossible now.
-# See https://github.com/rust-lang/cargo/issues/2175
 .PHONY: doc
-doc: # lib/$(TARGET)/libcore.rlib
-	cargo doc #--target=$(TARGET)
+doc: lib/$(TARGET)/libcore.rlib lib/$(TARGET)/liballoc.rlib
+	RUSTFLAGS="-L lib/$(TARGET) -Z no-landing-pads" RUSTDOCFLAGS="-L lib/$(TARGET)" cargo doc --target=$(TARGET)
 
 .PHONY: test
 test:
