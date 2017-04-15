@@ -34,7 +34,7 @@ kernel.elf: target/$(TARGET)/release/libkernel.a $(LD_SOURCES)
 	$(LD) $(LDFLAGS) -o $@ target/$(TARGET)/release/libkernel.a
 
 target/$(TARGET)/release/libkernel.a: $(SOURCES) lib/$(TARGET)/libcore.rlib lib/$(TARGET)/liballoc.rlib
-	cargo rustc --target=thumbv7em-none-eabi --release -- -Z no-landing-pads
+	RUSTFLAGS="-Z no-landing-pads -L lib/$(TARGET)/" cargo build --target=$(TARGET) --release
 
 %.o: %.s
 	$(CC) $(CFLAGS) -o $@ -c $^

@@ -2,7 +2,6 @@
 name = "smalloc"
 version = "0.0.1"
 authors = ["Alexey Shmalko <rasen.dubi@gmail.com>"]
-build = "../build.rs"
 
 [lib]
 name = "smalloc"

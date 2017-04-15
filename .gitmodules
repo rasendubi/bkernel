@@ -1,3 +1,0 @@
-[submodule "futures-rs"]
-	path = futures-rs
-	url = https://github.com/rasendubi/futures-rs
