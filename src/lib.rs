@@ -2,6 +2,7 @@
 //! the bootstrap that will jump to the `kmain` function.
 #![feature(lang_items, alloc, core_intrinsics, const_fn)]
 #![feature(conservative_impl_trait)]
+#![feature(integer_atomics)]
 
 #![cfg_attr(target_os = "none", no_std)]
 
@@ -18,6 +19,8 @@ extern crate alloc;
 #[macro_use]
 extern crate futures;
 
+extern crate breactor;
+
 mod led;
 mod led_music;
 mod terminal;
@@ -32,13 +35,15 @@ use stm32f4::gpio::GPIO_B;
 use stm32f4::usart::USART1;
 use stm32f4::timer::TIM2;
 
-use futures::{Async, Future};
+use futures::Future;
 
 use start_send_all_string::StartSendAllString;
 
 pub use log::__isr_usart1;
 
-use core::intrinsics::unreachable;
+use breactor::Reactor;
+
+static REACTOR: Reactor = Reactor::new();
 
 #[cfg(target_os = "none")]
 const HEAP_SIZE: usize = 64*1024;
@@ -74,18 +79,40 @@ pub extern fn kmain() -> ! {
     let stdin = unsafe {&mut log::STDIN};
     let stdout = unsafe {&mut log::STDOUT};
 
-    let mut f = StartSendAllString::new(
+    let mut terminal = StartSendAllString::new(
         stdout,
         "\r\nWelcome to bkernel!\r\nType 'help' to get a list of available commands.\r\n"
-    ).and_then(|stdout| terminal::run_terminal(stdin, stdout));
+    ).and_then(|stdout| terminal::run_terminal(stdin, stdout))
+        .map(|_| ())
+        .map_err(|_| ());
 
-    while let Ok(Async::NotReady) = f.poll() {
-        unsafe {
-            stm32f4::__wait_for_interrupt()
+    unsafe {
+        let reactor = &REACTOR;
+
+        reactor.add_task(
+            5,
+            // Trust me, I know what I'm doing.
+            //
+            // The infinite loop below makes all values above it
+            // effectively 'static.
+            ::core::mem::transmute::<&mut Future<Item=(), Error=()>,
+                                     &'static mut Future<Item=(), Error=()>>(&mut terminal)
+        );
+
+        static mut LOGGER: log::LoggerFuture = log::LoggerFuture;
+        reactor.add_task(4, &mut LOGGER);
+
+        loop {
+            reactor.run();
+
+            // So we don't sleep forever when a task becomes ready
+            // between the call to is_ready() and WFI.
+            let _irq_lock = stm32f4::IrqLock::new();
+            if !reactor.is_ready() {
+                stm32f4::__wait_for_interrupt();
+            }
         }
     }
-
-    unsafe { unreachable(); }
 }
 
 unsafe fn init_timer() {

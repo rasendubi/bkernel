@@ -1,0 +1,8 @@
+[package]
+name = "breactor"
+version = "0.0.1"
+authors = ["Alexey Shmalko <rasen.dubi@gmail.com>"]
+build = "../build.rs"
+
+[dependencies]
+futures = { path = "../futures-rs", default-features = false }

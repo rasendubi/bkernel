@@ -20,6 +20,9 @@ path = "./linkmem"
 [dependencies]
 futures = { path = "./futures-rs", default-features = false }
 
+[dependencies.breactor]
+path = "./breactor"
+
 [profile.release]
 opt-level = 3
 lto = true

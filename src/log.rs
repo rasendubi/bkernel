@@ -5,27 +5,47 @@ use stm32f4::usart::{self, USART1};
 
 use lock_free::CircularBuffer;
 
-use futures::{Async, AsyncSink, Sink, Stream, StartSend, Poll};
+use futures::{Async, AsyncSink, Future, Sink, Stream, StartSend, Poll};
 
-use core::intrinsics::unreachable;
+use core::sync::atomic::{AtomicU32, Ordering};
+
+use super::REACTOR;
 
 pub struct IoBuffer {
+    writer_task_mask: AtomicU32,
+    reader_task_mask: AtomicU32,
     intern: CircularBuffer<u8>,
 }
 
 impl IoBuffer {
     pub const fn new() -> IoBuffer {
         IoBuffer {
+            writer_task_mask: AtomicU32::new(0),
+            reader_task_mask: AtomicU32::new(0),
             intern: CircularBuffer::new(0),
         }
     }
 
     pub fn try_pop(&mut self) -> Option<u8> {
-        self.intern.pop()
+        let res = self.intern.pop();
+        if res.is_some() {
+            let task_mask = self.writer_task_mask.load(Ordering::SeqCst);
+            REACTOR.set_ready_task_mask(task_mask);
+        }
+        res
     }
 
     pub fn try_push(&mut self, item: u8) -> bool {
-        self.intern.push(item)
+        let res = self.intern.push(item);
+        if res {
+            let task_mask = self.reader_task_mask.load(Ordering::SeqCst);
+            REACTOR.set_ready_task_mask(task_mask);
+        }
+        res
+    }
+
+    pub fn i_am_reader(&mut self) {
+        self.reader_task_mask.store(REACTOR.get_current_task_mask(), Ordering::SeqCst);
     }
 
     // pub fn force_put(&mut self, item: u8) {
@@ -47,18 +67,9 @@ impl Sink for &'static mut IoBuffer {
     type SinkError = ();
 
     fn start_send(&mut self, item: u8) -> StartSend<u8, Self::SinkError> {
-        if self.intern.push(item) {
-            // TODO(rasen): I don't like this.
-            //
-            // That means we can't use IoBuffer for something other
-            // than Usart1.
-            //
-            // On the other hand, the Sink implementation is trivial,
-            // so it might be easy to add more wrappers.
-            // It would be even easier if CircularBuffer implements
-            // Sink.
-            new_data_added();
+        self.writer_task_mask.store(REACTOR.get_current_task_mask(), Ordering::SeqCst);
 
+        if self.try_push(item) {
             Ok(AsyncSink::Ready)
         } else {
             Ok(AsyncSink::NotReady(item))
@@ -66,6 +77,8 @@ impl Sink for &'static mut IoBuffer {
     }
 
     fn poll_complete(&mut self) -> Poll<(), Self::SinkError> {
+        self.writer_task_mask.store(REACTOR.get_current_task_mask(), Ordering::SeqCst);
+
         if self.intern.was_empty() {
             Ok(Async::Ready(()))
         } else {
@@ -83,6 +96,8 @@ impl Stream for &'static mut IoBuffer {
     type Error = ();
 
     fn poll(&mut self) -> Poll<Option<u8>, Self::Error> {
+        self.reader_task_mask.store(REACTOR.get_current_task_mask(), Ordering::SeqCst);
+
         match self.try_pop() {
             Some(x) => Ok(Async::Ready(Some(x))),
             None => Ok(Async::NotReady),
@@ -111,16 +126,33 @@ pub unsafe extern fn __isr_usart1() {
     }
 }
 
-fn new_data_added() {
-    unsafe {
-        if !USART1.it_enabled(usart::Interrupt::TXE) {
-            if let Some(c) = STDOUT.try_pop() {
-                let _irq_lock = IrqLock::new();
-                USART1.it_enable(usart::Interrupt::TXE);
-                USART1.put_unsafe(c as u32);
-            } else {
-                unreachable();
+pub struct LoggerFuture;
+
+impl Future for LoggerFuture {
+    type Item = ();
+    type Error = ();
+
+    fn poll(&mut self) -> Poll<(), ()> {
+        let stdout = unsafe {&mut STDOUT};
+        stdout.i_am_reader();
+
+        if !unsafe{&USART1}.it_enabled(usart::Interrupt::TXE) {
+            // We have exclusive access for read
+
+            match try_ready!(unsafe {&mut STDOUT}.poll()) {
+                Some(c) => {
+                    unsafe {
+                        let _irq_lock = IrqLock::new();
+                        USART1.it_enable(usart::Interrupt::TXE);
+                        USART1.put_unsafe(c as u32);
+                    }
+                },
+
+                _ => {
+                }
             }
         }
+
+        Ok(Async::NotReady)
     }
 }
