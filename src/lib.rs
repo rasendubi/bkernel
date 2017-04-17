@@ -46,13 +46,10 @@ use breactor::Reactor;
 static REACTOR: Reactor = Reactor::new();
 
 #[cfg(target_os = "none")]
-const HEAP_SIZE: usize = 64*1024;
-
-#[cfg(target_os = "none")]
-static mut HEAP: [u8; HEAP_SIZE] = [0; HEAP_SIZE];
-
-#[cfg(target_os = "none")]
 fn init_memory() {
+    const HEAP_SIZE: usize = 64*1024;
+    static mut HEAP: [u8; HEAP_SIZE] = [0; HEAP_SIZE];
+
     ::linkmem::init(smalloc::Smalloc {
         start: unsafe { ::core::mem::transmute(&mut HEAP) },
         size: HEAP_SIZE,
