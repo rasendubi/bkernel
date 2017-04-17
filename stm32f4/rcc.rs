@@ -6,9 +6,24 @@ extern {
     pub static RCC: Rcc;
 }
 
+// TODO(rasen): allow changing this?
+/// Value of the Internal oscillator in Hz.
+const HSI_VALUE: u32 = 16000000;
+
+// TODO(rasen): allow changing this?
+/// Value of the External oscillator in Hz.
+const HSE_VALUE: u32 = 25000000;
+
 #[repr(C)]
 pub struct Rcc {
     cr:          RW<u32>,  // 0x00
+
+    /// This register is used to configure the PLL clock outputs
+    /// according to the formulas:
+    ///
+    /// - F_VCO_clock = F_PLL_clock_input * (PLLN / PLLM)
+    /// - F_PLL_general_clock_output = F_VCO_clock / PLLP
+    /// - F_USB_OTG_FS__SDIO__RNG_clock_output = F_VCO_clock / PLLQ
     pllcfgr:     RW<u32>,  // 0x04
     cfgr:        RW<u32>,  // 0x08
     cir:         RW<u32>,  // 0x0C
@@ -49,6 +64,89 @@ pub struct Rcc {
 #[test]
 fn test_register_size() {
     assert_eq!(0x90, ::core::mem::size_of::<Rcc>());
+}
+
+#[allow(dead_code)]
+#[derive(Copy, Clone)]
+#[repr(u32)]
+enum PllCfgrMask {
+    // 5:0
+    /// Division factor for the main PLL (PLL) and audio PLL (PLLI2S)
+    /// input clock.
+    PLLM = 0x3F << 0,
+
+    // 14:6
+    /// Mail PLL (PLL) multiplication factor for VCO.
+    PLLN = 0xFF << 6,
+
+    // 17:16
+    /// Main PLL (PLL) division factor for main system clock.
+    PLLP = 0x3 << 16,
+
+    // 21:18 Reserved, must be kept at reset value.
+
+    // 22
+    /// Main PLL (PLL) and audio PLL (PLLI2S) entry clock source.
+    PLLSRC = 0x1 << 22,
+
+    // 23 Reserver, must be kept at reset value.
+
+    // 27:24
+    /// Main PLL (PLL) division factor for USB OTG FS, SDIO and random
+    /// number generator clocks.
+    PLLQ = 0xF << 24,
+
+    // 31:28 Reserver, must be kept at reset value.
+}
+
+#[allow(dead_code)]
+#[derive(Copy, Clone)]
+#[repr(u32)]
+enum CfgrMask {
+    // 1:0
+    /// System clock switch
+    SW      = 0x3 << 0,
+
+    // 3:2
+    /// System clock switch status
+    SWS     = 0x3 << 2,
+
+    // 7:4
+    /// AHB prescaler
+    HPRE    = 0x7 << 4,
+
+    // 9:8 reserved
+    // 12:10
+    /// APB Low speed prescaler (APB1)
+    PPRE1   = 0x7 << 10,
+
+    // 15:13
+    /// APB high-speed prescaler (APB2)
+    PPRE2   = 0x7 << 13,
+
+    // 20:16
+    /// HSE division factor for RTC clock
+    RTCPRE  = 0x1F << 16,
+
+    // 22:21
+    /// Microcontroller clock output 1
+    MCO1    = 0x3 << 21,
+
+    // 23
+    /// I2S clock selection
+    I2SSRC  = 0x1 << 23,
+
+    // 24:26
+    /// MCO1 prescaler
+    MCO1PRE = 0x7 << 24,
+
+    // 27:29
+    /// MCO2 prescaler
+    MCO2PRE = 0x7 << 27,
+
+    // 31:30
+    /// Microcontroller clock output 2 [1:0]
+    MCO2    = 0x3 << 30,
 }
 
 #[derive(Copy, Clone)]
@@ -152,6 +250,20 @@ pub enum Apb2Enable {
     LTDC       = 1 << 26,
 }
 
+pub struct Clocks {
+    /// SYSCLK clock frequency expressed in Hz
+    pub sysclk: u32,
+
+    /// HCLK clock frequency expressed in Hz
+    pub hclk:   u32,
+
+    /// PCLK1 clock frequency expressed in Hz
+    pub pclk1:  u32,
+
+    /// PCLK2 clock frequency expressed in Hz
+    pub pclk2:  u32,
+}
+
 impl Rcc {
     pub fn ahb1_clock_enable(&self, value: Ahb1Enable) {
         unsafe {
@@ -180,6 +292,69 @@ impl Rcc {
     pub fn apb2_clock_enable(&self, value: Apb2Enable) {
         unsafe {
             self.apb2enr.update(|x| x | value as u32);
+        }
+    }
+
+    pub fn clock_freqs(&self) -> Clocks {
+        let cfgr = unsafe { self.cfgr.get() };
+
+        let sysclk = match cfgr & (CfgrMask::SWS as u32) {
+            0x00 => {
+                HSI_VALUE
+            },
+            0x04 => {
+                HSE_VALUE
+            },
+            0x08 => {
+                // PLL_VCO = (HSE_VALUE or HSI_VALUE / PLLM) * PLLN
+                // SYSCLK = PLL_VCO / PLLP
+
+                let pllcfgr = unsafe { self.pllcfgr.get() };
+
+                let pllsource = (pllcfgr & PllCfgrMask::PLLSRC as u32) >> 22;
+                let pllm = pllcfgr & PllCfgrMask::PLLM as u32;
+                let plln = (pllcfgr & PllCfgrMask::PLLN as u32) >> 6;
+                let pllp = (((pllcfgr & PllCfgrMask::PLLP as u32) >> 16) + 1) * 2;
+
+                let pllvco_base = if pllsource != 0 { HSE_VALUE } else { HSI_VALUE };
+                let pllvco = pllvco_base / pllm * plln;
+
+                pllvco / pllp
+            },
+            _ => {
+                // TODO(rasen): not applicable (assert? unreachable?)
+                HSI_VALUE
+            },
+        };
+
+        // Compute HCLK, PCLK1 and PCLK2 clocks frequencies
+        const APBAHB_PRESC_TABLE: [u8; 16] = [
+            0, 0, 0, 0,
+            1, 2, 3, 4,
+            1, 2, 3, 4,
+            6, 7, 8, 9,
+        ];
+
+        let hclk = {
+            let presc = APBAHB_PRESC_TABLE[((cfgr & CfgrMask::HPRE as u32) >> 4) as usize];
+            sysclk >> presc
+        };
+
+        let pclk1 = {
+            let presc = APBAHB_PRESC_TABLE[((cfgr & CfgrMask::PPRE1 as u32) >> 10) as usize];
+            hclk >> presc
+        };
+
+        let pclk2 = {
+            let presc = APBAHB_PRESC_TABLE[((cfgr & CfgrMask::PPRE2 as u32) >> 13) as usize];
+            hclk >> presc
+        };
+
+        Clocks {
+            sysclk,
+            hclk,
+            pclk1,
+            pclk2,
         }
     }
 }
