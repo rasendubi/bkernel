@@ -6,6 +6,8 @@
 
 extern crate futures;
 
+extern crate stm32f4;
+
 use ::core::sync::atomic::{AtomicU32, Ordering};
 use ::core::cell::UnsafeCell;
 use ::core::u32;
@@ -141,6 +143,7 @@ impl<'a> Reactor<'a> {
     /// Marks the given task as ready.
     pub fn set_task_ready(&self, id: TaskId) {
         self.ready_mask.fetch_or(id.0, Ordering::SeqCst);
+        unsafe { stm32f4::__set_event() };
     }
 
     pub fn get_current_task_mask(&self) -> u32 {
@@ -148,12 +151,15 @@ impl<'a> Reactor<'a> {
     }
 
     pub fn set_ready_task_mask(&self, mask: u32) {
-        self.ready_mask.fetch_or(mask, Ordering::SeqCst);
+        if mask != 0 {
+            self.ready_mask.fetch_or(mask, Ordering::SeqCst);
+            unsafe { stm32f4::__set_event() };
+        }
     }
 
     /// Returns true if any task is ready to be polled.
     pub fn is_ready(&self) -> bool {
-        self.select_next_task().is_some()
+        self.ready_mask.load(Ordering::SeqCst) != 0
     }
 
     /// Returns next task to run.

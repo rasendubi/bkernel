@@ -5,3 +5,4 @@ authors = ["Alexey Shmalko <rasen.dubi@gmail.com>"]
 
 [dependencies]
 futures = { version = "0.1", default-features = false }
+stm32f4 = { path = "../stm32f4" }

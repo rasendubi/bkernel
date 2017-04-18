@@ -202,20 +202,20 @@ impl Usart {
     }
 
     pub fn put_char(&self, c: u32) {
-        while !self.transmission_complete() {};
+        while !self.transmitter_empty() {};
         unsafe { self.dr.set(c); }
     }
 
-    pub fn transmission_complete(&self) -> bool {
-        unsafe { self.sr.get() & Sr::TC as u32 != 0 }
+    pub fn transmitter_empty(&self) -> bool {
+        unsafe { self.sr.get() & Sr::TXE as u32 != 0 }
     }
 
-    pub fn receive_complete(&self) -> bool {
+    pub fn receiver_not_empty(&self) -> bool {
         unsafe { self.sr.get() & Sr::RXNE as u32 != 0 }
     }
 
     pub fn get_char(&self) -> u32 {
-        while !self.receive_complete() {}
+        while !self.receiver_not_empty() {}
         unsafe { self.dr.get() & 0xff }
     }
 
@@ -314,19 +314,14 @@ impl Usart {
     }
 }
 
-// This is needed because fmt::Write impl on Usart is useless.
-// All USART instances are immutable, so methods on &mut self are
-// useless.
-pub struct UsartProxy<'a>(pub &'a Usart);
-
-impl<'a> fmt::Write for UsartProxy<'a> {
+impl<'a> fmt::Write for &'a Usart {
     fn write_str(&mut self, s: &str) -> fmt::Result {
-        self.0.puts_synchronous(s);
+        self.puts_synchronous(s);
         Ok(())
     }
 
     fn write_char(&mut self, c: char) -> fmt::Result {
-        self.0.put_char(c as u32);
+        self.put_char(c as u32);
         Ok(())
     }
 }

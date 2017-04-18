@@ -31,6 +31,30 @@ pub unsafe fn __wait_for_interrupt() {
 
 #[inline(always)]
 #[cfg(not(target_arch = "arm"))]
+pub unsafe fn __wait_for_event() {
+    panic!("__wait_for_event is not implemented");
+}
+
+#[inline(always)]
+#[cfg(target_arch = "arm")]
+pub unsafe fn __wait_for_event() {
+    asm!("wfe" : : : : "volatile");
+}
+
+#[inline(always)]
+#[cfg(not(target_arch = "arm"))]
+pub unsafe fn __set_event() {
+    panic!("__set_event is not implemented");
+}
+
+#[inline(always)]
+#[cfg(target_arch = "arm")]
+pub unsafe fn __set_event() {
+    asm!("sev" : : : : "volatile");
+}
+
+#[inline(always)]
+#[cfg(not(target_arch = "arm"))]
 pub unsafe fn __enable_irq() {
     panic!("enable_irq is not implemented");
 }

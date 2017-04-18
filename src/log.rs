@@ -1,11 +1,10 @@
 //! Logging.
 
-use stm32f4::IrqLock;
 use stm32f4::usart::{self, USART1};
 
 use lock_free::CircularBuffer;
 
-use futures::{Async, AsyncSink, Future, Sink, Stream, StartSend, Poll};
+use futures::{Async, AsyncSink, Sink, Stream, StartSend, Poll};
 
 use core::sync::atomic::{AtomicU32, Ordering};
 
@@ -29,7 +28,7 @@ impl IoBuffer {
     pub fn try_pop(&mut self) -> Option<u8> {
         let res = self.intern.pop();
         if res.is_some() {
-            let task_mask = self.writer_task_mask.load(Ordering::SeqCst);
+            let task_mask = self.writer_task_mask.swap(0, Ordering::SeqCst);
             REACTOR.set_ready_task_mask(task_mask);
         }
         res
@@ -38,14 +37,10 @@ impl IoBuffer {
     pub fn try_push(&mut self, item: u8) -> bool {
         let res = self.intern.push(item);
         if res {
-            let task_mask = self.reader_task_mask.load(Ordering::SeqCst);
+            let task_mask = self.reader_task_mask.swap(0, Ordering::SeqCst);
             REACTOR.set_ready_task_mask(task_mask);
         }
         res
-    }
-
-    pub fn i_am_reader(&mut self) {
-        self.reader_task_mask.store(REACTOR.get_current_task_mask(), Ordering::SeqCst);
     }
 
     // pub fn force_put(&mut self, item: u8) {
@@ -70,6 +65,12 @@ impl Sink for &'static mut IoBuffer {
         self.writer_task_mask.store(REACTOR.get_current_task_mask(), Ordering::SeqCst);
 
         if self.try_push(item) {
+            self.writer_task_mask.store(0, Ordering::SeqCst);
+
+            // This triggers TXE interrupt if transmitter is already
+            // empty, so the USART catches up with new data.
+            unsafe{&USART1}.it_enable(usart::Interrupt::TXE);
+
             Ok(AsyncSink::Ready)
         } else {
             Ok(AsyncSink::NotReady(item))
@@ -80,6 +81,7 @@ impl Sink for &'static mut IoBuffer {
         self.writer_task_mask.store(REACTOR.get_current_task_mask(), Ordering::SeqCst);
 
         if self.intern.was_empty() {
+            self.writer_task_mask.store(0, Ordering::SeqCst);
             Ok(Async::Ready(()))
         } else {
             Ok(Async::NotReady)
@@ -99,7 +101,10 @@ impl Stream for &'static mut IoBuffer {
         self.reader_task_mask.store(REACTOR.get_current_task_mask(), Ordering::SeqCst);
 
         match self.try_pop() {
-            Some(x) => Ok(Async::Ready(Some(x))),
+            Some(x) => {
+                self.reader_task_mask.store(0, Ordering::SeqCst);
+                Ok(Async::Ready(Some(x)))
+            },
             None => Ok(Async::NotReady),
         }
     }
@@ -123,36 +128,5 @@ pub unsafe extern fn __isr_usart1() {
         } else {
             USART1.it_disable(usart::Interrupt::TXE);
         }
-    }
-}
-
-pub struct LoggerFuture;
-
-impl Future for LoggerFuture {
-    type Item = ();
-    type Error = ();
-
-    fn poll(&mut self) -> Poll<(), ()> {
-        let stdout = unsafe {&mut STDOUT};
-        stdout.i_am_reader();
-
-        if !unsafe{&USART1}.it_enabled(usart::Interrupt::TXE) {
-            // We have exclusive access for read
-
-            match try_ready!(unsafe {&mut STDOUT}.poll()) {
-                Some(c) => {
-                    unsafe {
-                        let _irq_lock = IrqLock::new();
-                        USART1.it_enable(usart::Interrupt::TXE);
-                        USART1.put_unsafe(c as u32);
-                    }
-                },
-
-                _ => {
-                }
-            }
-        }
-
-        Ok(Async::NotReady)
     }
 }

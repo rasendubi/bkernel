@@ -96,18 +96,11 @@ pub extern fn kmain() -> ! {
                                      &'static mut Future<Item=(), Error=()>>(&mut terminal)
         );
 
-        static mut LOGGER: log::LoggerFuture = log::LoggerFuture;
-        reactor.add_task(4, &mut LOGGER);
-
         loop {
             reactor.run();
 
-            // So we don't sleep forever when a task becomes ready
-            // between the call to is_ready() and WFI.
-            let _irq_lock = stm32f4::IrqLock::new();
-            if !reactor.is_ready() {
-                stm32f4::__wait_for_interrupt();
-            }
+            // SEV is issued when any task sets readiness to true.
+            stm32f4::__wait_for_event();
         }
     }
 }
@@ -197,15 +190,15 @@ unsafe fn init_usart1() {
 
 #[cfg(target_os = "none")]
 pub mod panicking {
-    use core::fmt;
-    use stm32f4::usart::{USART1, UsartProxy};
+    use core::fmt::{self, Write};
+    use stm32f4::usart::USART1;
 
     #[lang = "panic_fmt"]
     extern fn panic_fmt(fmt: fmt::Arguments, file: &str, line: u32) -> ! {
-        use core::fmt::Write;
-        unsafe{&USART1}.puts_synchronous("\r\nPANIC\r\n");
-        let _ = write!(UsartProxy(unsafe{&USART1}), "{}:{} {}", file, line, fmt);
-        loop {}
+        let _ = write!(unsafe{&USART1}, "\r\nPANIC\r\n{}:{} {}", file, line, fmt);
+        loop {
+            unsafe { ::stm32f4::__wait_for_interrupt() };
+        }
     }
 }
 
