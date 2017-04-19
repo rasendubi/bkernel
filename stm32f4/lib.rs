@@ -14,6 +14,7 @@ pub mod gpio;
 pub mod usart;
 pub mod timer;
 pub mod nvic;
+pub mod i2c;
 
 pub mod lang_items;
 

@@ -67,6 +67,7 @@ pub extern fn kmain() -> ! {
         init_usart1();
         init_leds();
         init_timer();
+        init_i2c();
     }
 
     // Test that allocator works
@@ -216,4 +217,10 @@ pub unsafe extern fn __isr_tim2() {
             led::LD3.turn_off();
         }
     }
+}
+
+unsafe fn init_i2c() {
+    use stm32f4::i2c;
+
+    i2c::I2C1.init(&i2c::I2C_INIT);
 }
