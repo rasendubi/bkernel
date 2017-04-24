@@ -737,7 +737,7 @@ impl I2c {
     /// SB (Start Bit) is cleared by software sequence: a read
     /// operation to SR1 register followed by a write operation to DR
     /// register (send_data()).
-    pub unsafe fn it_clear_pending(&self, flag: Flag) {
+    pub unsafe fn it_clear_pending(&self, flag: u32) {
         self.sr1.clear_flag((flag as u32) & FLAG_MASK);
     }
 }
