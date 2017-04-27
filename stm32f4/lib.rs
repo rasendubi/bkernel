@@ -2,6 +2,7 @@
 #![feature(lang_items)]
 #![feature(core_intrinsics)]
 #![feature(asm)]
+#![feature(i128_type)]
 
 #![no_std]
 
@@ -136,5 +137,24 @@ impl IrqLock {
 impl Drop for IrqLock {
     fn drop(&mut self) {
         unsafe { restore_irq(self.0); }
+    }
+}
+
+/// Returns the unique device identifier.
+///
+/// The 96-bit unique device identifier provides a reference number
+/// which is unique for any device and in any context.
+pub fn get_device_id() -> u128 {
+    const REG: *const u32 = 0x1FFF_7A10 as *const u32;
+    unsafe {
+        (*REG as u128) | ((*REG.offset(1) as u128) << 32) | ((*REG.offset(2) as u128) << 64)
+    }
+}
+
+/// Returns the flash memory size in kbytes.
+pub fn get_flash_size() -> u16 {
+    const REG: *const u16 = 0x1FFF_7A22 as _;
+    unsafe {
+        *REG
     }
 }
