@@ -17,6 +17,7 @@ pub mod timer;
 pub mod nvic;
 pub mod i2c;
 pub mod crc;
+pub mod rng;
 
 pub mod lang_items;
 
