@@ -7,6 +7,10 @@ authors = ["Alexey Shmalko <rasen.dubi@gmail.com>"]
 name = "kernel"
 crate-type = ["lib", "staticlib"]
 
+[dependencies]
+futures = { version = "0.1", default-features = false }
+dev = { path = "./dev" }
+
 [dependencies.stm32f4]
 path = "./stm32f4"
 
@@ -15,9 +19,6 @@ path = "./smalloc"
 
 [dependencies.linkmem]
 path = "./linkmem"
-
-[dependencies]
-futures = { version = "0.1", default-features = false }
 
 [dependencies.breactor]
 path = "./breactor"

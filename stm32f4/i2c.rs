@@ -139,7 +139,7 @@ enum Cr2Masks {
 #[allow(dead_code)]
 #[derive(Copy, Clone)]
 #[repr(u32)]
-enum Sr1Masks {
+pub enum Sr1Masks {
     /// Start bit (Master mode)
     ///
     /// 0: No Start condition
@@ -655,8 +655,8 @@ impl I2c {
 
     pub unsafe fn send_7bit_address(&self, address: u8, direction: Direction) {
         self.dr.set(match direction {
-            Direction::Transmitter => address | 0x1,
-            Direction::Receiver => address & !0x1,
+            Direction::Transmitter => address & !0x1,
+            Direction::Receiver => address | 0x1,
         } as u32);
     }
 

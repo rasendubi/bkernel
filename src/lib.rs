@@ -10,6 +10,7 @@
 extern crate core;
 
 extern crate stm32f4;
+extern crate dev;
 
 extern crate smalloc;
 #[cfg(target_os = "none")]

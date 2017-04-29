@@ -1,0 +1,12 @@
+[package]
+name = "dev"
+version = "0.0.1"
+authors = ["Alexey Shmalko <rasen.dubi@gmail.com>"]
+
+[lib]
+name = "dev"
+path = "lib.rs"
+
+[dependencies]
+futures = { version = "0.1", default-features = false }
+stm32f4 = { path = "../stm32f4" }
