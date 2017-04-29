@@ -36,15 +36,13 @@ use stm32f4::gpio::GPIO_B;
 use stm32f4::usart::USART1;
 use stm32f4::timer::TIM2;
 
-use futures::Future;
+use futures::{Future, Stream};
 
 use start_send_all_string::StartSendAllString;
 
 pub use log::__isr_usart1;
 
-use breactor::Reactor;
-
-static REACTOR: Reactor = Reactor::new();
+use breactor::REACTOR;
 
 #[cfg(target_os = "none")]
 fn init_memory() {
@@ -69,11 +67,21 @@ pub extern fn kmain() -> ! {
         init_leds();
         init_timer();
         init_i2c();
+        init_rng();
     }
 
     // Test that allocator works
     let mut b = ::alloc::boxed::Box::new(5);
     unsafe { ::core::intrinsics::volatile_store(&mut *b as *mut _, 4); }
+
+    unsafe{&mut ::dev::rng::RNG}.enable();
+    let mut print_rng = unsafe{&mut ::dev::rng::RNG}.for_each(|r| {
+        use core::fmt::Write;
+        let _ = write!(unsafe{&::stm32f4::usart::USART1}, "RNG: {}\n", r);
+        Ok(())
+    })
+        .map(|_| ())
+        .map_err(|_| ());
 
     let stdin = unsafe {&mut log::STDIN};
     let stdout = unsafe {&mut log::STDOUT};
@@ -96,6 +104,11 @@ pub extern fn kmain() -> ! {
             // effectively 'static.
             ::core::mem::transmute::<&mut Future<Item=(), Error=()>,
                                      &'static mut Future<Item=(), Error=()>>(&mut terminal)
+        );
+        reactor.add_task(
+            4,
+            ::core::mem::transmute::<&mut Future<Item=(), Error=()>,
+                                     &'static mut Future<Item=(), Error=()>>(&mut print_rng)
         );
 
         loop {
@@ -224,4 +237,15 @@ unsafe fn init_i2c() {
     use stm32f4::i2c;
 
     i2c::I2C1.init(&i2c::I2C_INIT);
+}
+
+unsafe fn init_rng() {
+    rcc::RCC.ahb2_clock_enable(rcc::Ahb2Enable::RNG);
+
+    nvic::init(&nvic::NvicInit {
+        irq_channel: nvic::IrqChannel::HASH_RNG,
+        priority: 4,
+        subpriority: 1,
+        enable: true,
+    });
 }

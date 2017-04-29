@@ -8,5 +8,6 @@ name = "dev"
 path = "lib.rs"
 
 [dependencies]
+breactor = { path = "../breactor" }
 futures = { version = "0.1", default-features = false }
 stm32f4 = { path = "../stm32f4" }

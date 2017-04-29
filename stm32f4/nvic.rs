@@ -9,7 +9,7 @@ extern {
     pub static ISPR: [RW<u32>; 8];
     pub static ICPR: [RW<u32>; 8];
     pub static IABR: [RO<u32>; 8];
-    pub static IPR:  [RW<u32>; 60];
+    pub static IPR:  [RW<u32>; 82];
 
     pub static AIRCR: RW<u32>;
 }

@@ -88,7 +88,10 @@ pub enum SrMask {
     DRDY = 0x1 << 0,
 }
 
-pub enum RngResult {
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub enum RngError {
+    SeedError,
+    ClockError,
 }
 
 impl Rng {
@@ -120,12 +123,26 @@ impl Rng {
         (unsafe { self.sr.get() }) & (mask as u32) != 0
     }
 
-    /// Reads DR register if data is ready. Otherwise, returns None.
-    pub fn get_data(&self) -> Option<u32> {
-        if (unsafe {self.sr.get()}) & (SrMask::DRDY as u32) != 0 {
-            Some(unsafe { self.dr.get() })
+    pub fn get(&self) -> Result<Option<u32>, RngError> {
+        let sr = unsafe { self.sr.get() };
+        if sr & (SrMask::SECS as u32) != 0 {
+            // From reference manual (24.3.2):
+            //
+            // "In the case of a seed error, [...]. If a number is
+            // available in the DR register, it must not be used
+            // because it may not have enough entropy."
+            Err(RngError::SeedError)
+        } else if sr & (SrMask::DRDY as u32) != 0 {
+            Ok(Some(unsafe { self.dr.get() }))
+        } else if sr & (SrMask::CECS as u32) != 0 {
+            // From reference manual (24.3.2):
+            //
+            // "The clock error has no impact on the previously
+            // generated random numbers, and the DR register contents
+            // can be used."
+            Err(RngError::ClockError)
         } else {
-            None
+            Ok(None)
         }
     }
 

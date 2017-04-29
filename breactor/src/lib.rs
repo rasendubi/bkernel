@@ -14,7 +14,7 @@ use ::core::u32;
 
 use futures::{Async, Future};
 
-// static mut REACTOR: Reactor = Reactor::new();
+pub static REACTOR: Reactor = Reactor::new();
 
 // Id is stored internally as a mask.
 #[derive(Debug, PartialEq)]
