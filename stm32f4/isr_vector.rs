@@ -49,9 +49,16 @@ pub unsafe extern fn __isr_reset() {
 }
 
 /// Default ISR. It just panics.
+#[cfg(target_arch = "arm")]
 #[no_mangle]
 pub unsafe extern fn __isr_default() {
-    panic!("Unknown handler!");
+    let ipsr: u32;
+    asm!("mrs $0, IPSR" : "=r" (ipsr));
+    if ipsr >= 16 {
+        panic!("Unknown ISR handler: {} (IRQ {})!", ipsr, ipsr - 16);
+    } else {
+        panic!("Unknown ISR handler: {}!", ipsr);
+    }
 }
 
 extern {
