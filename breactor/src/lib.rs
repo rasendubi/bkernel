@@ -2,8 +2,6 @@
 #![feature(integer_atomics)]
 #![feature(const_fn)]
 
-#![allow(dead_code, unused_imports)]
-
 extern crate futures;
 
 extern crate stm32f4;
@@ -48,18 +46,6 @@ impl TaskId {
     const fn get_mask(&self) -> u32 {
         self.0
     }
-}
-
-/// A single execution task. It is an entity that drives the given
-/// future to completion.
-struct Task<F> {
-    id: TaskId,
-    future: F,
-}
-
-impl<F, T, E> Task<F>
-    where F: Future<Item=T, Error=E>
-{
 }
 
 /// The reactor is an entity that controls execution of multiple
@@ -142,7 +128,7 @@ impl<'a> Reactor<'a> {
 
     /// Marks the given task as ready.
     pub fn set_task_ready(&self, id: TaskId) {
-        self.ready_mask.fetch_or(id.0, Ordering::SeqCst);
+        self.ready_mask.fetch_or(id.get_mask(), Ordering::SeqCst);
         unsafe { stm32f4::__set_event() };
     }
 
