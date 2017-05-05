@@ -122,7 +122,7 @@ impl Gpio {
         unsafe {
             self.moder.update_with_mask(0x3 << pin*2, (config.mode as u32) << pin*2);
             self.ospeedr.update_with_mask(0x3 << pin*2, (config.ospeed as u32) << pin*2);
-            self.otyper.update_with_mask(0x1 << pin, config.otype as u32);
+            self.otyper.update_with_mask(0x1 << pin, (config.otype as u32) << pin);
             self.pupdr.update_with_mask(0x3 << pin*2, (config.pupd as u32) << pin*2);
 
             if pin < 8 {
