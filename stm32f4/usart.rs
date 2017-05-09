@@ -9,6 +9,7 @@ use volatile::RW;
 
 extern {
     pub static USART1: Usart;
+    pub static USART2: Usart;
 }
 
 #[repr(C)]

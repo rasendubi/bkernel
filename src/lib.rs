@@ -32,15 +32,15 @@ mod lock_free;
 
 use stm32f4::{rcc, gpio, usart, timer, nvic};
 use stm32f4::rcc::RCC;
-use stm32f4::gpio::GPIO_B;
-use stm32f4::usart::USART1;
+use stm32f4::gpio::{GPIO_B, GPIO_D};
+use stm32f4::usart::USART2;
 use stm32f4::timer::TIM2;
 
-use futures::{Future, Stream};
+use futures::{Future, Stream, Sink};
 
 use start_send_all_string::StartSendAllString;
 
-pub use log::__isr_usart1;
+pub use log::__isr_usart2;
 
 use breactor::REACTOR;
 
@@ -93,6 +93,21 @@ pub extern fn kmain() -> ! {
         .map(|_| ())
         .map_err(|_| ());
 
+    let mut i2c = futures::future::lazy(|| {
+        unsafe{&GPIO_D}.set_bit(4);
+
+        const ADDR: [u8; 1] = [0x01];
+        (&dev::i2c::I2C1_BUS).start_send(
+            dev::i2c::I2cTransaction::master_transmitter(
+                // 0b10010100,
+                0x80,
+                &ADDR as *const u8,
+                1))
+    })
+        .map(|_| ())
+        .map_err(|_| ());
+
+
     unsafe {
         let reactor = &REACTOR;
 
@@ -109,6 +124,11 @@ pub extern fn kmain() -> ! {
             4,
             ::core::mem::transmute::<&mut Future<Item=(), Error=()>,
                                      &'static mut Future<Item=(), Error=()>>(&mut print_rng)
+        );
+        reactor.add_task(
+            3,
+            ::core::mem::transmute::<&mut Future<Item=(), Error=()>,
+                                     &'static mut Future<Item=(), Error=()>>(&mut i2c)
         );
 
         loop {
@@ -157,46 +177,42 @@ unsafe fn init_leds() {
 }
 
 unsafe fn init_usart1() {
-    RCC.apb2_clock_enable(rcc::Apb2Enable::USART1);
+    RCC.apb1_clock_enable(rcc::Apb1Enable::USART2);
 
-    /* enable the peripheral clock for the pins used by
-     * USART1, PB6 for TX and PB7 for RX
-     */
-    RCC.ahb1_clock_enable(rcc::Ahb1Enable::GPIOB);
+    // Enable the peripheral clock for the pins used by USART2, PD5
+    // for TX and PD6 for RX
+    RCC.ahb1_clock_enable(rcc::Ahb1Enable::GPIOD);
 
-    /* This sequence sets up the TX pin
-     * so they work correctly with the USART1 peripheral
-     */
-    GPIO_B.enable(6, gpio::GpioConfig {
+    // This sequence sets up the TX and RX pins so they work correctly
+    // with the USART2 peripheral
+    GPIO_D.enable(5, gpio::GpioConfig {
         mode: gpio::GpioMode::AF,
         ospeed: gpio::GpioOSpeed::FAST_SPEED,
-        otype: gpio::GpioOType::OPEN_DRAIN,
+        otype: gpio::GpioOType::PUSH_PULL,
         pupd: gpio::GpioPuPd::PULL_UP,
         af: gpio::GpioAF::AF7,
     });
-    GPIO_B.enable(7, gpio::GpioConfig {
+    GPIO_D.enable(6, gpio::GpioConfig {
         mode: gpio::GpioMode::AF,
         ospeed: gpio::GpioOSpeed::FAST_SPEED,
-        otype: gpio::GpioOType::OPEN_DRAIN,
+        otype: gpio::GpioOType::PUSH_PULL,
         pupd: gpio::GpioPuPd::PULL_UP,
         af: gpio::GpioAF::AF7,
     });
 
-    /* The RX and TX pins are now connected to their AF
-     * so that the USART1 can take over control of the
-     * pins
-     */
-    USART1.enable(&usart::UsartConfig {
+    // The RX and TX pins are now connected to their AF so that the
+    // USART2 can take over control of the pins
+    USART2.enable(&usart::UsartConfig {
         data_bits: usart::DataBits::Bits8,
         stop_bits: usart::StopBits::Bits1,
         flow_control: usart::FlowControl::No,
         baud_rate: 115200,
     });
 
-    USART1.it_enable(usart::Interrupt::RXNE);
+    USART2.it_enable(usart::Interrupt::RXNE);
 
     nvic::init(&nvic::NvicInit {
-        irq_channel: nvic::IrqChannel::USART1,
+        irq_channel: nvic::IrqChannel::USART2,
         priority: 0,
         subpriority: 1,
         enable: true,
@@ -206,11 +222,11 @@ unsafe fn init_usart1() {
 #[cfg(target_os = "none")]
 pub mod panicking {
     use core::fmt::{self, Write};
-    use stm32f4::usart::USART1;
+    use stm32f4::usart::USART2;
 
     #[lang = "panic_fmt"]
     extern fn panic_fmt(fmt: fmt::Arguments, file: &str, line: u32) -> ! {
-        let _ = write!(unsafe{&USART1}, "\r\nPANIC\r\n{}:{} {}", file, line, fmt);
+        let _ = write!(unsafe{&USART2}, "\r\nPANIC\r\n{}:{} {}", file, line, fmt);
         loop {
             unsafe { ::stm32f4::__wait_for_interrupt() };
         }
@@ -236,7 +252,47 @@ pub unsafe extern fn __isr_tim2() {
 unsafe fn init_i2c() {
     use stm32f4::i2c;
 
+    rcc::RCC.ahb1_clock_enable(rcc::Ahb1Enable::GPIOD);
+    GPIO_D.enable(4, gpio::GpioConfig {
+        mode: gpio::GpioMode::OUTPUT,
+        ospeed: gpio::GpioOSpeed::FAST_SPEED,
+        otype: gpio::GpioOType::PUSH_PULL,
+        pupd: gpio::GpioPuPd::PULL_DOWN,
+        af: gpio::GpioAF::AF0,
+    });
+
+    rcc::RCC.ahb1_clock_enable(rcc::Ahb1Enable::GPIOB);
+
+    GPIO_B.enable(6, gpio::GpioConfig {
+        mode: gpio::GpioMode::AF,
+        ospeed: gpio::GpioOSpeed::FAST_SPEED,
+        otype: gpio::GpioOType::OPEN_DRAIN,
+        pupd: gpio::GpioPuPd::NO,
+        af: gpio::GpioAF::AF4,
+    });
+    GPIO_B.enable(9, gpio::GpioConfig {
+        mode: gpio::GpioMode::AF,
+        ospeed: gpio::GpioOSpeed::FAST_SPEED,
+        otype: gpio::GpioOType::OPEN_DRAIN,
+        pupd: gpio::GpioPuPd::NO,
+        af: gpio::GpioAF::AF4,
+    });
+
+    rcc::RCC.apb1_clock_enable(rcc::Apb1Enable::I2C1);
     i2c::I2C1.init(&i2c::I2C_INIT);
+
+    nvic::init(&nvic::NvicInit {
+        irq_channel: nvic::IrqChannel::I2C1_EV,
+        priority: 4,
+        subpriority: 1,
+        enable: true,
+    });
+    nvic::init(&nvic::NvicInit {
+        irq_channel: nvic::IrqChannel::I2C1_ER,
+        priority: 4,
+        subpriority: 1,
+        enable: true,
+    });
 }
 
 unsafe fn init_rng() {

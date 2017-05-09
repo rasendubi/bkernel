@@ -1,6 +1,6 @@
 //! Logging.
 
-use stm32f4::usart::{self, USART1};
+use stm32f4::usart::{self, USART2};
 
 use lock_free::CircularBuffer;
 
@@ -69,7 +69,7 @@ impl Sink for &'static mut IoBuffer {
 
             // This triggers TXE interrupt if transmitter is already
             // empty, so the USART catches up with new data.
-            unsafe{&USART1}.it_enable(usart::Interrupt::TXE);
+            unsafe{&USART2}.it_enable(usart::Interrupt::TXE);
 
             Ok(AsyncSink::Ready)
         } else {
@@ -114,19 +114,19 @@ pub static mut STDOUT: IoBuffer = IoBuffer::new();
 pub static mut STDIN: IoBuffer = IoBuffer::new();
 
 #[no_mangle]
-pub unsafe extern fn __isr_usart1() {
-    if USART1.it_status(usart::Interrupt::RXNE) {
-        let c = USART1.get_unsafe();
+pub unsafe extern fn __isr_usart2() {
+    if USART2.it_status(usart::Interrupt::RXNE) {
+        let c = USART2.get_unsafe();
         // If the buffer is full, we discard _new_ input.
         // That's not ideal :(
         let _ = STDIN.try_push(c as u8);
     }
 
-    if USART1.it_status(usart::Interrupt::TXE) {
+    if USART2.it_status(usart::Interrupt::TXE) {
         if let Some(c) = STDOUT.try_pop() {
-            USART1.put_unsafe(c as u32);
+            USART2.put_unsafe(c as u32);
         } else {
-            USART1.it_disable(usart::Interrupt::TXE);
+            USART2.it_disable(usart::Interrupt::TXE);
         }
     }
 }

@@ -119,7 +119,7 @@ pub unsafe extern "C" fn __isr_i2c1_er() {
 
     let event = bus.i2c.get_last_event();
     if event & (i2c::Sr1Masks::AF as u32) != 0 {
-        panic!("__isr_i2c1_er(): acknowledge failure");
+        panic!("__isr_i2c1_er(): 0x{:x} (acknowledge failure)", event);
     }
     panic!("__isr_i2c1_er(): 0x{:x}", event);
 }

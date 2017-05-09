@@ -251,7 +251,7 @@ pub enum Sr1Masks {
 #[allow(dead_code)]
 #[derive(Copy, Clone)]
 #[repr(u32)]
-enum Sr2Masks {
+pub enum Sr2Masks {
     /// Master/slave
     ///
     /// 0: Slave Mode
