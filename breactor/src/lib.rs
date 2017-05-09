@@ -6,6 +6,8 @@ extern crate futures;
 
 extern crate stm32f4;
 
+pub mod mutex;
+
 use ::core::sync::atomic::{AtomicU32, Ordering};
 use ::core::cell::UnsafeCell;
 use ::core::u32;
