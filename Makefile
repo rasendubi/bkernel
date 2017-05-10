@@ -17,7 +17,7 @@ DEVICE ?= /dev/ttyUSB0
 
 RUSTC_COMMIT := $(shell rustc -Vv | sed -n 's/^commit-hash: \(.*\)$$/\1/p')
 
-SOURCES := $(shell find src/ stm32f4/ smalloc/ linkmem/ breactor/ dev/ -type f -name '*.rs')
+SOURCES := $(shell find src/ stm32f4/ smalloc/ linkmem/ breactor/ dev/ -type f -name '*.rs' -or -name '*.toml') Cargo.toml
 LD_SOURCES := $(wildcard *.ld)
 
 .PHONY: all

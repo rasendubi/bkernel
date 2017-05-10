@@ -11,6 +11,9 @@ crate-type = ["lib", "staticlib"]
 futures = { version = "0.1", default-features = false }
 dev = { path = "./dev" }
 
+[target.thumbv7em-none-eabi.dependencies]
+compiler_builtins = { git = "https://github.com/rust-lang-nursery/compiler-builtins", features=["c", "mem"] }
+
 [dependencies.stm32f4]
 path = "./stm32f4"
 

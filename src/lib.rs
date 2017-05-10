@@ -4,6 +4,8 @@
 #![feature(conservative_impl_trait)]
 #![feature(integer_atomics)]
 
+#![feature(compiler_builtins_lib)]
+
 #![cfg_attr(target_os = "none", no_std)]
 
 #[cfg(not(target_os = "none"))]
@@ -21,6 +23,8 @@ extern crate alloc;
 extern crate futures;
 
 extern crate breactor;
+
+extern crate compiler_builtins;
 
 mod led;
 mod led_music;
