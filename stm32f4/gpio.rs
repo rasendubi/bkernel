@@ -120,7 +120,6 @@ impl Gpio {
     /// ```
     pub fn enable(&self, pin: u32, config: GpioConfig) {
         unsafe {
-            self.moder.update_with_mask(0x3 << pin*2, (config.mode as u32) << pin*2);
             self.ospeedr.update_with_mask(0x3 << pin*2, (config.ospeed as u32) << pin*2);
             self.otyper.update_with_mask(0x1 << pin, (config.otype as u32) << pin);
             self.pupdr.update_with_mask(0x3 << pin*2, (config.pupd as u32) << pin*2);
@@ -130,6 +129,7 @@ impl Gpio {
             } else {
                 self.afrh.update_with_mask(0xf << (pin-8)*4, (config.af as u32) << (pin-8)*4);
             }
+            self.moder.update_with_mask(0x3 << pin*2, (config.mode as u32) << pin*2);
         }
     }
 
