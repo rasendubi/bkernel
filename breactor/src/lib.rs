@@ -7,6 +7,7 @@ extern crate futures;
 extern crate stm32f4;
 
 pub mod mutex;
+pub mod promise;
 
 use ::core::sync::atomic::{AtomicU32, Ordering};
 use ::core::cell::UnsafeCell;
@@ -183,8 +184,7 @@ impl<'a> Reactor<'a> {
                             continue
                         },
                         _ => {
-                            // Remove task if if has finished or
-                            // failed.
+                            // Remove task if has finished or failed.
                             None
                         },
                     }

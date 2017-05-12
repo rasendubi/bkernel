@@ -514,7 +514,7 @@ pub enum Event {
     ///
     /// Wait on one of these when EV1 has already been checked and:
     ///
-    /// - Slave Receiver mod:
+    /// - Slave Receiver mode:
     ///   - EV2: When the application is expecting a data byte to be
     ///   received.
     ///   - EV4: When the application is expecting the end of the
@@ -548,6 +548,8 @@ pub enum Event {
     SlaveByteTransmitting = 0x00060080, // TRA, BUSY, TXE
     // EV3_2
     SlaveAckFailure = 0x00000400, // AF
+
+    __NonExhaustive,
 }
 
 pub const I2C_INIT: I2cInit = I2cInit {
@@ -654,7 +656,7 @@ impl I2c {
     }
 
     pub unsafe fn send_7bit_address(&self, address: u8, direction: Direction) {
-        self.dr.set(match direction {
+        self.dr.update_with_mask(0xff, match direction {
             Direction::Transmitter => address & !0x1,
             Direction::Receiver => address | 0x1,
         } as u32);
@@ -666,6 +668,14 @@ impl I2c {
 
     pub unsafe fn receive_data(&self) -> u8 {
         self.dr.get() as u8
+    }
+
+    pub unsafe fn set_acknowledge(&self, value: bool) {
+        if value {
+            self.cr1.set_flag(Cr1Masks::ACK as u32);
+        } else {
+            self.cr1.clear_flag(Cr1Masks::ACK as u32);
+        }
     }
 
     /// Returns the image of both status registers in a single word
