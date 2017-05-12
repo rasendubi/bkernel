@@ -40,13 +40,29 @@ use stm32f4::gpio::{GPIO_B, GPIO_D};
 use stm32f4::usart::USART2;
 use stm32f4::timer::TIM2;
 
-use futures::{Future, Stream, Sink};
+use futures::{Future, Stream};
+use futures::future::{self, Loop};
 
 use start_send_all_string::StartSendAllString;
 
 pub use log::__isr_usart2;
 
 use breactor::REACTOR;
+
+use ::dev::htu21d::{Htu21d, Htu21dError};
+
+macro_rules! debug_log {
+    ( $( $x:expr ),* ) => {
+        {
+            use ::core::fmt::Write;
+            let _lock = unsafe { ::stm32f4::IrqLock::new() };
+
+            let _ = write!(unsafe{&::stm32f4::usart::USART2}, $($x),*);
+        }
+    };
+}
+
+static HTU21D: Htu21d = Htu21d::new(&::dev::i2c::I2C1_BUS);
 
 #[cfg(target_os = "none")]
 fn init_memory() {
@@ -97,20 +113,41 @@ pub extern fn kmain() -> ! {
         .map(|_| ())
         .map_err(|_| ());
 
-    let mut i2c = futures::future::lazy(|| {
-        unsafe{&GPIO_D}.set_bit(4);
-
-        const ADDR: [u8; 1] = [0x01];
-        (&dev::i2c::I2C1_BUS).start_send(
-            dev::i2c::I2cTransaction::master_transmitter(
-                // 0b10010100,
-                0x80,
-                &ADDR as *const u8,
-                1))
-    })
-        .map(|_| ())
-        .map_err(|_| ());
-
+    let mut htu21d = HTU21D.soft_reset()
+        .and_then(|_| {
+            // This is needed because device is not instantly up after
+            // reset, so we poll it, untill it ready.
+            future::loop_fn(
+                (),
+                |_| {
+                    HTU21D.read_temperature_hold_master()
+                        .then(|res| match res {
+                            Ok(temp) => {
+                                future::result(Ok(Loop::Break(temp)))
+                            },
+                            // Acknowledge failure -> device is not ready -> retry
+                            Err(Htu21dError::I2cError(x)) if x & 0x400 != 0 => {
+                                future::result(Ok(Loop::Continue(())))
+                            },
+                            Err(x) => {
+                                future::result(Err(x))
+                            },
+                        })
+                }
+            )
+        })
+        .and_then(|temp| {
+            HTU21D.read_humidity_hold_master()
+                .map(move |hum| {
+                    debug_log!("Temperature: {} C      Humidity: {}%\r\n",
+                               temp, hum);
+                    ()
+                })
+        })
+        .map_err(|err| {
+            debug_log!("HTU21D error: {:?}\r\n", err);
+            ()
+        });
 
     unsafe {
         let reactor = &REACTOR;
@@ -132,7 +169,7 @@ pub extern fn kmain() -> ! {
         reactor.add_task(
             3,
             ::core::mem::transmute::<&mut Future<Item=(), Error=()>,
-                                     &'static mut Future<Item=(), Error=()>>(&mut i2c)
+                                     &'static mut Future<Item=(), Error=()>>(&mut htu21d)
         );
 
         loop {
@@ -230,7 +267,10 @@ pub mod panicking {
 
     #[lang = "panic_fmt"]
     extern fn panic_fmt(fmt: fmt::Arguments, file: &str, line: u32) -> ! {
-        let _ = write!(unsafe{&USART2}, "\r\nPANIC\r\n{}:{} {}", file, line, fmt);
+        {
+            let _lock = unsafe { ::stm32f4::IrqLock::new() };
+            let _ = write!(unsafe{&USART2}, "\r\nPANIC\r\n{}:{} {}", file, line, fmt);
+        }
         loop {
             unsafe { ::stm32f4::__wait_for_interrupt() };
         }
@@ -283,7 +323,14 @@ unsafe fn init_i2c() {
     });
 
     rcc::RCC.apb1_clock_enable(rcc::Apb1Enable::I2C1);
-    i2c::I2C1.init(&i2c::I2C_INIT);
+    i2c::I2C1.init(&i2c::I2cInit {
+        clock_speed: 100000,
+        mode: i2c::Mode::I2C,
+        duty_cycle: i2c::DutyCycle::DutyCycle_2,
+        own_address1: 0,
+        ack: i2c::Acknowledgement::Disable,
+        acknowledged_address: i2c::AcknowledgedAddress::Bit7,
+    });
 
     nvic::init(&nvic::NvicInit {
         irq_channel: nvic::IrqChannel::I2C1_EV,

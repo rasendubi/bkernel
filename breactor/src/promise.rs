@@ -91,6 +91,14 @@ impl<T, E> Promise<T, E> {
         debug_assert!(task != 0);
         REACTOR.set_ready_task_mask(task);
     }
+
+    /// Returns true, if the promise is already resolved or not
+    /// initialized.
+    ///
+    /// This method is not thread-safe with respect to `resolve()`.
+    pub fn is_resolved(&self) -> bool {
+        self.task.load(Ordering::Acquire) == 0
+    }
 }
 
 impl<T, E> Future for Promise<T, E> {

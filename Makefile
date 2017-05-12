@@ -64,7 +64,7 @@ doc: lib/$(TARGET)/libcore.rlib lib/$(TARGET)/liballoc.rlib
 
 .PHONY: test
 test:
-	cargo test -p bkernel -p stm32f4 -p breactor -p smalloc
+	cargo test -p bkernel -p stm32f4 -p breactor -p smalloc -p dev
 
 .PHONY: flash
 flash: kernel.bin

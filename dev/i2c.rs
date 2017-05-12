@@ -76,20 +76,15 @@ impl<'a> Future for Transmission<'a> {
 
 impl I2cTransfer {
     pub fn master_transmitter<'a>(self, addr: u16, data: &'a [u8]) -> Transmission<'a> {
+        self.master_transmitter_raw(addr, data.as_ptr(), data.len())
+    }
+
+    pub fn master_transmitter_raw<'a>(self, addr: u16, data_ptr: *const u8, data_size: usize) -> Transmission<'a> {
         unsafe {
             *self.bus.slave_address.get() = addr;
-            *self.bus.buffer.get() = data.as_ptr() as *mut u8;
-            *self.bus.buf_left.get() = data.len();
+            *self.bus.buffer.get() = data_ptr as *mut u8;
+            *self.bus.buf_left.get() = data_size;
             *self.bus.result.get() = Promise::new();
-
-            let mut event = self.bus.i2c.get_last_event();
-            while event & 0x20000 != 0 {
-                event = self.bus.i2c.get_last_event();
-            }
-
-            // if event & 0x0100 != 0 {
-            //     self.bus.i2c.it_clear_pending(0x0100);
-            // }
 
             self.bus.i2c.generate_start();
 
@@ -100,17 +95,21 @@ impl I2cTransfer {
 
         Transmission {
             transfer: Some(self),
-            data: data.as_ptr() as *mut _,
-            size: data.len(),
+            data: data_ptr as *mut _,
+            size: data_size,
             __phantom: PhantomData,
         }
     }
 
     pub fn master_receiver<'a>(self, addr: u16, data: &'a mut [u8]) -> Transmission<'a> {
+        self.master_receiver_raw(addr, data.as_mut_ptr(), data.len())
+    }
+
+    pub fn master_receiver_raw<'a>(self, addr: u16, data_ptr: *mut u8, data_size: usize) -> Transmission<'a> {
         unsafe {
             *self.bus.slave_address.get() = addr | 0x01;
-            *self.bus.buffer.get() = data.as_mut_ptr();
-            *self.bus.buf_left.get() = data.len();
+            *self.bus.buffer.get() = data_ptr;
+            *self.bus.buf_left.get() = data_size;
             *self.bus.result.get() = Promise::new();
 
             self.bus.i2c.generate_start();
@@ -123,8 +122,8 @@ impl I2cTransfer {
 
         Transmission {
             transfer: Some(self),
-            data: data.as_mut_ptr(),
-            size: data.len(),
+            data: data_ptr,
+            size: data_size,
             __phantom: PhantomData,
         }
     }
@@ -143,6 +142,13 @@ pub unsafe extern "C" fn __isr_i2c1_ev() {
 
     let event = bus.i2c.get_last_event();
 
+    if event == 0x30000 { // MSL, BUSY
+        return;
+    }
+    if event == 0x0 {
+        return;
+    }
+
     match ::core::mem::transmute(event) {
         i2c::Event::MasterModeSelect => {
             let slave_address = *bus.slave_address.get();
@@ -154,7 +160,9 @@ pub unsafe extern "C" fn __isr_i2c1_ev() {
         i2c::Event::MasterReceiverModeSelected => {
         },
         i2c::Event::MasterByteTransmitted => {
-            if *bus.buf_left.get() == 0 {
+            let buf_left = bus.buf_left.get();
+
+            if *buf_left == 0 {
                 bus.i2c.it_disable(i2c::Interrupt::Evt);
                 bus.i2c.it_disable(i2c::Interrupt::Buf);
                 bus.i2c.it_disable(i2c::Interrupt::Err);
@@ -162,8 +170,8 @@ pub unsafe extern "C" fn __isr_i2c1_ev() {
                 let result = bus.result.get();
                 (*result).resolve(Ok(()));
             }
-        },
-        i2c::Event::MasterByteTransmitting => { // | i2c::Event::MasterByteTransmitted => {
+        }
+        i2c::Event::MasterByteTransmitting => {
             let mut buffer = bus.buffer.get();
             let mut buf_left = bus.buf_left.get();
 
@@ -197,6 +205,9 @@ pub unsafe extern "C" fn __isr_i2c1_ev() {
             }
         },
         _ => {
+            // TODO(ashmalko): this function should be rewritten to
+            // check particular status flags, and not matching events
+            // as whole.
             panic!("__isr_i2c1_ev(): unknown event 0x{:x}", event);
         }
     }
@@ -211,7 +222,19 @@ pub unsafe extern "C" fn __isr_i2c1_er() {
     let result = bus.result.get();
     (*result).resolve(Err(event));
 
-    panic!("__isr_i2c1_er(): 0x{:x}", event);
+    bus.i2c.it_disable(i2c::Interrupt::Evt);
+    bus.i2c.it_disable(i2c::Interrupt::Buf);
+    bus.i2c.it_disable(i2c::Interrupt::Err);
+
+    if event & (i2c::Sr1Masks::ARLO as u32) != 0 {
+        bus.i2c.it_clear_pending(i2c::Sr1Masks::ARLO as u32);
+    }
+    if event & (i2c::Sr1Masks::BERR as u32) != 0 {
+        bus.i2c.it_clear_pending(i2c::Sr1Masks::BERR as u32);
+    }
+    if event & (i2c::Sr1Masks::AF as u32) != 0 {
+        bus.i2c.it_clear_pending(i2c::Sr1Masks::AF as u32);
+    }
 }
 
 #[no_mangle]

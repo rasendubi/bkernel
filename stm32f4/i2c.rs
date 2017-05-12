@@ -348,14 +348,14 @@ pub struct I2cInit {
     /// Specifies the clock frequency.
     ///
     /// This parameter must be set to a value lower than 400kHz.
-    clock_speed: u32,
-    mode: Mode,
-    duty_cycle: DutyCycle,
+    pub clock_speed: u32,
+    pub mode: Mode,
+    pub duty_cycle: DutyCycle,
 
     /// Must be a 7-bit or 10-bit address.
-    own_address1: u16,
-    ack: Acknowledgement,
-    acknowledged_address: AcknowledgedAddress,
+    pub own_address1: u16,
+    pub ack: Acknowledgement,
+    pub acknowledged_address: AcknowledgedAddress,
 }
 
 #[derive(Copy, Clone)]
