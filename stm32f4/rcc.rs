@@ -15,6 +15,7 @@ const HSI_VALUE: u32 = 16000000;
 const HSE_VALUE: u32 = 25000000;
 
 #[repr(C)]
+#[allow(missing_debug_implementations)]
 pub struct Rcc {
     cr:          RW<u32>,  // 0x00
 
@@ -149,7 +150,7 @@ enum CfgrMask {
     MCO2    = 0x3 << 30,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 #[repr(u32)]
 pub enum Ahb1Enable {
     GPIOA      = 1 << 0,
@@ -177,7 +178,7 @@ pub enum Ahb1Enable {
     OTGHSULPI  = 1 << 30,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 #[repr(u32)]
 pub enum Ahb2Enable {
     DCMI       = 1 << 0,
@@ -187,7 +188,7 @@ pub enum Ahb2Enable {
     OTGFS      = 1 << 7,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 #[repr(u32)]
 pub enum Ahb3Enable {
     FMC        = 1 << 0,
@@ -197,7 +198,7 @@ pub enum Ahb3Enable {
     __Dummy,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 #[repr(u32)]
 pub enum Apb1Enable {
     TIM2       = 1 << 0,
@@ -227,7 +228,7 @@ pub enum Apb1Enable {
     UART8      = 1 << 31,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 #[repr(u32)]
 pub enum Apb2Enable {
     TIM1       = 1 << 0,
@@ -250,6 +251,7 @@ pub enum Apb2Enable {
     LTDC       = 1 << 26,
 }
 
+#[allow(missing_debug_implementations)]
 pub struct Clocks {
     /// SYSCLK clock frequency expressed in Hz
     pub sysclk: u32,
@@ -322,6 +324,7 @@ impl Rcc {
                 pllvco / pllp
             },
             _ => {
+                debug_assert!(false);
                 // TODO(rasen): not applicable (assert? unreachable?)
                 HSI_VALUE
             },

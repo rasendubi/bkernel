@@ -38,7 +38,7 @@ impl<T, U> StartSendAll<T, U>
     fn take_result(&mut self) -> (T, U) {
         let sink = self.sink.take().expect("");
         let fuse = self.stream.take().expect("");
-        return (sink, fuse.into_inner());
+        (sink, fuse.into_inner())
     }
 
     fn try_start_send(&mut self, item: U::Item) -> Poll<(), T::SinkError> {

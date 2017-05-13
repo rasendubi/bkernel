@@ -11,6 +11,7 @@ extern {
 }
 
 #[repr(C)]
+#[allow(missing_debug_implementations)]
 pub struct I2c {
     cr1:   RW<u32>, // 0x00
     cr2:   RW<u32>, // 0x04
@@ -137,7 +138,7 @@ enum Cr2Masks {
 
 #[allow(non_camel_case_types)]
 #[allow(dead_code)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 #[repr(u32)]
 pub enum Sr1Masks {
     /// Start bit (Master mode)
@@ -249,7 +250,7 @@ pub enum Sr1Masks {
 
 #[allow(non_camel_case_types)]
 #[allow(dead_code)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 #[repr(u32)]
 pub enum Sr2Masks {
     /// Master/slave
@@ -315,7 +316,7 @@ enum CcrMasks {
 
 #[allow(non_camel_case_types)]
 #[allow(dead_code)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 #[repr(u32)]
 pub enum Interrupt {
     Buf = 0x0400,
@@ -325,7 +326,7 @@ pub enum Interrupt {
 
 #[allow(non_camel_case_types)]
 #[allow(dead_code)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 #[repr(u32)]
 pub enum InterruptFlag {
     SMBALERT = 0x01008000,
@@ -344,6 +345,7 @@ pub enum InterruptFlag {
     SB       = 0x02000001,
 }
 
+#[derive(Debug)]
 pub struct I2cInit {
     /// Specifies the clock frequency.
     ///
@@ -358,7 +360,7 @@ pub struct I2cInit {
     pub acknowledged_address: AcknowledgedAddress,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 #[repr(u16)]
 pub enum Mode {
     I2C         = 0x0000,
@@ -367,7 +369,7 @@ pub enum Mode {
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u16)]
 pub enum DutyCycle {
     /// I2C fast mode Tlow/Thigh = 16/9
@@ -377,28 +379,28 @@ pub enum DutyCycle {
     DutyCycle_2    = 0xBFFF,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 #[repr(u16)]
 pub enum Acknowledgement {
     Enable  = 0x0400,
     Disable = 0x0000,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 #[repr(u8)]
 pub enum Direction {
     Transmitter = 0x00,
     Receiver    = 0x01,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 #[repr(u16)]
 pub enum AcknowledgedAddress {
     Bit7  = 0x4000,
     Bit10 = 0xC000,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 #[repr(u32)]
 pub enum Event {
     /// Communication start.
@@ -610,7 +612,7 @@ impl I2c {
                 pclk1 / (init.clock_speed * 3)
             } else {
                 // Fast mode speed calculate: Tlow/Thigh = 16/9
-                pclk1 / (init.clock_speed * 25) | (DutyCycle::DutyCycle_16_9 as u32)
+                (pclk1 / (init.clock_speed * 25)) | (DutyCycle::DutyCycle_16_9 as u32)
             };
 
             // Test if CCR value is under 0x1
@@ -666,6 +668,7 @@ impl I2c {
         self.dr.set(data as u32);
     }
 
+    #[allow(cast_possible_truncation)] // DR is 8-bit register
     pub unsafe fn receive_data(&self) -> u8 {
         self.dr.get() as u8
     }
@@ -712,7 +715,7 @@ impl I2c {
         let it = (it as u32) & FLAG_MASK;
 
         // Check the status of the specified I2C flag */
-        ((self.sr1.get() as u32) & it) != 0 && enablestatus != 0
+        (self.sr1.get() & it) != 0 && enablestatus != 0
     }
 
     /// Clears the I2C's pending flags.
@@ -748,6 +751,6 @@ impl I2c {
     /// operation to SR1 register followed by a write operation to DR
     /// register (send_data()).
     pub unsafe fn it_clear_pending(&self, flag: u32) {
-        self.sr1.clear_flag((flag as u32) & FLAG_MASK);
+        self.sr1.clear_flag(flag & FLAG_MASK);
     }
 }

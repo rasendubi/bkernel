@@ -10,6 +10,7 @@ use futures::{Async, Future, Poll};
 use breactor::mutex::{Mutex, MutexLock};
 use breactor::promise::Promise;
 
+#[allow(missing_debug_implementations)]
 pub struct I2cBus {
     i2c: &'static I2c,
     mutex: Mutex,
@@ -20,6 +21,7 @@ pub struct I2cBus {
     result: UnsafeCell<Promise<(), u32>>,
 }
 
+#[allow(missing_debug_implementations)]
 pub struct I2cTransfer {
     #[allow(dead_code)]
     lock: MutexLock<'static>,
@@ -40,7 +42,7 @@ impl I2cBus {
             i2c,
             mutex: Mutex::new(),
             slave_address: UnsafeCell::new(0),
-            buffer: UnsafeCell::new(0 as *mut u8),
+            buffer: UnsafeCell::new(::core::ptr::null_mut()),
             buf_left: UnsafeCell::new(0),
             result: UnsafeCell::new(unsafe { Promise::empty() }),
         }
@@ -51,6 +53,7 @@ impl I2cBus {
     }
 }
 
+#[allow(missing_debug_implementations)]
 pub struct Transmission<'a> {
     transfer: Option<I2cTransfer>,
 
@@ -67,7 +70,7 @@ impl<'a> Future for Transmission<'a> {
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         let result = self.transfer.as_ref().unwrap().bus.result.get();
         unsafe {
-            let _ = try_ready!((*result).poll());
+            try_ready!((*result).poll());
             Ok(Async::Ready((self.transfer.take().unwrap(),
                              ::core::slice::from_raw_parts(self.data, self.size))))
         }
@@ -75,7 +78,7 @@ impl<'a> Future for Transmission<'a> {
 }
 
 impl I2cTransfer {
-    pub fn master_transmitter<'a>(self, addr: u16, data: &'a [u8]) -> Transmission<'a> {
+    pub fn master_transmitter(self, addr: u16, data: &[u8]) -> Transmission {
         self.master_transmitter_raw(addr, data.as_ptr(), data.len())
     }
 
@@ -101,7 +104,7 @@ impl I2cTransfer {
         }
     }
 
-    pub fn master_receiver<'a>(self, addr: u16, data: &'a mut [u8]) -> Transmission<'a> {
+    pub fn master_receiver(self, addr: u16, data: &mut [u8]) -> Transmission {
         self.master_receiver_raw(addr, data.as_mut_ptr(), data.len())
     }
 
@@ -153,10 +156,10 @@ pub unsafe extern "C" fn __isr_i2c1_ev() {
         i2c::Event::MasterModeSelect => {
             let slave_address = *bus.slave_address.get();
             // not really data, but who cares
+            // TODO(ashmalko): handle ADDR10
             bus.i2c.send_data(slave_address as u8);
         },
-        i2c::Event::MasterTransmitterModeSelected => {
-        },
+        i2c::Event::MasterTransmitterModeSelected |
         i2c::Event::MasterReceiverModeSelected => {
         },
         i2c::Event::MasterByteTransmitted => {

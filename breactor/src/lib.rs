@@ -27,7 +27,7 @@ impl TaskId {
     ///
     /// The argument must be lower than 32.
     pub const unsafe fn unsafe_new(id: u32) -> TaskId {
-        TaskId((1 as u32) << id)
+        TaskId(1 << id)
     }
 
     /// Creates new checked TaskId from priority.
@@ -43,7 +43,7 @@ impl TaskId {
     /// assert!(breactor::TaskId::new(31).is_some());
     /// ```
     pub fn new(id: u32) -> Option<TaskId> {
-        (1 as u32).checked_shl(id).map(TaskId)
+        1_u32.checked_shl(id).map(TaskId)
     }
 
     const fn get_mask(&self) -> u32 {
@@ -60,6 +60,7 @@ impl TaskId {
 /// Each task has an ID assigned. The ID plays two roles. First, it
 /// distinguishes tasks, therefore it must be unique. Second, it
 /// determines the priority. Higher ids mean higher priority.
+#[allow(missing_debug_implementations)]
 pub struct Reactor<'a> {
     // TODO(rasen): should this be atomic?
     //
@@ -171,7 +172,7 @@ impl<'a> Reactor<'a> {
     /// only a single thread calls run at the same time.
     pub unsafe fn run(&self) {
         while let Some(task_id) = self.select_next_task() {
-            let task_mask = 1u32 << task_id;
+            let task_mask = 1_u32 << task_id;
             self.ready_mask.fetch_and(!task_mask, Ordering::SeqCst);
             self.current_task_mask.store(task_mask, Ordering::SeqCst);
 

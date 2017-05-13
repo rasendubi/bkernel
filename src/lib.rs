@@ -14,6 +14,7 @@ extern crate core;
 extern crate stm32f4;
 extern crate dev;
 
+#[cfg(target_os = "none")]
 extern crate smalloc;
 #[cfg(target_os = "none")]
 extern crate linkmem;
@@ -25,6 +26,7 @@ extern crate futures;
 extern crate breactor;
 
 extern crate compiler_builtins;
+pub use compiler_builtins::*;
 
 mod led;
 mod led_music;
@@ -70,7 +72,7 @@ fn init_memory() {
     static mut HEAP: [u8; HEAP_SIZE] = [0; HEAP_SIZE];
 
     ::linkmem::init(smalloc::Smalloc {
-        start: unsafe { ::core::mem::transmute(&mut HEAP) },
+        start: unsafe {&mut HEAP}.as_mut_ptr(),
         size: HEAP_SIZE,
     });
 }

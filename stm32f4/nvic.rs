@@ -14,6 +14,7 @@ extern {
     pub static AIRCR: RW<u32>;
 }
 
+#[derive(Debug)]
 pub struct NvicInit {
     pub irq_channel: IrqChannel,
     pub priority: u8,
@@ -23,6 +24,7 @@ pub struct NvicInit {
 
 #[allow(non_camel_case_types)]
 #[derive(Copy, Clone)]
+#[derive(Debug)]
 #[repr(u32)]
 pub enum IrqChannel {
     WWDG = 0,

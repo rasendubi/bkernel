@@ -12,6 +12,7 @@ extern {
 /// rcc::RCC.ahb1_clock_enable(rcc::Ahb1Enable::CRC);
 /// ```
 #[repr(C)]
+#[allow(missing_debug_implementations)]
 pub struct Crc {
     dr:  RW<u32>, // 0x0
     idr: RW<u32>, // 0x4
@@ -49,6 +50,7 @@ impl Crc {
     }
 
     /// Reads 8-bit value from the Indenpendent Data Register.
+    #[allow(cast_possible_truncation)] // IDR is 8-bit register
     pub fn get_idr(&self) -> u8 {
         unsafe {
             self.idr.get() as u8

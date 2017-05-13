@@ -13,6 +13,7 @@ extern {
 }
 
 #[repr(C)]
+#[allow(missing_debug_implementations)]
 pub struct Usart {
     sr:   RW<u32>, // 0x00
     dr:   RW<u32>, // 0x04
@@ -85,7 +86,7 @@ enum Cr2 {
     LINEN = 1 << 14,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 #[repr(u32)]
 pub enum StopBits {
     Bits1   = 0x0,
@@ -118,19 +119,19 @@ enum Gtpr {
     GT  = 0xFF00,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum FlowControl {
     No,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 #[repr(u32)]
 pub enum DataBits {
     Bits8 = 0,
     Bits9 = Cr1::M as u32,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct UsartConfig {
     pub data_bits: DataBits,
     pub stop_bits: StopBits,
@@ -138,7 +139,7 @@ pub struct UsartConfig {
     pub baud_rate: u32,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 #[repr(u32)]
 pub enum Interrupt {
     PE     = 0x0028,
@@ -155,7 +156,7 @@ pub enum Interrupt {
     FE     = 0x0160,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 #[repr(u32)]
 pub enum InterruptFlag {
     CTS  = 0x0200,
@@ -220,12 +221,13 @@ impl Usart {
         unsafe { self.dr.get() & 0xff }
     }
 
-    pub unsafe fn get_unsafe(&self) -> u32 {
-        self.dr.get() & 0xFF
+    #[allow(cast_possible_truncation)] // DR is 8-bit register
+    pub unsafe fn get_unsafe(&self) -> u8 {
+        self.dr.get() as u8
     }
 
-    pub unsafe fn put_unsafe(&self, c: u32) {
-        self.dr.set(c);
+    pub unsafe fn put_unsafe(&self, c: u8) {
+        self.dr.set(c as u32);
     }
 
     pub fn it_enable(&self, it: Interrupt) {
@@ -296,11 +298,11 @@ impl Usart {
                 _    => &self.cr3,
             };
 
-            itmask = itmask & reg.get();
+            itmask &= reg.get();
 
             let mut bitpos = it as u32 >> 8;
             bitpos = 0x01 << bitpos;
-            bitpos = bitpos & self.sr.get();
+            bitpos &= self.sr.get();
 
             bitpos != 0 && itmask != 0
         }
@@ -309,8 +311,8 @@ impl Usart {
     pub fn it_clear_pending(&self, it: Interrupt) {
         unsafe {
             let bitpos = it as u32 >> 8;
-            let itmask = 1 << bitpos;
-            self.sr.set(!(itmask as u16) as u32);
+            let itmask = 1_u16 << bitpos;
+            self.sr.set(!itmask as u32);
         }
     }
 }

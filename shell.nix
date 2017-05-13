@@ -4,8 +4,8 @@ let
   pkgs = import <nixpkgs> { inherit system; };
 
   rust-nightly = pkgs.callPackage ./nix/rust-nightly {
-    date = "2017-04-07";
-    hash = "1f9ssvfgygxf2gl6ysxfl8cn758mhwz7q4ahjj8wpi5qz2h3mz14";
+    date = "2017-05-12";
+    hash = "1xxcjmhqnzrd4ghvdby87vay95p3q4hfjlz5r6z0w1v40gx9ka3h";
   };
 
 in with pkgs; {

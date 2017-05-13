@@ -10,7 +10,35 @@ BOARD ?= stm32f407-discovery
 CFLAGS := -std=c99 -pedantic -Wall -Wextra -mcpu=cortex-m4 -msoft-float -nostdlib -lnosys \
 	-fPIC -mapcs-frame -ffreestanding -O3 -mlittle-endian -mthumb
 LDFLAGS := -N -nostdlib -T stm32_flash.ld -Wl,--gc-sections
-RUSTFLAGS := -g -Z no-landing-pads --target $(TARGET) -C opt-level=3 -L lib/$(TARGET)
+RUSTFLAGS := -Z no-landing-pads -L lib/$(TARGET) \
+	-A unknown_lints \
+	-W missing-debug-implementations \
+	-W trivial-numeric-casts \
+	-W unused-extern-crates \
+	-W unused-import-braces \
+	-W variant-size-differences \
+
+RUSTCFLAGS := ${RUSTCFLAGS} -g --target $(TARGET) -C opt-level=3 -L lib/$(TARGET)
+
+CLIPPYFLAGS := \
+	-A unknown_lints \
+	-A char_lit_as_u8 \
+	-A inline_always \
+	-A identity_op \
+	-A doc_markdown \
+	-A empty_loop \
+	-W cast_possible_wrap \
+	-W cast_sign_loss \
+	-W float_arithmetic \
+	-W non_ascii_literal \
+	-W nonminimal_bool \
+	-W result_unwrap_used \
+	-W shadow_unrelated \
+	-W similar_names \
+	-W unseparated_literal_suffix \
+	-W used_underscore_binding \
+	-W wrong_pub_self_convention \
+ -W cast_possible_truncation \
 
 RUSTDIR ?= rust
 DEVICE ?= /dev/ttyUSB0
@@ -34,16 +62,16 @@ kernel.elf: target/$(TARGET)/release/libkernel.a $(LD_SOURCES)
 	$(LD) $(LDFLAGS) -o $@ target/$(TARGET)/release/libkernel.a
 
 target/$(TARGET)/release/libkernel.a: $(SOURCES) lib/$(TARGET)/libcore.rlib lib/$(TARGET)/liballoc.rlib
-	RUSTFLAGS="-Z no-landing-pads -L lib/$(TARGET)/" cargo build --target=$(TARGET) --release
+	RUSTFLAGS="${RUSTFLAGS}" cargo build --target=$(TARGET) --release
 
 %.o: %.s
 	$(CC) $(CFLAGS) -o $@ -c $^
 
 lib/$(TARGET)/libcore.rlib: $(RUSTDIR)/src/libcore | checkout_rust lib/$(TARGET)
-	$(RUST) $(RUSTFLAGS) $(RUSTDIR)/src/libcore/lib.rs --out-dir lib/$(TARGET)
+	$(RUST) $(RUSTCFLAGS) $(RUSTDIR)/src/libcore/lib.rs --out-dir lib/$(TARGET)
 
 lib/$(TARGET)/liballoc.rlib: $(RUSTDIR)/src/liballoc lib/$(TARGET)/libcore.rlib | checkout_rust lib/$(TARGET)
-	$(RUST) $(RUSTFLAGS) $(RUSTDIR)/src/liballoc/lib.rs --out-dir lib/$(TARGET)
+	$(RUST) $(RUSTCFLAGS) $(RUSTDIR)/src/liballoc/lib.rs --out-dir lib/$(TARGET)
 
 lib/$(TARGET):
 	mkdir -p $@
@@ -60,11 +88,21 @@ checkout_rust: $(RUSTDIR)
 
 .PHONY: doc
 doc: lib/$(TARGET)/libcore.rlib lib/$(TARGET)/liballoc.rlib
-	RUSTFLAGS="-L lib/$(TARGET) -Z no-landing-pads" RUSTDOCFLAGS="-L lib/$(TARGET)" cargo doc --target=$(TARGET)
+	RUSTFLAGS="${RUSTFLAGS}" RUSTDOCFLAGS="-L lib/$(TARGET)" cargo doc --target=$(TARGET)
 
 .PHONY: test
 test:
-	cargo test -p bkernel -p stm32f4 -p breactor -p smalloc -p dev
+	RUSTFLAGS="${RUSTFLAGS}" cargo test -p bkernel -p stm32f4 -p breactor -p smalloc -p dev
+
+.PHONY: clippy
+clippy:
+	cargo clean
+	RUSTFLAGS="${RUSTFLAGS}" cargo clippy --target=thumbv7em-none-eabi -p stm32f4 -- ${CLIPPYFLAGS}
+	RUSTFLAGS="${RUSTFLAGS}" cargo clippy --target=thumbv7em-none-eabi -p breactor -- ${CLIPPYFLAGS}
+	RUSTFLAGS="${RUSTFLAGS}" cargo clippy --target=thumbv7em-none-eabi -p smalloc -- ${CLIPPYFLAGS}
+	RUSTFLAGS="${RUSTFLAGS}" cargo clippy --target=thumbv7em-none-eabi -p linkmem -- ${CLIPPYFLAGS}
+	RUSTFLAGS="${RUSTFLAGS}" cargo clippy --target=thumbv7em-none-eabi -p dev -- ${CLIPPYFLAGS}
+	RUSTFLAGS="${RUSTFLAGS}" cargo clippy --target=thumbv7em-none-eabi -p bkernel -- ${CLIPPYFLAGS}
 
 .PHONY: flash
 flash: kernel.bin

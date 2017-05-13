@@ -55,6 +55,7 @@ impl<T> Volatile<T> {
 
 /// Read-only register
 #[repr(C)]
+#[allow(missing_debug_implementations)]
 pub struct RO<T>(T);
 
 impl<T> RO<T> {
@@ -66,6 +67,7 @@ impl<T> RO<T> {
 
 /// Write-only register
 #[repr(C)]
+#[allow(missing_debug_implementations)]
 pub struct WO<T>(T);
 
 impl<T> WO<T> {
@@ -77,6 +79,7 @@ impl<T> WO<T> {
 
 /// Read-write register
 #[repr(C)]
+#[allow(missing_debug_implementations)]
 pub struct RW<T>(T);
 
 impl<T> RW<T> {
@@ -171,6 +174,7 @@ impl<T> RW<T> {
 /// there is nothing you can do with reserved register - it's reserved
 /// after all.
 #[repr(C)]
+#[allow(missing_debug_implementations)]
 pub struct RES<T>(T);
 
 /// Define a set of registers with a shorter syntax.

@@ -14,6 +14,7 @@ use super::REACTOR;
 ///
 /// The consumer is assumed to hold the object and should not drop it
 /// until it is resolved.
+#[allow(missing_debug_implementations)]
 pub struct Promise<T, E> {
     /// Stores the mask of the owning task.
     ///
@@ -88,7 +89,7 @@ impl<T, E> Promise<T, E> {
         }
 
         let task = self.task.swap(0, Ordering::Release);
-        debug_assert!(task != 0);
+        debug_assert_ne!(task, 0);
         REACTOR.set_ready_task_mask(task);
     }
 

@@ -144,8 +144,6 @@ static mut CUR: usize = 0;
 fn process_char<Si>(sink: Si, c: u8) -> impl IntoFuture<Item=Si, Error=()> + 'static
     where Si: Sink<SinkItem=u8, SinkError=()> + 'static
 {
-    let c = c as u32;
-
     let mut command = unsafe{&mut COMMAND};
     let mut cur = unsafe{&mut CUR};
 
@@ -157,7 +155,7 @@ fn process_char<Si>(sink: Si, c: u8) -> impl IntoFuture<Item=Si, Error=()> + 'st
             return CommandResult::sink(sink)
         }
     } else {
-        command[*cur] = c as u8;
+        command[*cur] = c;
         *cur += 1;
 
         if *cur == command.len() {
@@ -166,7 +164,7 @@ fn process_char<Si>(sink: Si, c: u8) -> impl IntoFuture<Item=Si, Error=()> + 'st
         }
     }
 
-    CommandResult::echo_char(sink, c as u8)
+    CommandResult::echo_char(sink, c)
 }
 
 fn process_enter<Si>(sink: Si) -> CommandResult<Si>

@@ -51,6 +51,7 @@ use super::REACTOR;
 /// # fn main() {
 /// # }
 /// ```
+#[allow(missing_debug_implementations)]
 pub struct Mutex {
     /// The tasks, that are currently waiting on the mutex.
     ///
@@ -65,6 +66,7 @@ pub struct Mutex {
 }
 
 /// If you have this lock, you have locked the underlying mutex.
+#[allow(missing_debug_implementations)]
 pub struct MutexLock<'a> {
     mutex: &'a Mutex,
 }

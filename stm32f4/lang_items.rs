@@ -1,4 +1,4 @@
-//! lang_items and functions needed to start Rust on bare metal.
+//! `lang_items` and functions needed to start Rust on bare metal.
 
 #[cfg(target_os = "none")]
 #[lang = "eh_personality"]

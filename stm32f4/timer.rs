@@ -10,6 +10,7 @@ extern {
 }
 
 #[repr(C)]
+#[allow(missing_debug_implementations)]
 pub struct Tim {
     cr1:   RW<u32>, // 0x00
     cr2:   RW<u32>, // 0x04
@@ -54,7 +55,7 @@ enum Cr1 {
     CKD  = 3 << 8,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 #[repr(u32)]
 pub enum Dier {
     UIE   = 1 << 0,
@@ -83,6 +84,7 @@ enum Egr {
     TG   = 1 << 6,
 }
 
+#[derive(Debug)]
 pub struct TimInit {
     pub prescaler: u16,
     pub counter_mode: CounterMode,
@@ -91,7 +93,7 @@ pub struct TimInit {
     pub repetition_counter: u8,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 #[repr(u32)]
 pub enum CounterMode {
     Up             = 0x0000,
@@ -101,7 +103,7 @@ pub enum CounterMode {
     CenterAligned3 = 0x0060,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 #[repr(u32)]
 pub enum ClockDivision {
     Div1 = 0x0000,
@@ -112,10 +114,10 @@ pub enum ClockDivision {
 impl Tim {
     pub fn init(&self, tim: &TimInit) {
         unsafe {
-            let mut tmpcr1: u16 = self.cr1.get() as u16;
-            tmpcr1 &= !(Cr1::DIR as u32 | Cr1::CMS as u32) as u16;
-            tmpcr1 = (tmpcr1 as u32 | tim.counter_mode as u32) as u16;
-            self.cr1.set(tmpcr1 as u32);
+            let mut tmpcr1 = self.cr1.get();
+            tmpcr1 &= !(Cr1::DIR as u32 | Cr1::CMS as u32);
+            tmpcr1 |= tim.counter_mode as u32;
+            self.cr1.set(tmpcr1);
 
             self.arr.set(tim.period);
             self.psc.set(tim.prescaler as u32);

@@ -127,9 +127,11 @@ pub unsafe fn restore_irq(primask: u32) {
 }
 
 /// A convenience wrapper around `save_irq` and `restore_irq`.
+#[derive(Debug)]
 pub struct IrqLock(u32);
 
 impl IrqLock {
+    #[allow(new_without_default_derive)]
     pub unsafe fn new() -> IrqLock {
         IrqLock(save_irq())
     }

@@ -7,6 +7,7 @@ use super::i2c;
 
 use ::futures::future::{self, Future, Either};
 
+#[allow(missing_debug_implementations)]
 pub struct Htu21d {
     i2c: &'static i2c::I2cBus,
 }
@@ -24,6 +25,7 @@ impl Temperature {
     }
 
     /// Return temperature in degrees celsius.
+    #[allow(float_arithmetic)]
     pub const fn celsius(&self) -> f32 {
         -46.85 + 175.72 * ((self.0 & !0x3) as f32) / ((1 << 16) as f32)
     }
@@ -49,12 +51,13 @@ impl Humidity {
         self.0
     }
 
+    #[allow(float_arithmetic)]
     pub const fn percents(&self) -> f32 {
         -6.0 + 125.0*((self.0 & !0x3) as f32)/((1 << 16) as f32)
     }
 
     pub const fn millipercents(&self) -> i64 {
-        -6_000 + (125_000*((self.0 & !0x3) as i64) >> 16)
+        -6_000 + ((125_000*((self.0 & !0x3) as i64)) >> 16)
     }
 }
 

@@ -100,22 +100,20 @@ macro_rules! isize_of {
     ( $t:ty ) => ( ::core::mem::size_of::<$t>() as isize )
 }
 
-#[allow(dead_code)]
 fn psize() -> usize {
     ::core::mem::size_of::<*mut u8>()
 }
 
-#[allow(dead_code)]
+#[allow(cast_possible_wrap)]
 fn ipsize() -> isize {
     ::core::mem::size_of::<*mut u8>() as isize
 }
 
-#[allow(dead_code)]
 fn bbsize() -> usize {
     ::core::mem::size_of::<BusyBlock>()
 }
 
-#[allow(dead_code)]
+#[allow(cast_possible_wrap)]
 fn ibbsize() -> isize {
     ::core::mem::size_of::<BusyBlock>() as isize
 }
@@ -125,11 +123,12 @@ fn fbsize() -> usize {
     ::core::mem::size_of::<FreeBlock>()
 }
 
-#[allow(dead_code)]
+#[allow(cast_possible_wrap)]
 fn ifbsize() -> isize {
     ::core::mem::size_of::<FreeBlock>() as isize
 }
 
+#[derive(Debug)]
 pub struct Smalloc {
     /// Start of the memory served by Smalloc
     pub start: *mut u8,
@@ -197,6 +196,8 @@ impl Smalloc {
     /// Initializes memory for allocator.
     ///
     /// Must be called before any allocation.
+    #[allow(cast_possible_truncation)] // cur_size is guaranteed to be less than MAX_ALLOC
+    #[allow(cast_possible_wrap)] // MAX_ALLOC should not wrap when cast to isize
     pub unsafe fn init(&self) {
         *self.free_list_start() = self.start.offset(ipsize()) as *mut FreeBlock;
 
@@ -206,7 +207,6 @@ impl Smalloc {
         while size != 0 {
             let cur_size = ::core::cmp::min(MAX_ALLOC, size - bbsize());
             size -= cur_size + bbsize();
-
             *(self.start.offset(cur_offset) as *mut _) = FreeBlock {
                 prev_size: prev_size + 1,
                 size: cur_size as u16,
@@ -218,8 +218,13 @@ impl Smalloc {
         }
     }
 
+    #[allow(cast_possible_truncation)] // size is checked to be u16
+    #[allow(cast_possible_wrap)]
     pub unsafe fn alloc(&self, mut size: usize) -> *mut u8 {
         if size == 0 {
+            return ptr::null_mut();
+        }
+        if size > ::core::u16::MAX as usize {
             return ptr::null_mut();
         }
 
@@ -263,6 +268,8 @@ impl Smalloc {
         (cur as *mut u8).offset(ibbsize())
     }
 
+    #[allow(cast_possible_wrap)]
+    #[allow(cast_possible_truncation)] // bbsize < u16
     pub unsafe fn free(&self, ptr: *mut u8) {
         if ptr.is_null() {
             return;
@@ -463,7 +470,7 @@ mod test {
                        *(memory as *const *mut FreeBlock));
             assert_eq!(
                 BusyBlock {
-                    prev_size: 0 as u16,
+                    prev_size: 0,
                     size: 8,
                 },
                 *(memory.offset(ipsize()) as *const BusyBlock));

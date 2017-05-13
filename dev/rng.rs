@@ -12,6 +12,7 @@ pub static mut RNG: Rng = Rng {
     task: AtomicU32::new(0),
 };
 
+#[allow(missing_debug_implementations)]
 pub struct Rng<'a> {
     inner: &'a rng::Rng,
     task: AtomicU32,

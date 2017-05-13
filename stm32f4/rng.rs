@@ -7,6 +7,7 @@ extern {
 }
 
 #[repr(C)]
+#[allow(missing_debug_implementations)]
 pub struct Rng {
     cr: RW<u32>,
     sr: RW<u32>,
@@ -31,6 +32,7 @@ enum CrMask {
 }
 
 #[repr(u32)]
+#[derive(Debug)]
 pub enum SrMask {
     /// Seed error interrupt status.
     ///

@@ -10,6 +10,7 @@ use core::sync::atomic::{AtomicU32, Ordering};
 
 use super::REACTOR;
 
+#[allow(missing_debug_implementations)]
 pub struct IoBuffer {
     writer_task_mask: AtomicU32,
     reader_task_mask: AtomicU32,
@@ -119,12 +120,12 @@ pub unsafe extern fn __isr_usart2() {
         let c = USART2.get_unsafe();
         // If the buffer is full, we discard _new_ input.
         // That's not ideal :(
-        let _ = STDIN.try_push(c as u8);
+        let _ = STDIN.try_push(c);
     }
 
     if USART2.it_status(usart::Interrupt::TXE) {
         if let Some(c) = STDOUT.try_pop() {
-            USART2.put_unsafe(c as u32);
+            USART2.put_unsafe(c);
         } else {
             USART2.it_disable(usart::Interrupt::TXE);
         }
