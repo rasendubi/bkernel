@@ -12,7 +12,7 @@ pub struct Htu21d {
     i2c: &'static i2c::I2cBus,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct Temperature(u16);
 
 impl Temperature {
@@ -71,7 +71,7 @@ impl ::core::fmt::Display for Humidity {
 #[derive(Debug)]
 pub enum Htu21dError {
     LockError,
-    I2cError(u32),
+    I2cError(i2c::Error),
 }
 
 const HTU21D_ADDRESS: u16 = 0x80;

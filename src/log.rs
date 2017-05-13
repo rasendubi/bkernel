@@ -111,6 +111,29 @@ impl Stream for &'static mut IoBuffer {
     }
 }
 
+/// This is very bad implementation for several reasons:
+///
+/// 1. It fails when the buffer is full, printing only the first part
+/// of the string.
+///
+/// 2. It requires getting a mutable reference to the buffer, which is
+/// not safe.
+impl ::core::fmt::Write for IoBuffer {
+    fn write_str(&mut self, s: &str) -> ::core::fmt::Result {
+        for b in s.as_bytes() {
+            if !self.try_push(*b) {
+                unsafe{&USART2}.it_enable(usart::Interrupt::TXE);
+
+                return Err(::core::fmt::Error);
+            }
+        }
+
+        unsafe{&USART2}.it_enable(usart::Interrupt::TXE);
+
+        Ok(())
+    }
+}
+
 pub static mut STDOUT: IoBuffer = IoBuffer::new();
 pub static mut STDIN: IoBuffer = IoBuffer::new();
 

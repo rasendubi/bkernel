@@ -64,6 +64,15 @@ macro_rules! debug_log {
     };
 }
 
+macro_rules! log {
+    ( $( $x:expr ),* ) => {
+        {
+            use ::core::fmt::Write;
+            let _ = write!(unsafe{&mut log::STDOUT}, $($x),*);
+        }
+    };
+}
+
 static HTU21D: Htu21d = Htu21d::new(&::dev::i2c::I2C1_BUS);
 
 #[cfg(target_os = "none")]
@@ -125,14 +134,14 @@ pub extern fn kmain() -> ! {
                     HTU21D.read_temperature_hold_master()
                         .then(|res| match res {
                             Ok(temp) => {
-                                future::result(Ok(Loop::Break(temp)))
+                                Ok(Loop::Break(temp))
                             },
                             // Acknowledge failure -> device is not ready -> retry
-                            Err(Htu21dError::I2cError(x)) if x & 0x400 != 0 => {
-                                future::result(Ok(Loop::Continue(())))
+                            Err(Htu21dError::I2cError(dev::i2c::Error::AcknowledgementFailure)) => {
+                                Ok(Loop::Continue(()))
                             },
                             Err(x) => {
-                                future::result(Err(x))
+                                Err(x)
                             },
                         })
                 }
@@ -141,13 +150,13 @@ pub extern fn kmain() -> ! {
         .and_then(|temp| {
             HTU21D.read_humidity_hold_master()
                 .map(move |hum| {
-                    debug_log!("Temperature: {} C      Humidity: {}%\r\n",
-                               temp, hum);
+                    log!("Temperature: {} C      Humidity: {}%\r\n",
+                         temp, hum);
                     ()
                 })
         })
         .map_err(|err| {
-            debug_log!("HTU21D error: {:?}\r\n", err);
+            log!("HTU21D error: {:?}\r\n", err);
             ()
         });
 
@@ -169,7 +178,7 @@ pub extern fn kmain() -> ! {
                                      &'static mut Future<Item=(), Error=()>>(&mut print_rng)
         );
         reactor.add_task(
-            3,
+            6,
             ::core::mem::transmute::<&mut Future<Item=(), Error=()>,
                                      &'static mut Future<Item=(), Error=()>>(&mut htu21d)
         );

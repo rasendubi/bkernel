@@ -2,6 +2,8 @@
 
 use core::sync::atomic::{AtomicUsize, Ordering};
 
+const SIZE: usize = 128;
+
 /// A lock-free _single-producer_, _single-consumer_ buffer.
 ///
 /// Do *NOT* use it with either multiple producers or multiple
@@ -13,7 +15,7 @@ use core::sync::atomic::{AtomicUsize, Ordering};
 ///
 /// [rust-lang/rfcs#1930]: https://github.com/rust-lang/rfcs/issues/1930
 pub struct CircularBuffer<T> {
-    array: [T; 32],
+    array: [T; SIZE],
     tail: AtomicUsize,
     head: AtomicUsize,
 }
@@ -29,14 +31,14 @@ impl<T: Copy> CircularBuffer<T> {
     /// const. (Have no idea why.)
     pub const fn new(init: T) -> CircularBuffer<T> {
         CircularBuffer {
-            array: [init; 32],
+            array: [init; SIZE],
             tail: AtomicUsize::new(0),
             head: AtomicUsize::new(0),
         }
     }
 
     const fn increment(idx: usize) -> usize {
-        (idx + 1) % 32
+        (idx + 1) % SIZE
     }
 
     /// Push an item into the buffer.

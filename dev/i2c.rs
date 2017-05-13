@@ -18,7 +18,15 @@ pub struct I2cBus {
     buffer: UnsafeCell<*mut u8>,
     buf_left: UnsafeCell<usize>,
 
-    result: UnsafeCell<Promise<(), u32>>,
+    result: UnsafeCell<Promise<(), Error>>,
+}
+
+#[derive(Debug)]
+pub enum Error {
+    AcknowledgementFailure,
+    ArbitrationLost,
+    BusError,
+    Unknown(u32),
 }
 
 #[allow(missing_debug_implementations)]
@@ -65,7 +73,7 @@ pub struct Transmission<'a> {
 
 impl<'a> Future for Transmission<'a> {
     type Item = (I2cTransfer, &'a [u8]);
-    type Error = u32;
+    type Error = Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         let result = self.transfer.as_ref().unwrap().bus.result.get();
@@ -211,7 +219,7 @@ pub unsafe extern "C" fn __isr_i2c1_ev() {
             // TODO(ashmalko): this function should be rewritten to
             // check particular status flags, and not matching events
             // as whole.
-            panic!("__isr_i2c1_ev(): unknown event 0x{:x}", event);
+            // panic!("__isr_i2c1_ev(): unknown event 0x{:x}", event);
         }
     }
 }
@@ -222,22 +230,25 @@ pub unsafe extern "C" fn __isr_i2c1_er() {
 
     let event = bus.i2c.get_last_event();
 
-    let result = bus.result.get();
-    (*result).resolve(Err(event));
-
     bus.i2c.it_disable(i2c::Interrupt::Evt);
     bus.i2c.it_disable(i2c::Interrupt::Buf);
     bus.i2c.it_disable(i2c::Interrupt::Err);
 
-    if event & (i2c::Sr1Masks::ARLO as u32) != 0 {
-        bus.i2c.it_clear_pending(i2c::Sr1Masks::ARLO as u32);
-    }
-    if event & (i2c::Sr1Masks::BERR as u32) != 0 {
-        bus.i2c.it_clear_pending(i2c::Sr1Masks::BERR as u32);
-    }
-    if event & (i2c::Sr1Masks::AF as u32) != 0 {
+    let error = if event & (i2c::Sr1Masks::AF as u32) != 0 {
         bus.i2c.it_clear_pending(i2c::Sr1Masks::AF as u32);
-    }
+        Error::AcknowledgementFailure
+    } else if event & (i2c::Sr1Masks::ARLO as u32) != 0 {
+        bus.i2c.it_clear_pending(i2c::Sr1Masks::ARLO as u32);
+        Error::ArbitrationLost
+    } else if event & (i2c::Sr1Masks::BERR as u32) != 0 {
+        bus.i2c.it_clear_pending(i2c::Sr1Masks::BERR as u32);
+        Error::BusError
+    } else {
+        Error::Unknown(event)
+    };
+
+    let result = bus.result.get();
+    (*result).resolve(Err(error));
 }
 
 #[no_mangle]
