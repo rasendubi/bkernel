@@ -57,7 +57,7 @@ impl I2cBus {
     }
 
     pub fn start_transfer(&'static self) -> impl Future<Item=I2cTransfer, Error=()> + Sized {
-        self.mutex.map(move |lock| I2cTransfer { lock, bus: self })
+        self.mutex.lock().map(move |lock| I2cTransfer { lock, bus: self })
     }
 }
 

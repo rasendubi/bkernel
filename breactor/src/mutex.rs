@@ -38,7 +38,7 @@ use super::REACTOR;
 ///
 /// impl Bus {
 ///     pub fn access(&'static self) -> impl Future<Item=AccessToken, Error=()> {
-///         self.mutex.map(|lock| AccessToken { lock })
+///         self.mutex.lock().map(|lock| AccessToken { lock })
 ///     }
 /// }
 ///
@@ -71,6 +71,11 @@ pub struct MutexLock<'a> {
     mutex: &'a Mutex,
 }
 
+#[allow(missing_debug_implementations)]
+pub struct LockFuture<'a> {
+    mutex: &'a Mutex,
+}
+
 impl<'a> Drop for MutexLock<'a> {
     fn drop(&mut self) {
         self.mutex.release()
@@ -86,6 +91,13 @@ impl Mutex {
         }
     }
 
+    /// Return a future that will eventually lock the given mutex.
+    pub const fn lock(&self) -> LockFuture {
+        LockFuture {
+            mutex: self,
+        }
+    }
+
     /// Release the mutex, notifying all waiting tasks.
     fn release(&self) {
         self.owner.store(0, Ordering::SeqCst);
@@ -94,19 +106,19 @@ impl Mutex {
     }
 }
 
-impl<'a> Future for &'a Mutex {
+impl<'a> Future for LockFuture<'a> {
     type Item = MutexLock<'a>;
     type Error = ();
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         let task = REACTOR.get_current_task_mask();
 
-        self.wait_task_mask.fetch_or(task, Ordering::SeqCst);
+        self.mutex.wait_task_mask.fetch_or(task, Ordering::SeqCst);
 
-        let prev = self.owner.compare_and_swap(0, task, Ordering::SeqCst);
+        let prev = self.mutex.owner.compare_and_swap(0, task, Ordering::SeqCst);
         if prev == 0 {
             // Mutex locked
-            Ok(Async::Ready(MutexLock { mutex: self }))
+            Ok(Async::Ready(MutexLock { mutex: self.mutex }))
         } else {
             Ok(Async::NotReady)
         }
