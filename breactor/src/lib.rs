@@ -13,7 +13,7 @@ use ::core::sync::atomic::{AtomicU32, Ordering};
 use ::core::cell::UnsafeCell;
 use ::core::u32;
 
-use futures::{Async, Future};
+use ::futures::{Async, Future};
 
 pub static REACTOR: Reactor = Reactor::new();
 

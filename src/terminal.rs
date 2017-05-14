@@ -1,7 +1,7 @@
 use led;
 use led_music;
 
-use futures::{Async, AsyncSink, Future, IntoFuture, Poll, Sink, Stream};
+use futures::{Async, AsyncSink, Future, Poll, Sink, Stream};
 
 use start_send_all_string::StartSendAllString;
 
@@ -114,60 +114,60 @@ impl<S> Future for CommandResult<S>
     type Error = S::SinkError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        *self = match *self {
-            CommandResult::EchoChar(ref mut sink, c) => {
-                if let AsyncSink::NotReady(_) = try!(sink.as_mut().take().expect("").start_send(c)) {
-                    return Ok(Async::NotReady)
-                } else {
-                    return Ok(Async::Ready(sink.take().expect("")))
+        loop {
+            *self = match *self {
+                CommandResult::EchoChar(ref mut sink, c) => {
+                    if let AsyncSink::NotReady(_) = try!(sink.as_mut().take().unwrap().start_send(c)) {
+                        return Ok(Async::NotReady)
+                    } else {
+                        return Ok(Async::Ready(sink.take().unwrap()))
+                    }
                 }
-            }
-            CommandResult::EchoCharStr(c, ref mut f) => {
-                let sink = try_ready!(f.poll());
-                if c == '\r' as u8 {
-                    process_enter(sink)
-                } else {
+                CommandResult::EchoCharStr(c, ref mut f) => {
+                    let sink = try_ready!(f.poll());
+                    if c == '\r' as u8 {
+                        process_enter(sink)
+                    } else {
+                        return Ok(Async::Ready(sink))
+                    }
+                }
+                CommandResult::Temperature(ref mut sink, ref mut f) => {
+                    let res = f.poll();
+                    match res {
+                        Ok(Async::Ready((temperature, humidity))) => {
+                            // TODO: don't use log
+                            log!("Temperature: {} C    Humidity: {}%\r\n", temperature, humidity);
+                            CommandResult::flush_prompt(sink.take().unwrap())
+                        },
+                        Ok(Async::NotReady) => {
+                            return Ok(Async::NotReady);
+                        },
+                        Err(err) => {
+                            log!("{:?}\r\n", err);
+                            CommandResult::flush(sink.take().unwrap(),
+                                                 "Temperature read error\r\n")
+                        },
+                    }
+                },
+                CommandResult::Sink(ref mut sink) => {
+                    return Ok(Async::Ready(
+                        sink.take().unwrap()))
+                }
+                CommandResult::FlushString(ref mut f) => {
+                    let sink = try_ready!(f.poll());
+                    CommandResult::flush_prompt(sink)
+                }
+                CommandResult::FlushPrompt(ref mut f) => {
+                    let sink = try_ready!(f.poll());
                     return Ok(Async::Ready(sink))
                 }
-            }
-            CommandResult::Temperature(ref mut sink, ref mut f) => {
-                let res = f.poll();
-                match res {
-                    Ok(Async::Ready((temperature, humidity))) => {
-                        // TODO: don't use log
-                        log!("Temperature: {} C    Humidity: {}%\r\n", temperature, humidity);
-                        CommandResult::flush_prompt(sink.take().unwrap())
-                    },
-                    Ok(Async::NotReady) => {
-                        return Ok(Async::NotReady);
-                    },
-                    Err(err) => {
-                        log!("{:?}\r\n", err);
-                        CommandResult::flush(sink.take().unwrap(),
-                                             "Temperature read error\r\n")
-                    },
-                }
-            },
-            CommandResult::Sink(ref mut sink) => {
-                return Ok(Async::Ready(
-                    sink.take().expect("")))
-            }
-            CommandResult::FlushString(ref mut f) => {
-                let sink = try_ready!(f.poll());
-                CommandResult::flush_prompt(sink)
-            }
-            CommandResult::FlushPrompt(ref mut f) => {
-                let sink = try_ready!(f.poll());
-                return Ok(Async::Ready(sink))
-            }
-        };
-
-        self.poll()
+            };
+        }
     }
 }
 
 /// Starts a terminal.
-pub fn run_terminal<St, Si>(stream: St, sink: Si) -> impl IntoFuture<Item=Si, Error=()> + 'static
+pub fn run_terminal<St, Si>(stream: St, sink: Si) -> impl Future<Item=Si, Error=()> + 'static
     where St: Stream<Item=u8, Error=()> + 'static,
           Si: Sink<SinkItem=u8, SinkError=()> + 'static
 {
@@ -180,7 +180,7 @@ static mut CUR: usize = 0;
 
 /// Processes one character at a time. Calls `process_command` when
 /// user presses Enter or command is too long.
-fn process_char<Si>(sink: Si, c: u8) -> impl IntoFuture<Item=Si, Error=()> + 'static
+fn process_char<Si>(sink: Si, c: u8) -> impl Future<Item=Si, Error=()> + 'static
     where Si: Sink<SinkItem=u8, SinkError=()> + 'static
 {
     let mut command = unsafe{&mut COMMAND};

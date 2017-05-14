@@ -149,11 +149,7 @@ const WRITE_USER_CMD: [u8; 1] = [ 0xE6 ];
 const READ_USER_CMD: [u8; 1] = [ 0xE7 ];
 const SOFT_RESET_CMD: [u8; 1] = [ 0xFE ];
 
-/// DO NOT USE.
-///
-/// It is public only to satisfy linker, so it doesn't delete the
-/// variable.
-pub static mut __READ_BUFFER: [u8; 3] = [0; 3];
+static mut __READ_BUFFER: [u8; 3] = [0; 3];
 
 #[allow(missing_debug_implementations)]
 pub enum Htu21dCommand<H, R> {
@@ -173,7 +169,7 @@ impl<T> Future for Htu21dCommand<HoldMaster, T>
         use self::Htu21dCommand::*;
 
         loop {
-            let next = match *self {
+            *self = match *self {
                 StartTransfer(ref mut start_transfer, ref cmd) => {
                     let i2c = try_ready!(start_transfer.poll());
                     CmdTransmission(i2c.master_transmitter_raw(
@@ -195,7 +191,6 @@ impl<T> Future for Htu21dCommand<HoldMaster, T>
                     return Ok(Async::Ready(T::from(sample)));
                 },
             };
-            *self = next;
         }
     }
 }
@@ -208,7 +203,7 @@ impl Future for Htu21dCommand<NoHoldMaster, Reset> {
         use self::Htu21dCommand::*;
 
         loop {
-            let next = match *self {
+            *self = match *self {
                 StartTransfer(ref mut start_transfer, ref cmd) => {
                     let transfer = try_ready!(start_transfer.poll());
                     CmdTransmission(transfer.master_transmitter_raw(
@@ -223,10 +218,11 @@ impl Future for Htu21dCommand<NoHoldMaster, Reset> {
                     return Ok(Async::Ready(Reset));
                 },
                 _ => {
-                    panic!();
+                    unsafe {
+                        ::core::intrinsics::unreachable();
+                    }
                 },
             };
-            *self = next;
         }
     }
 }
