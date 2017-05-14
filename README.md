@@ -67,6 +67,7 @@ After booting the kernel you should see all LEDs are turned on and a terminal is
 The following commands are supported:
 - `hi` - says hello
 - `+3`/`-3`/`+4`/`-4`/`+5`/`-5`/`+6`/`-6` - turn on/off LD3/4/5/6
+- `temp` - read temperature and humidity from HTU21D sensor
 - `panic` - throw a panic
 - `help` - for more commands
 

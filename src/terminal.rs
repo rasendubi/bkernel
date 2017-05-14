@@ -16,9 +16,19 @@ pony    -- surprise!\r
 -5/+5   -- turn off/on LED5\r
 -6/+6   -- turn off/on LED6\r
 led-fun -- some fun with LEDs\r
+temp    -- read temperature from HTU21D sensor\r
 panic   -- throw a panic\r
 help    -- print this help\r
 ";
+
+macro_rules! log {
+    ( $( $x:expr ),* ) => {
+        {
+            use ::core::fmt::Write;
+            let _ = write!(unsafe{&mut super::log::STDOUT}, $($x),*);
+        }
+    };
+}
 
 // https://raw.githubusercontent.com/mbasaglia/ASCII-Pony/master/Ponies/vinyl-scratch-noglasses.txt
 // https://github.com/mbasaglia/ASCII-Pony/
@@ -55,6 +65,11 @@ const PONY: &'static str = "\r
 
 pub enum CommandResult<S> {
     Sink(Option<S>),
+    Temperature(
+        Option<S>,
+        ::futures::future::Join<
+            ::dev::htu21d::Htu21dCommand<::dev::htu21d::HoldMaster, ::dev::htu21d::Temperature>,
+            ::dev::htu21d::Htu21dCommand<::dev::htu21d::HoldMaster, ::dev::htu21d::Humidity>>),
     EchoChar(Option<S>, u8),
     EchoCharStr(u8, StartSendAllString<'static, S>),
     FlushString(StartSendAllString<'static, S>),
@@ -84,6 +99,12 @@ impl<S> CommandResult<S>
     pub fn sink(sink: S) -> CommandResult<S> {
         CommandResult::Sink(Some(sink))
     }
+
+    pub fn temperature(sink: S) -> CommandResult<S> {
+        CommandResult::Temperature(Some(sink),
+                                   super::HTU21D.read_temperature_hold_master().join(
+                                       super::HTU21D.read_humidity_hold_master()))
+    }
 }
 
 impl<S> Future for CommandResult<S>
@@ -109,6 +130,24 @@ impl<S> Future for CommandResult<S>
                     return Ok(Async::Ready(sink))
                 }
             }
+            CommandResult::Temperature(ref mut sink, ref mut f) => {
+                let res = f.poll();
+                match res {
+                    Ok(Async::Ready((temperature, humidity))) => {
+                        // TODO: don't use log
+                        log!("Temperature: {} C    Humidity: {}%\r\n", temperature, humidity);
+                        CommandResult::flush_prompt(sink.take().unwrap())
+                    },
+                    Ok(Async::NotReady) => {
+                        return Ok(Async::NotReady);
+                    },
+                    Err(err) => {
+                        log!("{:?}\r\n", err);
+                        CommandResult::flush(sink.take().unwrap(),
+                                             "Temperature read error\r\n")
+                    },
+                }
+            },
             CommandResult::Sink(ref mut sink) => {
                 return Ok(Async::Ready(
                     sink.take().expect("")))
@@ -189,6 +228,9 @@ fn process_enter<Si>(sink: Si) -> CommandResult<Si>
         b"-6" => { led::LD6.turn_off(); CommandResult::flush_prompt(sink) },
         b"+6" => { led::LD6.turn_on(); CommandResult::flush_prompt(sink) },
         b"led-fun" => { led_music::led_fun(71000); CommandResult::flush_prompt(sink) },
+        b"temp" | b"temperature" => {
+            CommandResult::temperature(sink)
+        },
         b"panic" => {
             panic!();
         }
