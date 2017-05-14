@@ -56,8 +56,22 @@ impl I2cBus {
         }
     }
 
-    pub fn start_transfer(&'static self) -> impl Future<Item=I2cTransfer, Error=()> + Sized {
-        self.mutex.lock().map(move |lock| I2cTransfer { lock, bus: self })
+    pub const fn start_transfer(&'static self) -> StartTransferFuture {
+        StartTransferFuture { bus: self }
+    }
+}
+
+#[allow(missing_debug_implementations)]
+pub struct StartTransferFuture {
+    bus: &'static I2cBus,
+}
+
+impl Future for StartTransferFuture {
+    type Item = I2cTransfer;
+    type Error = ();
+
+    fn poll(&mut self) -> Result<Async<I2cTransfer>, ()> {
+        self.bus.mutex.lock().map(move |lock| I2cTransfer { lock, bus: self.bus }).poll()
     }
 }
 
