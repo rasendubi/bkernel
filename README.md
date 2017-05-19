@@ -31,6 +31,7 @@ This project needs lots of nightly features:
 - allocator
 - conservative impl trait
 - integer atomics
+- fixed size array
 
 Nightly builds are not backward-compatible, so only the latest version is supported (it changes every 6 weeks). That's why you need a reasonably up-to-date nightly rust.
 

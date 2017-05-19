@@ -7,22 +7,23 @@ use lock_free::CircularBuffer;
 use futures::{Async, AsyncSink, Sink, Stream, StartSend, Poll};
 
 use core::sync::atomic::{AtomicU32, Ordering};
+use ::core::array::FixedSizeArray;
 
 use super::REACTOR;
 
 #[allow(missing_debug_implementations)]
-pub struct IoBuffer {
+pub struct IoBuffer<A: FixedSizeArray<u8>> {
     writer_task_mask: AtomicU32,
     reader_task_mask: AtomicU32,
-    intern: CircularBuffer<u8>,
+    intern: CircularBuffer<u8, A>,
 }
 
-impl IoBuffer {
-    pub const fn new() -> IoBuffer {
+impl<A: FixedSizeArray<u8>> IoBuffer<A> {
+    pub const fn new(init: A) -> IoBuffer<A> {
         IoBuffer {
             writer_task_mask: AtomicU32::new(0),
             reader_task_mask: AtomicU32::new(0),
-            intern: CircularBuffer::new(0),
+            intern: CircularBuffer::new(init),
         }
     }
 
@@ -58,7 +59,7 @@ impl IoBuffer {
     // }
 }
 
-impl Sink for &'static mut IoBuffer {
+impl<A: FixedSizeArray<u8>> Sink for &'static mut IoBuffer<A> {
     type SinkItem = u8;
     type SinkError = ();
 
@@ -94,7 +95,7 @@ impl Sink for &'static mut IoBuffer {
     }
 }
 
-impl Stream for &'static mut IoBuffer {
+impl<A: FixedSizeArray<u8>> Stream for &'static mut IoBuffer<A> {
     type Item = u8;
     type Error = ();
 
@@ -118,7 +119,7 @@ impl Stream for &'static mut IoBuffer {
 ///
 /// 2. It requires getting a mutable reference to the buffer, which is
 /// not safe.
-impl ::core::fmt::Write for IoBuffer {
+impl<A: FixedSizeArray<u8>> ::core::fmt::Write for IoBuffer<A> {
     fn write_str(&mut self, s: &str) -> ::core::fmt::Result {
         for b in s.as_bytes() {
             if !self.try_push(*b) {
@@ -134,8 +135,8 @@ impl ::core::fmt::Write for IoBuffer {
     }
 }
 
-pub static mut STDOUT: IoBuffer = IoBuffer::new();
-pub static mut STDIN: IoBuffer = IoBuffer::new();
+pub static mut STDOUT: IoBuffer<[u8; 128]> = IoBuffer::new([0; 128]);
+pub static mut STDIN: IoBuffer<[u8; 128]> = IoBuffer::new([0; 128]);
 
 #[no_mangle]
 pub unsafe extern fn __isr_usart2() {

@@ -3,6 +3,7 @@
 #![feature(lang_items, alloc, core_intrinsics, const_fn)]
 #![feature(conservative_impl_trait)]
 #![feature(integer_atomics)]
+#![feature(fixed_size_array)]
 
 #![feature(compiler_builtins_lib)]
 
