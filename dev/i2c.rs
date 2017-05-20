@@ -10,6 +10,10 @@ use futures::{Async, Future, Poll};
 use breactor::mutex::{Mutex, MutexLock};
 use breactor::promise::Promise;
 
+pub static I2C1_BUS: I2cBus = I2cBus::new(unsafe{&i2c::I2C1});
+pub static I2C2_BUS: I2cBus = I2cBus::new(unsafe{&i2c::I2C2});
+pub static I2C3_BUS: I2cBus = I2cBus::new(unsafe{&i2c::I2C3});
+
 #[allow(missing_debug_implementations)]
 pub struct I2cBus {
     i2c: &'static I2c,
@@ -21,11 +25,25 @@ pub struct I2cBus {
     result: UnsafeCell<Promise<(), Error>>,
 }
 
-#[derive(Debug)]
+#[derive(PartialEq, Eq, Copy, Clone, Debug)]
 pub enum Error {
+    /// Failed to lock I2C bus.
+    ///
+    /// This should practically never occur.
+    LockError,
+
+    /// Acknowledgement failure.
+    ///
+    /// The device has not acknowledged its address or data byte.
     AcknowledgementFailure,
+
     ArbitrationLost,
+
     BusError,
+
+    /// Unknown I2C error.
+    ///
+    /// The internal value is I2C event.
     Unknown(u32),
 }
 
@@ -36,10 +54,6 @@ pub struct I2cTransfer {
 
     bus: &'static I2cBus,
 }
-
-pub static I2C1_BUS: I2cBus = I2cBus::new(unsafe{&i2c::I2C1});
-pub static I2C2_BUS: I2cBus = I2cBus::new(unsafe{&i2c::I2C2});
-pub static I2C3_BUS: I2cBus = I2cBus::new(unsafe{&i2c::I2C3});
 
 unsafe impl Sync for I2cBus {
 }
@@ -68,10 +82,13 @@ pub struct StartTransferFuture {
 
 impl Future for StartTransferFuture {
     type Item = I2cTransfer;
-    type Error = ();
+    type Error = Error;
 
-    fn poll(&mut self) -> Result<Async<I2cTransfer>, ()> {
-        self.bus.mutex.lock().map(move |lock| I2cTransfer { lock, bus: self.bus }).poll()
+    fn poll(&mut self) -> Result<Async<I2cTransfer>, Error> {
+        self.bus.mutex.lock()
+            .map(move |lock| I2cTransfer { lock, bus: self.bus })
+            .map_err(|_| Error::LockError)
+            .poll()
     }
 }
 

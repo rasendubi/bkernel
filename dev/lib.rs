@@ -13,3 +13,4 @@ extern crate stm32f4;
 pub mod i2c;
 pub mod rng;
 pub mod htu21d;
+pub mod cs43l22;

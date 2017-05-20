@@ -1,3 +1,4 @@
+//! Random number generator.
 use ::core::sync::atomic::{AtomicU32, Ordering};
 
 use stm32f4::rng;
@@ -30,7 +31,7 @@ impl<'a> Rng<'a> {
 
 impl<'a> Stream for Rng<'a> {
     type Item = u32;
-    type Error = rng::RngError;
+    type Error = rng::Error;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
         let task = REACTOR.get_current_task_mask();

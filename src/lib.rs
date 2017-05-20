@@ -1,5 +1,3 @@
-//! This crate is a Rust part of the kernel. It should be linked with
-//! the bootstrap that will jump to the `kmain` function.
 #![feature(lang_items, alloc, core_intrinsics, const_fn)]
 #![feature(conservative_impl_trait)]
 #![feature(integer_atomics)]
@@ -54,6 +52,8 @@ use breactor::REACTOR;
 
 use ::dev::htu21d::{Htu21d, Htu21dError};
 
+use ::dev::cs43l22::Cs43l22;
+
 macro_rules! debug_log {
     ( $( $x:expr ),* ) => {
         {
@@ -75,6 +75,8 @@ macro_rules! log {
 }
 
 static HTU21D: Htu21d = Htu21d::new(&::dev::i2c::I2C1_BUS);
+
+static mut CS43L22: Cs43l22 = Cs43l22::new(&::dev::i2c::I2C1_BUS, false);
 
 #[cfg(target_os = "none")]
 fn init_memory() {
@@ -161,6 +163,19 @@ pub extern fn kmain() -> ! {
             ()
         });
 
+    let mut cs43l22 = unsafe {&mut CS43L22}.get_chip_id()
+        .then(|res| {
+            match res {
+                Ok(id) => {
+                    log!("CS43L22 CHIP ID: 0b{:b}\r\n", id);
+                },
+                Err(err) => {
+                    log!("Error: {:?}\r\n", err);
+                },
+            }
+            Ok(())
+        });
+
     unsafe {
         let reactor = &REACTOR;
 
@@ -182,6 +197,11 @@ pub extern fn kmain() -> ! {
             6,
             ::core::mem::transmute::<&mut Future<Item=(), Error=()>,
                                      &'static mut Future<Item=(), Error=()>>(&mut htu21d)
+        );
+        reactor.add_task(
+            2,
+            ::core::mem::transmute::<&mut Future<Item=(), Error=()>,
+                                     &'static mut Future<Item=(), Error=()>>(&mut cs43l22)
         );
 
         loop {
@@ -317,6 +337,8 @@ unsafe fn init_i2c() {
         af: gpio::GpioAF::AF0,
     });
 
+    GPIO_D.set_bit(4);
+
     rcc::RCC.ahb1_clock_enable(rcc::Ahb1Enable::GPIOB);
 
     GPIO_B.enable(6, gpio::GpioConfig {
@@ -336,7 +358,7 @@ unsafe fn init_i2c() {
 
     rcc::RCC.apb1_clock_enable(rcc::Apb1Enable::I2C1);
     i2c::I2C1.init(&i2c::I2cInit {
-        clock_speed: 100000,
+        clock_speed: 10000,
         mode: i2c::Mode::I2C,
         duty_cycle: i2c::DutyCycle::DutyCycle_2,
         own_address1: 0,
