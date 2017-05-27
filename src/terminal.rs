@@ -1,9 +1,9 @@
 use led;
 use led_music;
 
-use futures::{Async, AsyncSink, Future, Poll, Sink, Stream};
+use ::futures::{Async, AsyncSink, Future, Poll, Sink, Stream};
 
-use start_send_all_string::StartSendAllString;
+use ::breactor::start_send_all_string::StartSendAllString;
 
 const PROMPT: &'static str = "> ";
 

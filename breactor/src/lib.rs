@@ -2,12 +2,15 @@
 #![feature(integer_atomics)]
 #![feature(const_fn)]
 
+#[macro_use]
 extern crate futures;
 
 extern crate stm32f4;
 
 pub mod mutex;
 pub mod promise;
+pub mod start_send_all;
+pub mod start_send_all_string;
 
 use ::core::sync::atomic::{AtomicU32, Ordering};
 use ::core::cell::UnsafeCell;

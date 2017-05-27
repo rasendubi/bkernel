@@ -29,8 +29,6 @@ pub use compiler_builtins::*;
 mod led;
 mod led_music;
 mod terminal;
-mod start_send_all;
-mod start_send_all_string;
 mod log;
 
 use stm32f4::{rcc, gpio, usart, timer, nvic};
@@ -41,9 +39,9 @@ use stm32f4::timer::TIM2;
 use futures::{Future, Stream};
 use futures::future::{self, Loop};
 
-use start_send_all_string::StartSendAllString;
+use ::breactor::start_send_all_string::StartSendAllString;
 
-use breactor::REACTOR;
+use ::breactor::REACTOR;
 
 use ::dev::usart::Usart;
 
