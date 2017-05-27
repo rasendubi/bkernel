@@ -200,6 +200,10 @@ pub unsafe extern "C" fn __isr_i2c1_ev() {
         },
         i2c::Event::MasterTransmitterModeSelected |
         i2c::Event::MasterReceiverModeSelected => {
+            let buf_left = bus.buf_left.get();
+            if (*buf_left) == 1 {
+                bus.i2c.set_acknowledge(false);
+            }
         },
         i2c::Event::MasterByteTransmitted => {
             let buf_left = bus.buf_left.get();
