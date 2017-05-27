@@ -25,7 +25,7 @@ macro_rules! log {
     ( $( $x:expr ),* ) => {
         {
             use ::core::fmt::Write;
-            let _ = write!(unsafe{&mut super::log::STDOUT}, $($x),*);
+            let _ = write!(super::log::Logger::new(&super::USART2), $($x),*);
         }
     };
 }

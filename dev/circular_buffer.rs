@@ -1,5 +1,5 @@
-//! Lock-free structures.
-
+//! Lock-free ring buffer.
+use ::core::cell::UnsafeCell;
 use ::core::sync::atomic::{AtomicUsize, Ordering};
 use ::core::array::FixedSizeArray;
 use ::core::marker::PhantomData;
@@ -8,8 +8,9 @@ use ::core::marker::PhantomData;
 ///
 /// Do *NOT* use it with either multiple producers or multiple
 /// consumers.
+#[allow(missing_debug_implementations)]
 pub struct CircularBuffer<T, A> {
-    array: A,
+    array: UnsafeCell<A>,
     tail: AtomicUsize,
     head: AtomicUsize,
     __phantom: PhantomData<T>,
@@ -26,7 +27,7 @@ impl<T: Copy, A: FixedSizeArray<T>> CircularBuffer<T, A> {
     /// const. (Have no idea why.)
     pub const fn new(init: A) -> CircularBuffer<T, A> {
         CircularBuffer {
-            array: init,
+            array: UnsafeCell::new(init),
             tail: AtomicUsize::new(0),
             head: AtomicUsize::new(0),
             __phantom: PhantomData,
@@ -34,21 +35,25 @@ impl<T: Copy, A: FixedSizeArray<T>> CircularBuffer<T, A> {
     }
 
     fn increment(&self, idx: usize) -> usize {
-        (idx + 1) % self.array.as_slice().len()
+        unsafe {
+            (idx + 1) % (*self.array.get()).as_slice().len()
+        }
     }
 
     /// Push an item into the buffer.
     ///
     /// Returns `true` if push was successful.
     /// `false` means the buffer was full.
-    pub fn push(&mut self, item: T) -> bool {
+    pub fn push(&self, item: T) -> bool {
         let current_tail = self.tail.load(Ordering::Relaxed);
         let next_tail = self.increment(current_tail);
         if next_tail == self.head.load(Ordering::Acquire) {
             // Queue is full
             false
         } else {
-            self.array.as_mut_slice()[current_tail] = item;
+            unsafe {
+                (*self.array.get()).as_mut_slice()[current_tail] = item;
+            }
             self.tail.store(next_tail, Ordering::Release);
 
             true
@@ -58,12 +63,12 @@ impl<T: Copy, A: FixedSizeArray<T>> CircularBuffer<T, A> {
     /// Pops element from the buffer.
     ///
     /// `None` means the buffer was empty.
-    pub fn pop(&mut self) -> Option<T> {
+    pub fn pop(&self) -> Option<T> {
         let current_head = self.head.load(Ordering::Relaxed);
         if current_head == self.tail.load(Ordering::Acquire) {
             None
         } else {
-            let item = self.array.as_slice()[current_head];
+            let item = unsafe{&mut *self.array.get()}.as_slice()[current_head];
             self.head.store(self.increment(current_head), Ordering::Release);
 
             Some(item)
@@ -79,19 +84,22 @@ impl<T: Copy, A: FixedSizeArray<T>> CircularBuffer<T, A> {
     }
 }
 
+unsafe impl<T, A: FixedSizeArray<T>> Sync for CircularBuffer<T, A> {
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
 
     #[test]
     fn test_init_is_empty() {
-        let mut cb = CircularBuffer::new([0; 32]);
+        let cb = CircularBuffer::new([0; 32]);
         assert_eq!(None, cb.pop());
     }
 
     #[test]
     fn test_push_pop() {
-        let mut cb = CircularBuffer::new([0; 32]);
+        let cb = CircularBuffer::new([0; 32]);
         assert_eq!(true, cb.push(5));
         assert_eq!(Some(5), cb.pop());
     }

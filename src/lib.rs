@@ -1,6 +1,5 @@
 #![feature(lang_items, alloc, core_intrinsics, const_fn)]
 #![feature(conservative_impl_trait)]
-#![feature(integer_atomics)]
 #![feature(fixed_size_array)]
 
 #![feature(compiler_builtins_lib)]
@@ -33,12 +32,10 @@ mod terminal;
 mod start_send_all;
 mod start_send_all_string;
 mod log;
-mod lock_free;
 
 use stm32f4::{rcc, gpio, usart, timer, nvic};
 use stm32f4::rcc::RCC;
 use stm32f4::gpio::{GPIO_B, GPIO_D};
-use stm32f4::usart::USART2;
 use stm32f4::timer::TIM2;
 
 use futures::{Future, Stream};
@@ -46,13 +43,16 @@ use futures::future::{self, Loop};
 
 use start_send_all_string::StartSendAllString;
 
-pub use log::__isr_usart2;
-
 use breactor::REACTOR;
+
+use ::dev::usart::Usart;
 
 use ::dev::htu21d::{Htu21d, Htu21dError};
 
 use ::dev::cs43l22::Cs43l22;
+
+pub static USART2: Usart<[u8; 128], [u8; 32]> =
+    Usart::new(unsafe{&::stm32f4::usart::USART2}, [0; 128], [0; 32]);
 
 macro_rules! debug_log {
     ( $( $x:expr ),* ) => {
@@ -69,7 +69,7 @@ macro_rules! log {
     ( $( $x:expr ),* ) => {
         {
             use ::core::fmt::Write;
-            let _ = write!(unsafe{&mut log::STDOUT}, $($x),*);
+            let _ = write!(log::Logger::new(&USART2), $($x),*);
         }
     };
 }
@@ -117,8 +117,8 @@ pub extern fn kmain() -> ! {
         .map(|_| ())
         .map_err(|_| ());
 
-    let stdin = unsafe {&mut log::STDIN};
-    let stdout = unsafe {&mut log::STDOUT};
+    let stdin = &USART2;
+    let stdout = &USART2;
 
     let mut terminal = StartSendAllString::new(
         stdout,
@@ -250,6 +250,8 @@ unsafe fn init_leds() {
 }
 
 unsafe fn init_usart1() {
+    use ::stm32f4::usart::USART2;
+
     RCC.apb1_clock_enable(rcc::Apb1Enable::USART2);
 
     // Enable the peripheral clock for the pins used by USART2, PD5
@@ -389,4 +391,9 @@ unsafe fn init_rng() {
         subpriority: 1,
         enable: true,
     });
+}
+
+#[no_mangle]
+pub unsafe extern fn __isr_usart2() {
+    USART2.isr()
 }
