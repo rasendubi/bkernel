@@ -92,14 +92,6 @@ extern crate rand;
 
 use ::core::ptr;
 
-macro_rules! size_of {
-    ( $t:ty ) => ( ::core::mem::size_of::<$t>() )
-}
-
-macro_rules! isize_of {
-    ( $t:ty ) => ( ::core::mem::size_of::<$t>() as isize )
-}
-
 fn psize() -> usize {
     ::core::mem::size_of::<*mut u8>()
 }
