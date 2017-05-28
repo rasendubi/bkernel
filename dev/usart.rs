@@ -102,7 +102,7 @@ impl<A: FixedSizeArray<u8>, B: FixedSizeArray<u8>> Usart<A, B> {
     }
 }
 
-impl<A: FixedSizeArray<u8>, B: FixedSizeArray<u8>> Sink for &'static Usart<A, B> {
+impl<'a, A: FixedSizeArray<u8>, B: FixedSizeArray<u8>> Sink for &'a Usart<A, B> {
     type SinkItem = u8;
     type SinkError = ();
 
@@ -138,7 +138,7 @@ impl<A: FixedSizeArray<u8>, B: FixedSizeArray<u8>> Sink for &'static Usart<A, B>
     }
 }
 
-impl<A: FixedSizeArray<u8>, B: FixedSizeArray<u8>> Stream for &'static Usart<A, B> {
+impl<'a, A: FixedSizeArray<u8>, B: FixedSizeArray<u8>> Stream for &'a Usart<A, B> {
     type Item = u8;
     type Error = ();
 

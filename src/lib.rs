@@ -49,6 +49,14 @@ use ::dev::htu21d::{Htu21d, Htu21dError};
 
 use ::dev::cs43l22::Cs43l22;
 
+use ::dev::esp8266::Esp8266;
+
+pub static USART3: Usart<[u8; 32], [u8; 32]> =
+    Usart::new(unsafe{&::stm32f4::usart::USART3}, [0; 32], [0; 32]);
+
+pub static mut ESP8266: Esp8266<'static, [u8; 32], [u8; 32]> =
+    Esp8266::new(&USART3);
+
 pub static USART2: Usart<[u8; 128], [u8; 32]> =
     Usart::new(unsafe{&::stm32f4::usart::USART2}, [0; 128], [0; 32]);
 
@@ -95,7 +103,8 @@ fn init_memory() {}
 pub extern fn kmain() -> ! {
     init_memory();
     unsafe {
-        init_usart1();
+        init_usart2();
+        init_esp8266();
         init_leds();
         init_timer();
         init_i2c();
@@ -109,7 +118,7 @@ pub extern fn kmain() -> ! {
     unsafe{&mut ::dev::rng::RNG}.enable();
     let mut print_rng = unsafe{&mut ::dev::rng::RNG}.for_each(|r| {
         use core::fmt::Write;
-        let _ = write!(unsafe{&::stm32f4::usart::USART1}, "RNG: {}\n", r);
+        let _ = write!(unsafe{&::stm32f4::usart::USART2}, "RNG: {}\n", r);
         Ok(())
     })
         .map(|_| ())
@@ -174,6 +183,13 @@ pub extern fn kmain() -> ! {
             Ok(())
         });
 
+    let mut esp8266 = unsafe{&mut ESP8266}.check_at()
+        .then(|x| {
+            log!("\r\nESP CHECK AT: {:?}\r\n", x);
+
+            Ok(())
+        });
+
     unsafe {
         let reactor = &REACTOR;
 
@@ -200,6 +216,11 @@ pub extern fn kmain() -> ! {
             2,
             ::core::mem::transmute::<&mut Future<Item=(), Error=()>,
                                      &'static mut Future<Item=(), Error=()>>(&mut cs43l22)
+        );
+        reactor.add_task(
+            1,
+            ::core::mem::transmute::<&mut Future<Item=(), Error=()>,
+                                     &'static mut Future<Item=(), Error=()>>(&mut esp8266)
         );
 
         loop {
@@ -247,7 +268,7 @@ unsafe fn init_leds() {
     led::LD6.turn_on();
 }
 
-unsafe fn init_usart1() {
+unsafe fn init_usart2() {
     use ::stm32f4::usart::USART2;
 
     RCC.apb1_clock_enable(rcc::Apb1Enable::USART2);
@@ -391,7 +412,56 @@ unsafe fn init_rng() {
     });
 }
 
+unsafe fn init_esp8266() {
+    use ::stm32f4::usart::USART3;
+    use ::stm32f4::gpio::GPIO_D;
+
+    RCC.apb1_clock_enable(rcc::Apb1Enable::USART3);
+
+    // Enable the peripheral clock for the pins used by USART3, PD8
+    // for TX and PD9 for RX
+    RCC.ahb1_clock_enable(rcc::Ahb1Enable::GPIOD);
+
+    GPIO_D.enable(8, gpio::GpioConfig {
+        mode: gpio::GpioMode::AF,
+        ospeed: gpio::GpioOSpeed::FAST_SPEED,
+        otype: gpio::GpioOType::PUSH_PULL,
+        pupd: gpio::GpioPuPd::PULL_UP,
+        af: gpio::GpioAF::AF7,
+    });
+    GPIO_D.enable(9, gpio::GpioConfig {
+        mode: gpio::GpioMode::AF,
+        ospeed: gpio::GpioOSpeed::FAST_SPEED,
+        otype: gpio::GpioOType::PUSH_PULL,
+        pupd: gpio::GpioPuPd::PULL_UP,
+        af: gpio::GpioAF::AF7,
+    });
+
+    // The RX and TX pins are now connected to their AF so that the
+    // USART3 can take over control of the pins
+    USART3.enable(&usart::UsartConfig {
+        data_bits: usart::DataBits::Bits8,
+        stop_bits: usart::StopBits::Bits1,
+        flow_control: usart::FlowControl::No,
+        baud_rate: 115200,
+    });
+
+    USART3.it_enable(usart::Interrupt::RXNE);
+
+    nvic::init(&nvic::NvicInit {
+        irq_channel: nvic::IrqChannel::USART3,
+        priority: 0,
+        subpriority: 4,
+        enable: true,
+    });
+}
+
 #[no_mangle]
 pub unsafe extern fn __isr_usart2() {
     USART2.isr()
+}
+
+#[no_mangle]
+pub unsafe extern fn __isr_usart3() {
+    USART3.isr()
 }

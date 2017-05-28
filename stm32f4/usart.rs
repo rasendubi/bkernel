@@ -10,6 +10,7 @@ use volatile::RW;
 extern {
     pub static USART1: Usart;
     pub static USART2: Usart;
+    pub static USART3: Usart;
 }
 
 #[repr(C)]
@@ -317,6 +318,8 @@ impl Usart {
     }
 }
 
+// TODO(rasen): remove this implementation. Nobody should write
+// directly to the USART (except debugging).
 impl<'a> fmt::Write for &'a Usart {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         self.puts_synchronous(s);

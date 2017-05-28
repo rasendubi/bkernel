@@ -18,3 +18,4 @@ pub mod i2c;
 pub mod rng;
 pub mod htu21d;
 pub mod cs43l22;
+pub mod esp8266;
