@@ -12,7 +12,7 @@ use ::core::array::FixedSizeArray;
 use ::breactor::REACTOR;
 
 #[allow(missing_debug_implementations)]
-pub struct Usart<A: FixedSizeArray<u8>, B: FixedSizeArray<u8>> {
+pub struct Usart<A, B> {
     usart: &'static usart::Usart,
     writer_task_mask: AtomicU32,
     reader_task_mask: AtomicU32,

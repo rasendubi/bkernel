@@ -21,19 +21,22 @@ macro_rules! debug_log {
 }
 
 #[allow(missing_debug_implementations)]
-pub struct Esp8266<'a, A, B>
-    where A: FixedSizeArray<u8> + 'a,
-          B: FixedSizeArray<u8> + 'a,
-{
+pub struct Esp8266<'a, A: 'a, B: 'a> {
     usart: &'a Usart<A, B>,
 }
 
 #[derive(PartialEq, Eq, Debug)]
 pub enum Error
 {
+    /// Generic error.
     Generic,
+    /// Usart stream has finished.
+    ///
+    /// Practically, should never happen.
     UsartFinished,
+    /// Usart stream has errored.
     UsartError,
+    /// Internal buffer is too small to contain all ESP8266 output.
     BufferOverflow,
 }
 
@@ -48,8 +51,8 @@ impl<S, E> From<TakeUntilError<S, E>> for Error {
 }
 
 impl<'a, A, B> Esp8266<'a, A, B>
-    where A: FixedSizeArray<u8> + 'a,
-          B: FixedSizeArray<u8> + 'a,
+    where A: FixedSizeArray<u8>,
+          B: FixedSizeArray<u8>,
 {
     /// Creates new ESP instance from a USART.
     ///
@@ -131,6 +134,39 @@ impl<'a, A, B> Esp8266<'a, A, B>
     }
 
     /// List available access points.
+    ///
+    /// The resulting future returns a fixd-size array along with the
+    /// actual number of access points returned from ESP8266. Note
+    /// that the number may be bigger than array requested.
+    ///
+    /// # Examples
+    /// List up to 32 access points.
+    ///
+    /// ```no_run
+    /// # #![feature(const_fn)]
+    /// # extern crate futures;
+    /// # extern crate dev;
+    /// # extern crate stm32f4;
+    /// # fn main() {
+    /// # use ::dev::esp8266::{Esp8266, AccessPoint};
+    /// # use ::dev::usart::Usart;
+    /// # use ::futures::{Async, Future};
+    /// static USART3: Usart<[u8; 32], [u8; 32]> =
+    ///     Usart::new(unsafe{&::stm32f4::usart::USART3}, [0; 32], [0; 32]);
+    ///
+    /// let mut esp = Esp8266::new(&USART3);
+    /// let mut aps = esp.list_aps::<[AccessPoint; 32]>()
+    ///     .and_then(|(aps, size)| {
+    ///         println!("Access points (total {}):", size);
+    ///         for i in 0 .. std::cmp::min(size, aps.len()) {
+    ///             println!("{:?}", aps[i]);
+    ///         }
+    ///         Ok(())
+    ///     });
+    /// # }
+    /// ```
+    // TODO(rasen): return Stream<Item=AccessPoint> to leverage
+    // incremental processing. This way, we can decrease buffer size.
     pub fn list_aps<R>(&'a mut self) -> impl Future<Item=(R, usize), Error=Error> + 'a
         where R: FixedSizeArray<AccessPoint> + 'a
     {
@@ -157,10 +193,6 @@ impl<'a, A, B> Esp8266<'a, A, B>
             })
             .and_then(move |(buffer, size, m, _usart)| {
                 Ok(parse_ap_list::<R>(&buffer[.. size - m.len()]))
-                // debug_log!("APs:\r\n{}\r\n",
-                //            unsafe {::core::str::from_utf8_unchecked(
-                //                &buffer[.. (size - m.len())])});
-                // Ok(())
             })
     }
 }
@@ -182,8 +214,8 @@ fn parse_ap_list<A>(b: &[u8]) -> (A, usize)
     (result, cur)
 }
 
+// TODO(rasen): error handling
 fn parse_ap(s: &str) -> AccessPoint {
-    // +CWLAP:(3,"Minke Jager",-48,"f8:1a:67:c4:1b:20",1,36,0)
     let mut s = s;
     // drop "+CWLAP:(" and final ")"
     s = &s[8 .. s.len() - 1];
@@ -191,7 +223,7 @@ fn parse_ap(s: &str) -> AccessPoint {
     // TODO(rasen): comma in ESSID is not allowed
     let mut s = s.split(",");
 
-    let ecn = u8::from_str(s.next().unwrap_or("")).unwrap_or(0);
+    let ecn = i32::from_str(s.next().unwrap_or("")).unwrap_or(0);
 
     let ssid_s = s.next().unwrap_or("\"\"");
     let ssid_s = &ssid_s[1 .. ssid_s.len()-1];
@@ -202,7 +234,7 @@ fn parse_ap(s: &str) -> AccessPoint {
     let rssi = i32::from_str(s.next().unwrap_or("")).unwrap_or(0);
 
     let mac_s = s.next().unwrap_or("\"\"");
-    let mut mac_parts = mac_s[1 .. mac_s.len()-1].split(":").map(|hex| u8::from_str_radix(hex, 16).unwrap_or(0xff));
+    let mut mac_parts = mac_s[1 .. mac_s.len()-1].split(":").map(|hex| i32::from_str_radix(hex, 16).unwrap_or(0x00) as u8);
     let mut mac: [u8; 6] = [0; 6];
     mac[0] = mac_parts.next().unwrap_or(0);
     mac[1] = mac_parts.next().unwrap_or(0);
@@ -211,24 +243,25 @@ fn parse_ap(s: &str) -> AccessPoint {
     mac[4] = mac_parts.next().unwrap_or(0);
     mac[5] = mac_parts.next().unwrap_or(0);
 
-    let ch = u8::from_str(s.next().unwrap_or("")).unwrap_or(0);
+    let ch = i32::from_str(s.next().unwrap_or("")).unwrap_or(0);
 
-    let freq_offset = u32::from_str(s.next().unwrap_or("")).unwrap_or(0);
+    let freq_offset = i32::from_str(s.next().unwrap_or("")).unwrap_or(0);
 
-    let freq_calibration = u32::from_str(s.next().unwrap_or("")).unwrap_or(0);
+    let freq_calibration = i32::from_str(s.next().unwrap_or("")).unwrap_or(0);
 
     AccessPoint {
-        ecn: unsafe { ::core::mem::transmute(ecn) },
+        ecn: unsafe { ::core::mem::transmute(ecn as u8) },
         ssid_len: ssid_len as u8,
         ssid: ssid,
         rssi: rssi,
         mac: mac,
-        ch: ch,
+        ch: ch as u8,
         freq_offset: freq_offset,
         freq_calibration: freq_calibration,
     }
 }
 
+/// Encryption method used by Access Point.
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 #[repr(u8)]
 pub enum EncryptionMethod {
@@ -240,35 +273,48 @@ pub enum EncryptionMethod {
     Wpa2Enterprise = 5,
 }
 
+/// Access Point detected by ESP8266.
 pub struct AccessPoint {
     /// Encryption method.
-    ecn: EncryptionMethod,
+    pub ecn: EncryptionMethod,
 
-    ssid_len: u8,
+    pub ssid_len: u8,
     /// String parameter, SSID of the AP.
-    ssid: [u8; 32],
+    ///
+    /// Only first `ssid_len` bytes are valid.
+    pub ssid: [u8; 32],
 
     /// Signal strength.
-    rssi: i32,
+    pub rssi: i32,
 
     /// MAC address of the AP.
-    mac: [u8; 6],
+    // TODO(rasen): Create MAC structure
+    pub mac: [u8; 6],
 
     /// Channel.
-    ch: u8,
+    pub ch: u8,
 
     /// Frequency offset of AP; unit: KHz.
-    freq_offset: u32,
+    pub freq_offset: i32,
 
     /// Calibration for frequency offset.
-    freq_calibration: u32,
+    pub freq_calibration: i32,
+}
+
+impl AccessPoint {
+    /// Returns SSID as a string.
+    pub fn ssid(&self) -> &str {
+        unsafe {
+            ::core::str::from_utf8_unchecked(&self.ssid[.. self.ssid_len as usize])
+        }
+    }
 }
 
 impl ::core::fmt::Debug for AccessPoint {
     fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
         write!(f, "AccessPoint({:?}, \"{}\", {}, {:?}, {}, {}, {})",
                self.ecn,
-               unsafe { ::core::str::from_utf8_unchecked(&self.ssid[.. self.ssid_len as usize]) },
+               self.ssid(),
                self.rssi,
                // TODO(rasen): better MAC formatting
                self.mac,
@@ -304,7 +350,7 @@ impl<'a, A, S, M> TakeUntil<'a, A, S, M>
 }
 
 #[derive(PartialEq, Eq, Debug)]
-pub enum TakeUntilError<S, E> {
+enum TakeUntilError<S, E> {
     /// The stream has finished.
     Finished(S),
 

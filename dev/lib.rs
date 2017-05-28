@@ -11,7 +11,7 @@ extern crate breactor;
 extern crate futures;
 extern crate stm32f4;
 
-pub mod circular_buffer;
+mod circular_buffer;
 
 pub mod usart;
 pub mod i2c;
