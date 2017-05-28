@@ -1,6 +1,7 @@
 //! ESP8266 AT command based driver.
 use ::core::array::FixedSizeArray;
 use ::core::marker::PhantomData;
+use ::core::str::FromStr;
 
 use ::futures::{Async, Future, Poll, Stream};
 
@@ -28,8 +29,22 @@ pub struct Esp8266<'a, A, B>
 }
 
 #[derive(PartialEq, Eq, Debug)]
-pub enum Error {
+pub enum Error
+{
     Generic,
+    UsartFinished,
+    UsartError,
+    BufferOverflow,
+}
+
+impl<S, E> From<TakeUntilError<S, E>> for Error {
+    fn from(err: TakeUntilError<S, E>) -> Error {
+        match err {
+            TakeUntilError::Finished(_) => Error::UsartFinished,
+            TakeUntilError::StreamError(_, _) => Error::UsartError,
+            TakeUntilError::BufferOverflow(_) => Error::BufferOverflow,
+        }
+    }
 }
 
 impl<'a, A, B> Esp8266<'a, A, B>
@@ -114,6 +129,153 @@ impl<'a, A, B> Esp8266<'a, A, B>
                 Error::Generic
             })
     }
+
+    /// List available access points.
+    pub fn list_aps<R>(&'a mut self) -> impl Future<Item=(R, usize), Error=Error> + 'a
+        where R: FixedSizeArray<AccessPoint> + 'a
+    {
+        ::futures::future::lazy(move || {
+            while let Some(_) = self.usart.try_pop_reader() {
+            }
+
+            Ok(self.usart)
+        })
+            .and_then(|usart| {
+                StartSendAllString::new(usart, "AT+CWLAP\r\n")
+                    .map_err(|_| Error::Generic)
+            })
+            .and_then(|usart| {
+                TakeUntil::new([0; 32], usart, [ b"\r\r\n" as &[u8] ])
+                    .map_err(|err| From::from(err))
+            })
+            .and_then(|(_buffer, _size, _m, usart)| {
+                TakeUntil::new([0; 2048], usart, [
+                    b"\r\n\r\nOK\r\n" as &[u8],
+                    b"\r\n\r\nERROR\r\n" as &[u8],
+                ])
+                    .map_err(|err| From::from(err))
+            })
+            .and_then(move |(buffer, size, m, _usart)| {
+                Ok(parse_ap_list::<R>(&buffer[.. size - m.len()]))
+                // debug_log!("APs:\r\n{}\r\n",
+                //            unsafe {::core::str::from_utf8_unchecked(
+                //                &buffer[.. (size - m.len())])});
+                // Ok(())
+            })
+    }
+}
+
+fn parse_ap_list<A>(b: &[u8]) -> (A, usize)
+    where A: FixedSizeArray<AccessPoint>,
+{
+    let mut result: A = unsafe { ::core::mem::uninitialized() };
+    let mut cur = 0;
+
+    for line in unsafe { ::core::str::from_utf8_unchecked(b) }.lines() {
+        if cur < result.as_slice().len() {
+            result.as_mut_slice()[cur] = parse_ap(line);
+        }
+
+        cur += 1;
+    }
+
+    (result, cur)
+}
+
+fn parse_ap(s: &str) -> AccessPoint {
+    // +CWLAP:(3,"Minke Jager",-48,"f8:1a:67:c4:1b:20",1,36,0)
+    let mut s = s;
+    // drop "+CWLAP:(" and final ")"
+    s = &s[8 .. s.len() - 1];
+
+    // TODO(rasen): comma in ESSID is not allowed
+    let mut s = s.split(",");
+
+    let ecn = u8::from_str(s.next().unwrap_or("")).unwrap_or(0);
+
+    let ssid_s = s.next().unwrap_or("\"\"");
+    let ssid_s = &ssid_s[1 .. ssid_s.len()-1];
+    let ssid_len = ssid_s.len();
+    let mut ssid: [u8; 32] = unsafe { ::core::mem::zeroed() };
+    (&mut ssid[.. ssid_len]).clone_from_slice(&ssid_s.as_bytes());
+
+    let rssi = i32::from_str(s.next().unwrap_or("")).unwrap_or(0);
+
+    let mac_s = s.next().unwrap_or("\"\"");
+    let mut mac_parts = mac_s[1 .. mac_s.len()-1].split(":").map(|hex| u8::from_str_radix(hex, 16).unwrap_or(0xff));
+    let mut mac: [u8; 6] = [0; 6];
+    mac[0] = mac_parts.next().unwrap_or(0);
+    mac[1] = mac_parts.next().unwrap_or(0);
+    mac[2] = mac_parts.next().unwrap_or(0);
+    mac[3] = mac_parts.next().unwrap_or(0);
+    mac[4] = mac_parts.next().unwrap_or(0);
+    mac[5] = mac_parts.next().unwrap_or(0);
+
+    let ch = u8::from_str(s.next().unwrap_or("")).unwrap_or(0);
+
+    let freq_offset = u32::from_str(s.next().unwrap_or("")).unwrap_or(0);
+
+    let freq_calibration = u32::from_str(s.next().unwrap_or("")).unwrap_or(0);
+
+    AccessPoint {
+        ecn: unsafe { ::core::mem::transmute(ecn) },
+        ssid_len: ssid_len as u8,
+        ssid: ssid,
+        rssi: rssi,
+        mac: mac,
+        ch: ch,
+        freq_offset: freq_offset,
+        freq_calibration: freq_calibration,
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+#[repr(u8)]
+pub enum EncryptionMethod {
+    Open = 0,
+    Wep = 1,
+    WpaPsk = 2,
+    Wpa2Psk = 3,
+    WpaWpa2Psk = 4,
+    Wpa2Enterprise = 5,
+}
+
+pub struct AccessPoint {
+    /// Encryption method.
+    ecn: EncryptionMethod,
+
+    ssid_len: u8,
+    /// String parameter, SSID of the AP.
+    ssid: [u8; 32],
+
+    /// Signal strength.
+    rssi: i32,
+
+    /// MAC address of the AP.
+    mac: [u8; 6],
+
+    /// Channel.
+    ch: u8,
+
+    /// Frequency offset of AP; unit: KHz.
+    freq_offset: u32,
+
+    /// Calibration for frequency offset.
+    freq_calibration: u32,
+}
+
+impl ::core::fmt::Debug for AccessPoint {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+        write!(f, "AccessPoint({:?}, \"{}\", {}, {:?}, {}, {}, {})",
+               self.ecn,
+               unsafe { ::core::str::from_utf8_unchecked(&self.ssid[.. self.ssid_len as usize]) },
+               self.rssi,
+               // TODO(rasen): better MAC formatting
+               self.mac,
+               self.ch,
+               self.freq_offset,
+               self.freq_calibration)
+    }
 }
 
 #[allow(missing_debug_implementations)]
@@ -154,7 +316,7 @@ pub enum TakeUntilError<S, E> {
 }
 
 impl<'a, A, S, M> Future for TakeUntil<'a, A, S, M>
-    where A: FixedSizeArray<u8> + Clone,
+    where A: FixedSizeArray<u8>,
           S: Stream<Item=u8>,
           M: FixedSizeArray<&'static [u8]>,
 {
@@ -175,8 +337,11 @@ impl<'a, A, S, M> Future for TakeUntil<'a, A, S, M>
 
                     for m in self.matches.as_slice() {
                         if self.buffer.as_slice()[.. self.cur].ends_with(m) {
+                            let mut b: A = unsafe { ::core::mem::uninitialized() };
+                            b.as_mut_slice()[.. self.cur].clone_from_slice(&self.buffer.as_slice()[.. self.cur]);
+
                             return Ok(Async::Ready((
-                                self.buffer.clone(),
+                                b,
                                 self.cur,
                                 m,
                                 self.stream.take().unwrap())));

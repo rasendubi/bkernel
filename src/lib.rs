@@ -49,7 +49,7 @@ use ::dev::htu21d::{Htu21d, Htu21dError};
 
 use ::dev::cs43l22::Cs43l22;
 
-use ::dev::esp8266::Esp8266;
+use ::dev::esp8266::{Esp8266, AccessPoint};
 
 pub static USART3: Usart<[u8; 32], [u8; 32]> =
     Usart::new(unsafe{&::stm32f4::usart::USART3}, [0; 32], [0; 32]);
@@ -187,8 +187,22 @@ pub extern fn kmain() -> ! {
         .then(|x| {
             log!("\r\nESP CHECK AT: {:?}\r\n", x);
 
+            Ok(()) as Result<(), ()>
+        })
+        .then(|_| {
+            unsafe{&mut ESP8266}.list_aps::<[AccessPoint; 32]>()
+        })
+        .and_then(|(aps, size)| {
+            debug_log!("\r\nAccess points:\r\n");
+            for i in 0 .. ::core::cmp::min(size, aps.len()) {
+                debug_log!("{:?}\r\n", aps[i]);
+            }
             Ok(())
-        });
+        })
+        .map_err(|err| {
+            log!("\r\nList APs error: {:?}\r\n", err);
+        })
+        ;
 
     unsafe {
         let reactor = &REACTOR;
