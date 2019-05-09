@@ -93,9 +93,7 @@ impl Mutex {
 
     /// Return a future that will eventually lock the given mutex.
     pub const fn lock(&self) -> LockFuture {
-        LockFuture {
-            mutex: self,
-        }
+        LockFuture { mutex: self }
     }
 
     /// Release the mutex, notifying all waiting tasks.

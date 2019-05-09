@@ -7,7 +7,7 @@ use crate::volatile::{RO, RW};
 
 use super::rcc::RCC;
 
-extern {
+extern "C" {
     pub static I2C1: I2c;
     pub static I2C2: I2c;
     pub static I2C3: I2c;
@@ -16,18 +16,18 @@ extern {
 #[repr(C)]
 #[allow(missing_debug_implementations)]
 pub struct I2c {
-    cr1:   RW<u32>, // 0x00
-    cr2:   RW<u32>, // 0x04
-    oar1:  RW<u32>, // 0x08
-    oar2:  RW<u32>, // 0x0C
-    dr:    RW<u32>, // 0x10
-    sr1:   RW<u32>, // 0x14
-    sr2:   RO<u32>, // 0x18
-    ccr:   RW<u32>, // 0x1C
+    cr1: RW<u32>,   // 0x00
+    cr2: RW<u32>,   // 0x04
+    oar1: RW<u32>,  // 0x08
+    oar2: RW<u32>,  // 0x0C
+    dr: RW<u32>,    // 0x10
+    sr1: RW<u32>,   // 0x14
+    sr2: RO<u32>,   // 0x18
+    ccr: RW<u32>,   // 0x1C
     trise: RW<u32>, // 0x20
 
     // Available on STM32F42xxx and STM32F43xxx only.
-    fltr:  RW<u32>, // 0x24
+    fltr: RW<u32>, // 0x24
 }
 
 #[test]
@@ -135,7 +135,6 @@ enum Cr2Masks {
     // 12
     /// DMA last transfer.
     LAST = 0x1 << 12,
-
     // 15:13 Reserved, must be kept at reset value
 }
 
@@ -220,7 +219,6 @@ pub enum Sr1Masks {
     STOPF = 0x1 << 4,
 
     // 5: Reserved
-
     /// Data register not empty (receivers)
     RxNE = 0x1 << 6,
 
@@ -243,7 +241,6 @@ pub enum Sr1Masks {
     PECERR = 0x1 << 12,
 
     // 13: Reserved
-
     /// Timeout or Tlow error
     TIMEOUT = 0x1 << 14,
 
@@ -272,7 +269,6 @@ pub enum Sr2Masks {
     TRA = 0x1 << 2,
 
     // 3: Reserved
-
     /// Generall call address (Slave mode)
     GENCALL = 0x1 << 4,
 
@@ -333,19 +329,19 @@ pub enum Interrupt {
 #[repr(u32)]
 pub enum InterruptFlag {
     SMBALERT = 0x0100_8000,
-    TIMEOUT  = 0x0100_4000,
-    PECERR   = 0x0100_1000,
-    OVR      = 0x0100_0800,
-    AF       = 0x0100_0400,
-    ARLO     = 0x0100_0200,
-    BERR     = 0x0100_0100,
-    TXE      = 0x0600_0080,
-    RXNE     = 0x0600_0040,
-    STOPF    = 0x0200_0010,
-    ADD10    = 0x0200_0008,
-    BTF      = 0x0200_0004,
-    ADDR     = 0x0200_0002,
-    SB       = 0x0200_0001,
+    TIMEOUT = 0x0100_4000,
+    PECERR = 0x0100_1000,
+    OVR = 0x0100_0800,
+    AF = 0x0100_0400,
+    ARLO = 0x0100_0200,
+    BERR = 0x0100_0100,
+    TXE = 0x0600_0080,
+    RXNE = 0x0600_0040,
+    STOPF = 0x0200_0010,
+    ADD10 = 0x0200_0008,
+    BTF = 0x0200_0004,
+    ADDR = 0x0200_0002,
+    SB = 0x0200_0001,
 }
 
 #[derive(Debug)]
@@ -366,9 +362,9 @@ pub struct I2cInit {
 #[derive(Copy, Clone, Debug)]
 #[repr(u16)]
 pub enum Mode {
-    I2C         = 0x0000,
+    I2C = 0x0000,
     SMBusDevice = 0x0002,
-    SMBusHost   = 0x000A,
+    SMBusHost = 0x000A,
 }
 
 #[allow(non_camel_case_types)]
@@ -379,13 +375,13 @@ pub enum DutyCycle {
     DutyCycle_16_9 = 0x4000,
 
     /// I2C fast mode Tlow/Thigh = 2
-    DutyCycle_2    = 0xBFFF,
+    DutyCycle_2 = 0xBFFF,
 }
 
 #[derive(Copy, Clone, Debug)]
 #[repr(u16)]
 pub enum Acknowledgement {
-    Enable  = 0x0400,
+    Enable = 0x0400,
     Disable = 0x0000,
 }
 
@@ -393,13 +389,13 @@ pub enum Acknowledgement {
 #[repr(u8)]
 pub enum Direction {
     Transmitter = 0x00,
-    Receiver    = 0x01,
+    Receiver = 0x01,
 }
 
 #[derive(Copy, Clone, Debug)]
 #[repr(u16)]
 pub enum AcknowledgedAddress {
-    Bit7  = 0x4000,
+    Bit7 = 0x4000,
     Bit10 = 0xC000,
 }
 
@@ -481,7 +477,7 @@ pub enum Event {
     // Master TRANSMITTER mode
     // EV8
     MasterByteTransmitting = 0x0007_0080, // TRA, BUSY, MSL, TXE
-    MasterByteTransmitted = 0x0007_0084, // TRA, BUSY, MSL, TXE, BTF
+    MasterByteTransmitted = 0x0007_0084,  // TRA, BUSY, MSL, TXE, BTF
 
     /// Communication start events.
     ///
@@ -549,7 +545,7 @@ pub enum Event {
     SlaveStopDetected = 0x0000_0010, // STOPF
     // Slave Transmitter mode
     // EV3
-    SlaveByteTransmitted = 0x0006_0084, // TRA, BUSY, TXE, BTF
+    SlaveByteTransmitted = 0x0006_0084,  // TRA, BUSY, TXE, BTF
     SlaveByteTransmitting = 0x0006_0080, // TRA, BUSY, TXE
     // EV3_2
     SlaveAckFailure = 0x0000_0400, // AF
@@ -603,7 +599,8 @@ impl I2c {
             ccr |= result;
 
             self.trise.set(freqrange + 1);
-        } else { // i2c.clock_speed <= 400000
+        } else {
+            // i2c.clock_speed <= 400000
             // Fast mode.
             //
             // To use the I2C at 400 KHz (in fast mode), the PCLK1
@@ -628,7 +625,7 @@ impl I2c {
             ccr |= result | (CcrMasks::F_S as u32);
 
             // Set Maximum Rise Time for fast mode
-            self.trise.set(freqrange*300/1000 + 1);
+            self.trise.set(freqrange * 300 / 1000 + 1);
         }
 
         // Write to CCR
@@ -648,7 +645,8 @@ impl I2c {
         });
 
         // Set Own Address1 and acknowledged address
-        self.oar1.set((init.acknowledged_address as u32) | u32::from(init.own_address1));
+        self.oar1
+            .set((init.acknowledged_address as u32) | u32::from(init.own_address1));
     }
 
     /// Generates I2C communication start condition.
@@ -661,10 +659,13 @@ impl I2c {
     }
 
     pub unsafe fn send_7bit_address(&self, address: u8, direction: Direction) {
-        self.dr.update_with_mask(0xff, u32::from(match direction {
-            Direction::Transmitter => address & !0x1,
-            Direction::Receiver => address | 0x1,
-        }));
+        self.dr.update_with_mask(
+            0xff,
+            u32::from(match direction {
+                Direction::Transmitter => address & !0x1,
+                Direction::Receiver => address | 0x1,
+            }),
+        );
     }
 
     pub unsafe fn send_data(&self, data: u8) {
@@ -690,7 +691,6 @@ impl I2c {
     ///
     /// The result event could be checked against `Event` enum.
     pub unsafe fn get_last_event(&self) -> u32 {
-
         // Do NOT inline these reads. They should be done in that
         // order.
         let sr1 = self.sr1.get();

@@ -3,9 +3,9 @@
 // allow `<< 0`
 #![allow(clippy::identity_op)]
 
-use crate::volatile::{RW, RO};
+use crate::volatile::{RO, RW};
 
-extern {
+extern "C" {
     pub static RNG: Rng;
 }
 

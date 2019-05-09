@@ -24,13 +24,16 @@ pub struct Led {
 
 impl Led {
     pub fn init(&self) {
-        self.gpio.enable(self.pin, gpio::GpioConfig {
-            mode: gpio::GpioMode::OUTPUT,
-            ospeed: gpio::GpioOSpeed::LOW_SPEED,
-            otype: gpio::GpioOType::PUSH_PULL,
-            pupd: gpio::GpioPuPd::NO,
-            af: gpio::GpioAF::AF0, // not used
-        });
+        self.gpio.enable(
+            self.pin,
+            gpio::GpioConfig {
+                mode: gpio::GpioMode::OUTPUT,
+                ospeed: gpio::GpioOSpeed::LOW_SPEED,
+                otype: gpio::GpioOType::PUSH_PULL,
+                pupd: gpio::GpioPuPd::NO,
+                af: gpio::GpioAF::AF0, // not used
+            },
+        );
     }
 
     pub fn turn_on(&self) {

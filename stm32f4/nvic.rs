@@ -1,15 +1,15 @@
 //! Nested Vector Interrupt Controller
 
-use crate::volatile::{RW, RO};
+use crate::volatile::{RO, RW};
 
-extern {
+extern "C" {
     pub static ICTR: RO<u32>;
     pub static ISER: [RW<u32>; 8];
     pub static ICER: [RW<u32>; 8];
     pub static ISPR: [RW<u32>; 8];
     pub static ICPR: [RW<u32>; 8];
     pub static IABR: [RO<u32>; 8];
-    pub static IPR:  [RW<u32>; 82];
+    pub static IPR: [RW<u32>; 82];
 
     pub static AIRCR: RW<u32>;
 }
@@ -23,8 +23,7 @@ pub struct NvicInit {
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Copy, Clone)]
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 #[repr(u32)]
 pub enum IrqChannel {
     WWDG = 0,

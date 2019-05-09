@@ -2,21 +2,20 @@
 #![feature(lang_items)]
 #![feature(core_intrinsics)]
 #![feature(asm)]
-
 #![no_std]
 
 pub mod isr_vector;
 
 #[macro_use]
 pub mod volatile;
-pub mod rcc;
-pub mod gpio;
-pub mod usart;
-pub mod timer;
-pub mod nvic;
-pub mod i2c;
 pub mod crc;
+pub mod gpio;
+pub mod i2c;
+pub mod nvic;
+pub mod rcc;
 pub mod rng;
+pub mod timer;
+pub mod usart;
 
 pub mod lang_items;
 
@@ -71,7 +70,7 @@ pub unsafe fn __disable_irq() {
 /// Get priority mask.
 #[inline(always)]
 #[cfg(not(target_arch = "arm"))]
-pub unsafe fn __get_primask() -> u32{
+pub unsafe fn __get_primask() -> u32 {
     panic!("get_primask is not implemented");
 }
 
@@ -137,7 +136,9 @@ impl IrqLock {
 
 impl Drop for IrqLock {
     fn drop(&mut self) {
-        unsafe { restore_irq(self.0); }
+        unsafe {
+            restore_irq(self.0);
+        }
     }
 }
 
@@ -155,7 +156,5 @@ pub fn get_device_id() -> u128 {
 /// Returns the flash memory size in kbytes.
 pub fn get_flash_size() -> u16 {
     const REG: *const u16 = 0x1FFF_7A22 as _;
-    unsafe {
-        *REG
-    }
+    unsafe { *REG }
 }

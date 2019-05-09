@@ -5,7 +5,7 @@
 
 #[cfg(target_os = "none")]
 #[lang = "eh_personality"]
-extern fn eh_personality() {}
+extern "C" fn eh_personality() {}
 
 #[cfg(target_os = "none")]
 #[no_mangle]

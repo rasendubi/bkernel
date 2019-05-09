@@ -9,7 +9,7 @@ use core::fmt;
 
 use crate::volatile::RW;
 
-extern {
+extern "C" {
     pub static USART1: Usart;
     pub static USART2: Usart;
     pub static USART3: Usart;
@@ -18,12 +18,12 @@ extern {
 #[repr(C)]
 #[allow(missing_debug_implementations)]
 pub struct Usart {
-    sr:   RW<u32>, // 0x00
-    dr:   RW<u32>, // 0x04
-    brr:  RW<u32>, // 0x08
-    cr1:  RW<u32>, // 0x0C
-    cr2:  RW<u32>, // 0x10
-    cr3:  RW<u32>, // 0x14
+    sr: RW<u32>,   // 0x00
+    dr: RW<u32>,   // 0x04
+    brr: RW<u32>,  // 0x08
+    cr1: RW<u32>,  // 0x0C
+    cr2: RW<u32>,  // 0x10
+    cr3: RW<u32>,  // 0x14
     gtpr: RW<u32>, // 0x18
 }
 
@@ -35,16 +35,16 @@ fn test_register_size() {
 #[allow(dead_code)]
 #[repr(u32)]
 enum Sr {
-    PE   = 1 << 0,
-    FE   = 1 << 1,
-    NF   = 1 << 2,
-    ORE  = 1 << 3,
+    PE = 1 << 0,
+    FE = 1 << 1,
+    NF = 1 << 2,
+    ORE = 1 << 3,
     IDLE = 1 << 4,
     RXNE = 1 << 5,
-    TC   = 1 << 6,
-    TXE  = 1 << 7,
-    LBD  = 1 << 8,
-    CTS  = 1 << 9,
+    TC = 1 << 6,
+    TXE = 1 << 7,
+    LBD = 1 << 8,
+    CTS = 1 << 9,
 }
 
 #[allow(dead_code)]
@@ -57,61 +57,61 @@ enum Brr {
 #[allow(dead_code)]
 #[repr(u32)]
 enum Cr1 {
-    SBK    = 1 << 0,
-    RWU    = 1 << 1,
-    RE     = 1 << 2,
-    TE     = 1 << 3,
+    SBK = 1 << 0,
+    RWU = 1 << 1,
+    RE = 1 << 2,
+    TE = 1 << 3,
     IDLEIE = 1 << 4,
     RXNEIE = 1 << 5,
-    TCIE   = 1 << 6,
-    TXEIE  = 1 << 7,
-    PEIE   = 1 << 8,
-    PS     = 1 << 9,
-    PCE    = 1 << 10,
-    WAKE   = 1 << 11,
-    M      = 1 << 12,
+    TCIE = 1 << 6,
+    TXEIE = 1 << 7,
+    PEIE = 1 << 8,
+    PS = 1 << 9,
+    PCE = 1 << 10,
+    WAKE = 1 << 11,
+    M = 1 << 12,
     /// USART Enable
-    UE     = 1 << 13,
-    OVER8  = 1 << 15,
+    UE = 1 << 13,
+    OVER8 = 1 << 15,
 }
 
 #[allow(dead_code)]
 #[repr(u32)]
 enum Cr2 {
-    ADD   = 0xF << 0,
-    LBDL  = 1 << 5,
+    ADD = 0xF << 0,
+    LBDL = 1 << 5,
     LBDIE = 1 << 6,
-    LBCL  = 1 << 8,
-    CPHA  = 1 << 9,
-    CPOL  = 1 << 10,
+    LBCL = 1 << 8,
+    CPHA = 1 << 9,
+    CPOL = 1 << 10,
     CLKEN = 1 << 11,
-    STOP  = 0x3 << 12,
+    STOP = 0x3 << 12,
     LINEN = 1 << 14,
 }
 
 #[derive(Copy, Clone, Debug)]
 #[repr(u32)]
 pub enum StopBits {
-    Bits1   = 0x0,
+    Bits1 = 0x0,
     Bits0_5 = 0x1,
-    Bits2   = 0x2,
+    Bits2 = 0x2,
     Bits1_5 = 0x3,
 }
 
 #[allow(dead_code)]
 #[repr(u32)]
 enum Cr3 {
-    EIE    = 1 << 0,
-    IREN   = 1 << 1,
-    IRLP   = 1 << 2,
-    HDSEL  = 1 << 3,
-    NACK   = 1 << 4,
-    SCEN   = 1 << 5,
-    DMAR   = 1 << 6,
-    DMAT   = 1 << 7,
-    RTSE   = 1 << 8,
-    CTSE   = 1 << 9,
-    CTSIE  = 1 << 10,
+    EIE = 1 << 0,
+    IREN = 1 << 1,
+    IRLP = 1 << 2,
+    HDSEL = 1 << 3,
+    NACK = 1 << 4,
+    SCEN = 1 << 5,
+    DMAR = 1 << 6,
+    DMAT = 1 << 7,
+    RTSE = 1 << 8,
+    CTSE = 1 << 9,
+    CTSIE = 1 << 10,
     ONEBIT = 1 << 11,
 }
 
@@ -119,7 +119,7 @@ enum Cr3 {
 #[repr(u32)]
 enum Gtpr {
     PSC = 0x00FF,
-    GT  = 0xFF00,
+    GT = 0xFF00,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -145,33 +145,33 @@ pub struct UsartConfig {
 #[derive(Copy, Clone, Debug)]
 #[repr(u32)]
 pub enum Interrupt {
-    PE     = 0x0028,
-    TXE    = 0x0727,
-    TC     = 0x0626,
-    RXNE   = 0x0525,
+    PE = 0x0028,
+    TXE = 0x0727,
+    TC = 0x0626,
+    RXNE = 0x0525,
     ORE_RX = 0x0325,
-    IDLE   = 0x0424,
-    LBD    = 0x0846,
-    CTS    = 0x096A,
-    ERR    = 0x0060,
+    IDLE = 0x0424,
+    LBD = 0x0846,
+    CTS = 0x096A,
+    ERR = 0x0060,
     ORE_ER = 0x0360,
-    NE     = 0x0260,
-    FE     = 0x0160,
+    NE = 0x0260,
+    FE = 0x0160,
 }
 
 #[derive(Copy, Clone, Debug)]
 #[repr(u32)]
 pub enum InterruptFlag {
-    CTS  = 0x0200,
-    LBD  = 0x0100,
-    TXE  = 0x0080,
-    TC   = 0x0040,
+    CTS = 0x0200,
+    LBD = 0x0100,
+    TXE = 0x0080,
+    TC = 0x0040,
     RXNE = 0x0020,
     IDLE = 0x0010,
-    ORE  = 0x0008,
-    NE   = 0x0004,
-    FE   = 0x0002,
-    PE   = 0x0001,
+    ORE = 0x0008,
+    NE = 0x0004,
+    FE = 0x0002,
+    PE = 0x0001,
 }
 
 impl Usart {
@@ -181,11 +181,13 @@ impl Usart {
     /// - Only works with default sysclk.
     /// - Generally, this driver is a piece of crap.
     pub fn enable(&self, config: &UsartConfig) {
-
         unsafe {
-            self.cr2.update_with_mask(Cr2::STOP as u32, config.stop_bits as u32);
-            self.cr1.update_with_mask(Cr1::M as u32 | Cr1::PCE as u32 | Cr1::TE as u32 | Cr1::RE as u32,
-                                      config.data_bits as u32 | Cr1::TE as u32 | Cr1::RE as u32);
+            self.cr2
+                .update_with_mask(Cr2::STOP as u32, config.stop_bits as u32);
+            self.cr1.update_with_mask(
+                Cr1::M as u32 | Cr1::PCE as u32 | Cr1::TE as u32 | Cr1::RE as u32,
+                config.data_bits as u32 | Cr1::TE as u32 | Cr1::RE as u32,
+            );
             self.cr3.clear_flag(0x3FF); // No Hardware Flow-Control
             self.brr.set(0x00F4_2400 / config.baud_rate); // Default SysClk Rate / Baud Rate
 
@@ -207,8 +209,10 @@ impl Usart {
     }
 
     pub fn put_char(&self, c: u32) {
-        while !self.transmitter_empty() {};
-        unsafe { self.dr.set(c); }
+        while !self.transmitter_empty() {}
+        unsafe {
+            self.dr.set(c);
+        }
     }
 
     pub fn transmitter_empty(&self) -> bool {
@@ -249,7 +253,7 @@ impl Usart {
         let reg = match usartreg {
             0x01 => &self.cr1,
             0x02 => &self.cr2,
-            _    => &self.cr3,
+            _ => &self.cr3,
         };
 
         unsafe {
@@ -262,9 +266,7 @@ impl Usart {
     }
 
     pub fn it_flag_status(&self, it: InterruptFlag) -> bool {
-        unsafe {
-            self.sr.get() & it as u32 != 0
-        }
+        unsafe { self.sr.get() & it as u32 != 0 }
     }
 
     pub fn it_clear_flag(&self, it: InterruptFlag) {
@@ -282,7 +284,7 @@ impl Usart {
             let reg = match usartreg {
                 0x01 => &self.cr1,
                 0x02 => &self.cr2,
-                _    => &self.cr3,
+                _ => &self.cr3,
             };
 
             itmask & reg.get() != 0
@@ -298,7 +300,7 @@ impl Usart {
             let reg = match usartreg {
                 0x01 => &self.cr1,
                 0x02 => &self.cr2,
-                _    => &self.cr3,
+                _ => &self.cr3,
             };
 
             itmask &= reg.get();

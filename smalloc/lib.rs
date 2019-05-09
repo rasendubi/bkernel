@@ -78,7 +78,6 @@
 //! every entry.
 #![crate_name = "smalloc"]
 #![crate_type = "rlib"]
-
 #![cfg_attr(not(test), no_std)]
 
 #[cfg(test)]
@@ -90,9 +89,9 @@ extern crate rand;
 #[cfg(test)]
 extern crate rand_isaac;
 
-use core::alloc::Layout;
-use core::alloc::GlobalAlloc;
 use ::core::ptr;
+use core::alloc::GlobalAlloc;
+use core::alloc::Layout;
 
 fn psize() -> usize {
     ::core::mem::size_of::<*mut u8>()
@@ -193,7 +192,7 @@ impl ::core::fmt::Display for BusyBlock {
     }
 }
 
-const MAX_ALLOC: usize = 64*1024 - 4;
+const MAX_ALLOC: usize = 64 * 1024 - 4;
 
 impl Smalloc {
     #[allow(clippy::cast_ptr_alignment)]
@@ -218,7 +217,13 @@ impl Smalloc {
             *(self.start.offset(cur_offset) as *mut _) = FreeBlock {
                 prev_size: prev_size + 1,
                 size: cur_size as u16,
-                next: if size == 0 { ptr::null_mut() } else { self.start.offset(cur_offset + ibbsize() + MAX_ALLOC as isize) as *mut _ },
+                next: if size == 0 {
+                    ptr::null_mut()
+                } else {
+                    self.start
+                        .offset(cur_offset + ibbsize() + MAX_ALLOC as isize)
+                        as *mut _
+                },
             };
 
             prev_size = cur_size as u16;
@@ -250,17 +255,19 @@ impl Smalloc {
         if (prev_cur_size as isize) - (size as isize) < ifbsize() {
             size = prev_cur_size as usize;
         } else {
-            let split_next = (cur as *mut u8)
-                .offset(ibbsize() + size as isize) as *mut FreeBlock;
+            let split_next = (cur as *mut u8).offset(ibbsize() + size as isize) as *mut FreeBlock;
             *split_next = FreeBlock {
                 prev_size: (size + 1) as u16,
                 size: prev_cur_size - size as u16 - bbsize() as u16,
                 next: ptr::null_mut(),
             };
 
-            let split_next_next = (split_next as *mut u8).offset((*split_next).size as isize + ibbsize()) as *mut FreeBlock;
+            let split_next_next = (split_next as *mut u8)
+                .offset((*split_next).size as isize + ibbsize())
+                as *mut FreeBlock;
             if split_next_next < self.start.add(self.size) as *mut FreeBlock {
-                (*split_next_next).prev_size = (*split_next).size + (*split_next_next).is_free() as u16;
+                (*split_next_next).prev_size =
+                    (*split_next).size + (*split_next_next).is_free() as u16;
             }
 
             self.install_free_block(split_next);
@@ -286,11 +293,14 @@ impl Smalloc {
         let mut block = ptr.offset(-ibbsize()) as *mut FreeBlock;
 
         // try merge with previous
-        let prev_block = (block as *mut u8).offset(-((*block).prev_size as isize) - ibbsize()) as *mut FreeBlock;
-        let next_block = (block as *mut u8).offset(ibbsize() + (*block).size as isize) as *mut FreeBlock;
+        let prev_block =
+            (block as *mut u8).offset(-((*block).prev_size as isize) - ibbsize()) as *mut FreeBlock;
+        let next_block =
+            (block as *mut u8).offset(ibbsize() + (*block).size as isize) as *mut FreeBlock;
 
-        if (*block).prev_size != 0 && (*prev_block).is_free() &&
-            (*block).size as usize + (*prev_block).size as usize + bbsize() < MAX_ALLOC
+        if (*block).prev_size != 0
+            && (*prev_block).is_free()
+            && (*block).size as usize + (*prev_block).size as usize + bbsize() < MAX_ALLOC
         {
             let prev = self.find_previous_block(prev_block);
             // remove prev_block from list temporary
@@ -307,19 +317,21 @@ impl Smalloc {
         }
 
         // try merge with next
-        if (next_block as *mut u8) < self.start.add(self.size) &&
-            (*next_block).is_free() &&
-            (*block).size as usize + (*next_block).size as usize + bbsize() < MAX_ALLOC {
-                let prev = self.find_previous_block(next_block);
-                *self.get_next_ptr(prev) = (*next_block).next;
+        if (next_block as *mut u8) < self.start.add(self.size)
+            && (*next_block).is_free()
+            && (*block).size as usize + (*next_block).size as usize + bbsize() < MAX_ALLOC
+        {
+            let prev = self.find_previous_block(next_block);
+            *self.get_next_ptr(prev) = (*next_block).next;
 
-                let next_next = (next_block as *mut u8).offset(ibbsize() + (*next_block).size as isize) as *mut FreeBlock;
-                if (next_next as *mut u8) < self.start.add(self.size) {
-                    (*next_next).prev_size += (*block).size + bbsize() as u16;
-                }
-
-                (*block).size += bbsize() as u16 + (*next_block).size;
+            let next_next = (next_block as *mut u8).offset(ibbsize() + (*next_block).size as isize)
+                as *mut FreeBlock;
+            if (next_next as *mut u8) < self.start.add(self.size) {
+                (*next_next).prev_size += (*block).size + bbsize() as u16;
             }
+
+            (*block).size += bbsize() as u16 + (*next_block).size;
+        }
 
         self.install_free_block(block);
     }
@@ -328,7 +340,11 @@ impl Smalloc {
         self.find_free_after(size, ptr::null_mut())
     }
 
-    unsafe fn find_free_after(&self, size: u16, after: *mut FreeBlock) -> (*mut FreeBlock, *mut FreeBlock) {
+    unsafe fn find_free_after(
+        &self,
+        size: u16,
+        after: *mut FreeBlock,
+    ) -> (*mut FreeBlock, *mut FreeBlock) {
         let mut prev = after;
         let mut cur = *self.get_next_ptr(prev);
 
@@ -402,13 +418,16 @@ impl Smalloc {
 mod test {
     use super::*;
     #[allow(unused_imports)]
-    use super::{BusyBlock, FreeBlock, psize, ipsize, bbsize, ibbsize, fbsize, ifbsize};
+    use super::{bbsize, fbsize, ibbsize, ifbsize, ipsize, psize, BusyBlock, FreeBlock};
 
     use ::std::alloc;
 
     use ::core::ptr;
 
-    fn with_memory<F>(size: usize, f: F) where F: Fn(*mut u8, &Smalloc) -> () {
+    fn with_memory<F>(size: usize, f: F)
+    where
+        F: Fn(*mut u8, &Smalloc) -> (),
+    {
         unsafe {
             let layout = Layout::from_size_align_unchecked(size, psize());
             let memory = alloc::alloc(layout);
@@ -427,44 +446,53 @@ mod test {
     #[test]
     fn test_init_tags() {
         with_memory(256, |memory, _| unsafe {
-            assert_eq!(memory.offset(ipsize()) as *mut FreeBlock,
-                       *(memory as *const *mut FreeBlock));
+            assert_eq!(
+                memory.offset(ipsize()) as *mut FreeBlock,
+                *(memory as *const *mut FreeBlock)
+            );
             assert_eq!(
                 FreeBlock {
                     prev_size: 0x1,
                     size: (256 - psize() - bbsize()) as u16,
                     next: 0x0 as *mut FreeBlock
                 },
-                *(memory.offset(ipsize()) as *const FreeBlock));
+                *(memory.offset(ipsize()) as *const FreeBlock)
+            );
         });
     }
 
     #[test]
     fn test_init_too_big() {
         with_memory(130 * 1024, |memory, _| unsafe {
-            assert_eq!(memory.offset(ipsize()) as *mut FreeBlock,
-                       *(memory as *const *mut FreeBlock));
+            assert_eq!(
+                memory.offset(ipsize()) as *mut FreeBlock,
+                *(memory as *const *mut FreeBlock)
+            );
             assert_eq!(
                 FreeBlock {
                     prev_size: 0x1,
-                    size: (64*1024 - 4) as u16,
-                    next: memory.offset(ipsize() + ibbsize() + 64*1024 - 4) as *mut FreeBlock,
+                    size: (64 * 1024 - 4) as u16,
+                    next: memory.offset(ipsize() + ibbsize() + 64 * 1024 - 4) as *mut FreeBlock,
                 },
-                *(memory.offset(ipsize()) as *const FreeBlock));
+                *(memory.offset(ipsize()) as *const FreeBlock)
+            );
             assert_eq!(
                 FreeBlock {
-                    prev_size: (64*1024 - 4 + 1) as u16,
-                    size: (64*1024 - 4) as u16,
-                    next: memory.offset(ipsize() + 2*ibbsize() + 2*(64*1024 - 4)) as *mut FreeBlock,
+                    prev_size: (64 * 1024 - 4 + 1) as u16,
+                    size: (64 * 1024 - 4) as u16,
+                    next: memory.offset(ipsize() + 2 * ibbsize() + 2 * (64 * 1024 - 4))
+                        as *mut FreeBlock,
                 },
-                *(memory.offset(ipsize() + ibbsize() + 64*1024 - 4) as *mut FreeBlock));
+                *(memory.offset(ipsize() + ibbsize() + 64 * 1024 - 4) as *mut FreeBlock)
+            );
             assert_eq!(
                 FreeBlock {
-                    prev_size: (64*1024 - 4 + 1) as u16,
-                    size: (130*1024 - psize() - 3*bbsize() - 2*(64*1024 - 4)) as u16,
+                    prev_size: (64 * 1024 - 4 + 1) as u16,
+                    size: (130 * 1024 - psize() - 3 * bbsize() - 2 * (64 * 1024 - 4)) as u16,
                     next: ptr::null_mut(),
                 },
-                *(memory.offset(ipsize() + 2*ibbsize() + 2*(64*1024 - 4)) as *mut FreeBlock));
+                *(memory.offset(ipsize() + 2 * ibbsize() + 2 * (64 * 1024 - 4)) as *mut FreeBlock)
+            );
         });
     }
 
@@ -474,21 +502,25 @@ mod test {
             let ret = a.alloc(8);
 
             assert_eq!(memory.offset(ipsize() + ibbsize()), ret);
-            assert_eq!(memory.offset(ipsize() + ibbsize() + 8) as *mut FreeBlock,
-                       *(memory as *const *mut FreeBlock));
+            assert_eq!(
+                memory.offset(ipsize() + ibbsize() + 8) as *mut FreeBlock,
+                *(memory as *const *mut FreeBlock)
+            );
             assert_eq!(
                 BusyBlock {
                     prev_size: 0,
                     size: 8,
                 },
-                *(memory.offset(ipsize()) as *const BusyBlock));
+                *(memory.offset(ipsize()) as *const BusyBlock)
+            );
             assert_eq!(
                 FreeBlock {
                     prev_size: 0x9,
                     size: (256 - psize() - bbsize() - 0x8 - bbsize()) as u16,
                     next: 0x0 as *mut FreeBlock,
                 },
-                *(memory.offset(ipsize() + ibbsize() + 0x8) as *mut FreeBlock));
+                *(memory.offset(ipsize() + ibbsize() + 0x8) as *mut FreeBlock)
+            );
         });
     }
 
@@ -500,15 +532,18 @@ mod test {
 
             // memory layout after test:
             // - pointer to free block
-            assert_eq!(*(memory.offset(0) as *const *const FreeBlock),
-                       memory.offset(ipsize() + ibbsize() + 32 + ibbsize() + 16) as *const _);
+            assert_eq!(
+                *(memory.offset(0) as *const *const FreeBlock),
+                memory.offset(ipsize() + ibbsize() + 32 + ibbsize() + 16) as *const _
+            );
             // - busy block for 32 bytes
             assert_eq!(
                 BusyBlock {
                     prev_size: 0,
                     size: 32,
                 },
-                *(memory.offset(ipsize()) as *const BusyBlock));
+                *(memory.offset(ipsize()) as *const BusyBlock)
+            );
             // - 32 bytes of data
             assert_eq!(memory.offset(ipsize() + ibbsize()), ret1);
             // - busy block for 16 bytes
@@ -517,10 +552,10 @@ mod test {
                     prev_size: 32,
                     size: 16,
                 },
-                *(memory.offset(ipsize() + ibbsize() + 32) as *const BusyBlock));
+                *(memory.offset(ipsize() + ibbsize() + 32) as *const BusyBlock)
+            );
             // - 16 bytes of data
-            assert_eq!(memory.offset(ipsize() + ibbsize() + 32 + ibbsize()),
-                       ret2);
+            assert_eq!(memory.offset(ipsize() + ibbsize() + 32 + ibbsize()), ret2);
             // - free block till end
             assert_eq!(
                 FreeBlock {
@@ -528,7 +563,8 @@ mod test {
                     size: (256 - psize() - bbsize() - 32 - bbsize() - 16 - bbsize()) as u16,
                     next: 0x0 as *mut _,
                 },
-                *(memory.offset(ipsize() + ibbsize() + 32 + ibbsize() + 16) as *const FreeBlock));
+                *(memory.offset(ipsize() + ibbsize() + 32 + ibbsize() + 16) as *const FreeBlock)
+            );
         });
     }
 
@@ -566,15 +602,18 @@ mod test {
             let ptr = a.alloc(32);
             a.free(ptr);
 
-            assert_eq!(memory.offset(ipsize()) as *mut FreeBlock,
-                       *(memory as *const *mut FreeBlock));
+            assert_eq!(
+                memory.offset(ipsize()) as *mut FreeBlock,
+                *(memory as *const *mut FreeBlock)
+            );
             assert_eq!(
                 FreeBlock {
                     prev_size: 0x1,
                     size: (256 - psize() - bbsize()) as u16,
                     next: 0x0 as *mut FreeBlock
                 },
-                *(memory.offset(ipsize()) as *const FreeBlock));
+                *(memory.offset(ipsize()) as *const FreeBlock)
+            );
         });
     }
 
@@ -588,8 +627,10 @@ mod test {
 
             // The memory now is:
             // - pointer to new free block
-            assert_eq!(memory.offset(ipsize()) as *mut FreeBlock,
-                      *(memory as *const *mut FreeBlock));
+            assert_eq!(
+                memory.offset(ipsize()) as *mut FreeBlock,
+                *(memory as *const *mut FreeBlock)
+            );
 
             // - free block itself (points to next big block)
             assert_eq!(
@@ -598,7 +639,8 @@ mod test {
                     size: 32,
                     next: memory.offset(ipsize() + ibbsize() + 32 + ibbsize() + 16) as *mut _,
                 },
-                *(memory.offset(ipsize()) as *const FreeBlock));
+                *(memory.offset(ipsize()) as *const FreeBlock)
+            );
 
             // - second busy block
             assert_eq!(
@@ -606,7 +648,8 @@ mod test {
                     prev_size: 32,
                     size: 16,
                 },
-                *(memory.offset(ipsize() + ibbsize() + 32) as *const BusyBlock));
+                *(memory.offset(ipsize() + ibbsize() + 32) as *const BusyBlock)
+            );
 
             // - free block till the end
             assert_eq!(
@@ -615,7 +658,8 @@ mod test {
                     size: (256 - psize() - bbsize() - 32 - bbsize() - 16 - bbsize()) as u16,
                     next: 0x0 as *mut _,
                 },
-                *(memory.offset(ipsize() + ibbsize() + 32 + ibbsize() + 16) as *const FreeBlock));
+                *(memory.offset(ipsize() + ibbsize() + 32 + ibbsize() + 16) as *const FreeBlock)
+            );
         });
     }
 
@@ -631,17 +675,21 @@ mod test {
 
             // The memory now is:
             // - pointer to free block at start
-            assert_eq!(memory.offset(ipsize()) as *mut FreeBlock,
-                       *(memory as *const *mut FreeBlock));
+            assert_eq!(
+                memory.offset(ipsize()) as *mut FreeBlock,
+                *(memory as *const *mut FreeBlock)
+            );
 
             // - merged free block
             assert_eq!(
                 FreeBlock {
                     prev_size: 1,
                     size: 32 + bbsize() as u16 + 16,
-                    next: memory.offset(ipsize() + ibbsize() + 32 + ibbsize() + 16 + ibbsize() + 16) as *mut _,
+                    next: memory.offset(ipsize() + ibbsize() + 32 + ibbsize() + 16 + ibbsize() + 16)
+                        as *mut _,
                 },
-                *(memory.offset(ipsize()) as *const FreeBlock));
+                *(memory.offset(ipsize()) as *const FreeBlock)
+            );
 
             // - busy block
             assert_eq!(
@@ -649,16 +697,21 @@ mod test {
                     prev_size: 32 + bbsize() as u16 + 16,
                     size: 16,
                 },
-                *(memory.offset(ipsize() + ibbsize() + 32 + ibbsize() + 16) as *const _));
+                *(memory.offset(ipsize() + ibbsize() + 32 + ibbsize() + 16) as *const _)
+            );
 
             // - free block till the end
             assert_eq!(
                 FreeBlock {
                     prev_size: 17,
-                    size: 512 - (psize() + bbsize() + 32 + bbsize() + 16 + bbsize() + 16 + bbsize()) as u16,
+                    size: 512
+                        - (psize() + bbsize() + 32 + bbsize() + 16 + bbsize() + 16 + bbsize())
+                            as u16,
                     next: ptr::null_mut(),
                 },
-                *(memory.offset(ipsize() + ibbsize() + 32 + ibbsize() + 16 + ibbsize() + 16) as *const _));
+                *(memory.offset(ipsize() + ibbsize() + 32 + ibbsize() + 16 + ibbsize() + 16)
+                    as *const _)
+            );
         });
     }
 
@@ -675,8 +728,10 @@ mod test {
 
             // The memory now is:
             // - pointer to free block near start
-            assert_eq!(memory.offset(ipsize() + ibbsize() + 16) as *mut FreeBlock,
-                       *(memory as *const *mut FreeBlock));
+            assert_eq!(
+                memory.offset(ipsize() + ibbsize() + 16) as *mut FreeBlock,
+                *(memory as *const *mut FreeBlock)
+            );
 
             // - busy block
             assert_eq!(
@@ -684,16 +739,18 @@ mod test {
                     prev_size: 0,
                     size: 16,
                 },
-                *(memory.offset(ipsize()) as *mut BusyBlock));
+                *(memory.offset(ipsize()) as *mut BusyBlock)
+            );
 
             // - free block
             assert_eq!(
                 FreeBlock {
                     prev_size: 17,
                     size: 32 + bbsize() as u16 + 16,
-                    next: memory.offset(ipsize() + 4*ibbsize() + 16 + 32 + 16 + 32) as *mut _,
+                    next: memory.offset(ipsize() + 4 * ibbsize() + 16 + 32 + 16 + 32) as *mut _,
                 },
-                *(memory.offset(ipsize() + ibbsize() + 16) as *mut _));
+                *(memory.offset(ipsize() + ibbsize() + 16) as *mut _)
+            );
 
             // - busy block
             assert_eq!(
@@ -701,16 +758,18 @@ mod test {
                     prev_size: 32 + bbsize() as u16 + 16,
                     size: 32,
                 },
-                *(memory.offset(ipsize() + 3*ibbsize() + 16 + 32 + 16) as *mut _));
+                *(memory.offset(ipsize() + 3 * ibbsize() + 16 + 32 + 16) as *mut _)
+            );
 
             // - free block
             assert_eq!(
                 FreeBlock {
                     prev_size: 33,
-                    size: 512 - (psize() + 5*bbsize() + 16 + 32 + 16 + 32) as u16,
+                    size: 512 - (psize() + 5 * bbsize() + 16 + 32 + 16 + 32) as u16,
                     next: ptr::null_mut(),
                 },
-                *(memory.offset(ipsize() + 4*ibbsize() + 16 + 32 + 16 + 32) as *mut _));
+                *(memory.offset(ipsize() + 4 * ibbsize() + 16 + 32 + 16 + 32) as *mut _)
+            );
         });
     }
 
@@ -729,8 +788,10 @@ mod test {
 
             // The memory now is:
             // - pointer to free block near start
-            assert_eq!(memory.offset(ipsize() + ibbsize() + 16) as *mut FreeBlock,
-                       *(memory as *const *mut FreeBlock));
+            assert_eq!(
+                memory.offset(ipsize() + ibbsize() + 16) as *mut FreeBlock,
+                *(memory as *const *mut FreeBlock)
+            );
 
             // - busy block (_ptr1)
             assert_eq!(
@@ -738,16 +799,19 @@ mod test {
                     prev_size: 0,
                     size: 16,
                 },
-                *(memory.offset(ipsize()) as *mut BusyBlock));
+                *(memory.offset(ipsize()) as *mut BusyBlock)
+            );
 
             // - free block (ptr2, ptr3, ptr4 merged)
             assert_eq!(
                 FreeBlock {
                     prev_size: 17,
                     size: 32 + bbsize() as u16 + 16 + bbsize() as u16 + 24,
-                    next: memory.offset(ipsize() + 5*ibbsize() + 16 + 32 + 16 + 24 + 32) as *mut _,
+                    next: memory.offset(ipsize() + 5 * ibbsize() + 16 + 32 + 16 + 24 + 32)
+                        as *mut _,
                 },
-                *(memory.offset(ipsize() + ibbsize() + 16) as *mut _));
+                *(memory.offset(ipsize() + ibbsize() + 16) as *mut _)
+            );
 
             // - busy block (_ptr5)
             assert_eq!(
@@ -755,16 +819,18 @@ mod test {
                     prev_size: 32 + bbsize() as u16 + 16 + bbsize() as u16 + 24,
                     size: 32,
                 },
-                *(memory.offset(ipsize() + 4*ibbsize() + 16 + 32 + 16 + 24) as *mut _));
+                *(memory.offset(ipsize() + 4 * ibbsize() + 16 + 32 + 16 + 24) as *mut _)
+            );
 
             // - free block till end
             assert_eq!(
                 FreeBlock {
                     prev_size: 33,
-                    size: 512 - (psize() + 6*bbsize() + 16 + 32 + 16 + 24 + 32) as u16,
+                    size: 512 - (psize() + 6 * bbsize() + 16 + 32 + 16 + 24 + 32) as u16,
                     next: ptr::null_mut(),
                 },
-                *(memory.offset(ipsize() + 5*ibbsize() + 16 + 32 + 16 + 24 + 32) as *mut _));
+                *(memory.offset(ipsize() + 5 * ibbsize() + 16 + 32 + 16 + 24 + 32) as *mut _)
+            );
         });
     }
 
@@ -783,15 +849,18 @@ mod test {
             a.free(ptr3);
             a.free(ptr2);
 
-            assert_eq!(memory.offset(ipsize()) as *mut FreeBlock,
-                       *(memory as *const *mut FreeBlock));
+            assert_eq!(
+                memory.offset(ipsize()) as *mut FreeBlock,
+                *(memory as *const *mut FreeBlock)
+            );
             assert_eq!(
                 FreeBlock {
                     prev_size: 0x1,
                     size: (512 - psize() - bbsize()) as u16,
                     next: 0x0 as *mut FreeBlock
                 },
-                *(memory.offset(ipsize()) as *const FreeBlock));
+                *(memory.offset(ipsize()) as *const FreeBlock)
+            );
         });
     }
 
@@ -811,17 +880,25 @@ mod test {
 
             // free list now is:
             // - start -> ptr1
-            assert_eq!(ptr1.offset(-ibbsize()) as *mut FreeBlock,
-                       *(memory as *const *mut FreeBlock));
+            assert_eq!(
+                ptr1.offset(-ibbsize()) as *mut FreeBlock,
+                *(memory as *const *mut FreeBlock)
+            );
             // - ptr1 -> ptr3
-            assert_eq!(ptr3.offset(-ibbsize()) as *mut FreeBlock,
-                       *(ptr1 as *const *mut FreeBlock));
+            assert_eq!(
+                ptr3.offset(-ibbsize()) as *mut FreeBlock,
+                *(ptr1 as *const *mut FreeBlock)
+            );
             // - ptr3 -> ptr5
-            assert_eq!(ptr5.offset(-ibbsize()) as *mut FreeBlock,
-                       *(ptr3 as *const *mut FreeBlock));
+            assert_eq!(
+                ptr5.offset(-ibbsize()) as *mut FreeBlock,
+                *(ptr3 as *const *mut FreeBlock)
+            );
             // - ptr5 -> rest
-            assert_eq!(memory.offset(ipsize() + 6*ibbsize() + 3*16 + 3*8) as *mut FreeBlock,
-                       *(ptr5 as *const *mut FreeBlock));
+            assert_eq!(
+                memory.offset(ipsize() + 6 * ibbsize() + 3 * 16 + 3 * 8) as *mut FreeBlock,
+                *(ptr5 as *const *mut FreeBlock)
+            );
         });
     }
 
@@ -838,9 +915,18 @@ mod test {
 
             // allocation granularity is size of pointer (it should be
             // larger than size of BusyBlock)
-            assert_eq!(round_up(1),  (*(ptr1.offset(-ibbsize()) as *const BusyBlock)).size);
-            assert_eq!(round_up(14), (*(ptr2.offset(-ibbsize()) as *const BusyBlock)).size);
-            assert_eq!(round_up(17), (*(ptr3.offset(-ibbsize()) as *const BusyBlock)).size);
+            assert_eq!(
+                round_up(1),
+                (*(ptr1.offset(-ibbsize()) as *const BusyBlock)).size
+            );
+            assert_eq!(
+                round_up(14),
+                (*(ptr2.offset(-ibbsize()) as *const BusyBlock)).size
+            );
+            assert_eq!(
+                round_up(17),
+                (*(ptr3.offset(-ibbsize()) as *const BusyBlock)).size
+            );
         });
     }
 
@@ -857,39 +943,44 @@ mod test {
 
             // The memory is:
             // - pointer to only free block in memory
-            assert_eq!(memory.offset(ipsize() + 2*ibbsize() + 32 + 8) as *mut FreeBlock,
-                       *(memory as *mut _));
+            assert_eq!(
+                memory.offset(ipsize() + 2 * ibbsize() + 32 + 8) as *mut FreeBlock,
+                *(memory as *mut _)
+            );
             // - BusyBlock as for ptr1
             assert_eq!(
                 BusyBlock {
                     prev_size: 0,
                     size: 32,
                 },
-                *(memory.offset(ipsize()) as *mut _));
+                *(memory.offset(ipsize()) as *mut _)
+            );
             // - BusyBlock for ptr3
             assert_eq!(
                 BusyBlock {
                     prev_size: 32,
                     size: 8,
                 },
-                *(memory.offset(ipsize() + ibbsize() + 32) as *mut _));
+                *(memory.offset(ipsize() + ibbsize() + 32) as *mut _)
+            );
             // - free block till end
             assert_eq!(
                 FreeBlock {
                     prev_size: 9,
-                    size: 512 - (psize() + 3*bbsize() + 32 + 8) as u16,
+                    size: 512 - (psize() + 3 * bbsize() + 32 + 8) as u16,
                     next: ptr::null_mut(),
                 },
-                *(memory.offset(ipsize() + 2*ibbsize() + 32 + 8) as *mut _));
+                *(memory.offset(ipsize() + 2 * ibbsize() + 32 + 8) as *mut _)
+            );
         });
     }
 
     #[test]
     fn test_dont_merge_too_big_with_next() {
-        with_memory(168*1024, |_memory, a| unsafe {
-            let ptr1 = a.alloc(48*1024);
-            let ptr2 = a.alloc(48*1024);
-            let _ptr3 = a.alloc(48*1024);
+        with_memory(168 * 1024, |_memory, a| unsafe {
+            let ptr1 = a.alloc(48 * 1024);
+            let ptr2 = a.alloc(48 * 1024);
+            let _ptr3 = a.alloc(48 * 1024);
 
             a.free(ptr2);
             a.free(ptr1);
@@ -900,10 +991,10 @@ mod test {
 
     #[test]
     fn test_dont_merge_too_big_with_prev() {
-        with_memory(256*1024, |_memory, a| unsafe {
-            let ptr1 = a.alloc(48*1024);
-            let ptr2 = a.alloc(48*1024);
-            let _ptr3 = a.alloc(48*1024);
+        with_memory(256 * 1024, |_memory, a| unsafe {
+            let ptr1 = a.alloc(48 * 1024);
+            let ptr2 = a.alloc(48 * 1024);
+            let _ptr3 = a.alloc(48 * 1024);
 
             a.free(ptr1);
             a.free(ptr2);
@@ -923,16 +1014,16 @@ mod test {
     fn test_endurance() {
         // That's a fucking trick because standard rand doesn't export
         // StdRng for unknown reason
-        #[cfg(target_pointer_width = "32")]
-        use rand_isaac::IsaacRng as IsaacWordRng;
         #[cfg(target_pointer_width = "64")]
         use rand_isaac::Isaac64Rng as IsaacWordRng;
+        #[cfg(target_pointer_width = "32")]
+        use rand_isaac::IsaacRng as IsaacWordRng;
 
         use ::rand::{Rng, SeedableRng};
-        use ::std::vec::Vec;
         use ::std::intrinsics::write_bytes;
+        use ::std::vec::Vec;
 
-        const MEMORY_SIZE: usize = 64*1024; // 64*1024;
+        const MEMORY_SIZE: usize = 64 * 1024; // 64*1024;
 
         with_memory(MEMORY_SIZE, |_, a| unsafe {
             // Reproducability is a must
@@ -964,7 +1055,7 @@ mod test {
 
     #[test]
     fn test_update_split_next_prev() {
-        const MEMORY_SIZE: usize = 64*1024;
+        const MEMORY_SIZE: usize = 64 * 1024;
 
         with_memory(MEMORY_SIZE, |_, a| unsafe {
             a.debug_print();

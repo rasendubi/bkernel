@@ -1,8 +1,8 @@
 //! Lock-free ring buffer.
-use ::core::cell::UnsafeCell;
-use ::core::sync::atomic::{AtomicUsize, Ordering};
 use ::core::array::FixedSizeArray;
+use ::core::cell::UnsafeCell;
 use ::core::marker::PhantomData;
+use ::core::sync::atomic::{AtomicUsize, Ordering};
 
 /// A lock-free _single-producer_, _single-consumer_ buffer.
 ///
@@ -35,9 +35,7 @@ impl<T: Copy, A: FixedSizeArray<T>> CircularBuffer<T, A> {
     }
 
     fn increment(&self, idx: usize) -> usize {
-        unsafe {
-            (idx + 1) % (*self.array.get()).as_slice().len()
-        }
+        unsafe { (idx + 1) % (*self.array.get()).as_slice().len() }
     }
 
     /// Push an item into the buffer.
@@ -68,8 +66,9 @@ impl<T: Copy, A: FixedSizeArray<T>> CircularBuffer<T, A> {
         if current_head == self.tail.load(Ordering::Acquire) {
             None
         } else {
-            let item = unsafe{&mut *self.array.get()}.as_slice()[current_head];
-            self.head.store(self.increment(current_head), Ordering::Release);
+            let item = unsafe { &mut *self.array.get() }.as_slice()[current_head];
+            self.head
+                .store(self.increment(current_head), Ordering::Release);
 
             Some(item)
         }
@@ -84,8 +83,7 @@ impl<T: Copy, A: FixedSizeArray<T>> CircularBuffer<T, A> {
     }
 }
 
-unsafe impl<T, A: FixedSizeArray<T>> Sync for CircularBuffer<T, A> {
-}
+unsafe impl<T, A: FixedSizeArray<T>> Sync for CircularBuffer<T, A> {}
 
 #[cfg(test)]
 mod test {
