@@ -1,6 +1,6 @@
 //! General-purpose timers (TIM2-TIM5)
 
-use volatile::{RW, RES};
+use crate::volatile::{RW, RES};
 
 extern {
     pub static TIM2: Tim;

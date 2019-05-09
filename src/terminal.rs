@@ -1,5 +1,5 @@
-use led;
-use led_music;
+use crate::led;
+use crate::led_music;
 
 use ::futures::{Async, AsyncSink, Future, Poll, Sink, Stream};
 
@@ -117,7 +117,7 @@ impl<S> Future for CommandResult<S>
         loop {
             *self = match *self {
                 CommandResult::EchoChar(ref mut sink, c) => {
-                    if let AsyncSink::NotReady(_) = try!(sink.as_mut().take().unwrap().start_send(c)) {
+                    if let AsyncSink::NotReady(_) = sink.as_mut().take().unwrap().start_send(c)? {
                         return Ok(Async::NotReady)
                     } else {
                         return Ok(Async::Ready(sink.take().unwrap()))

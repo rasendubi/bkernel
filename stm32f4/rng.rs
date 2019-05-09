@@ -1,6 +1,6 @@
 //! Random number generator.
 
-use volatile::{RW, RO};
+use crate::volatile::{RW, RO};
 
 extern {
     pub static RNG: Rng;

@@ -1,7 +1,8 @@
 [package]
 name = "linkmem"
 version = "0.1.0"
-authors = ["Paul Colomiets <paul@colomiets.name>"]
+authors = ["Alexey Shmalko <rasen.dubi@gmail.com>"]
+edition = "2018"
 
 [dependencies.smalloc]
 path = "../smalloc"

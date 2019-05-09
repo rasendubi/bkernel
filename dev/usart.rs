@@ -2,7 +2,7 @@
 
 use ::stm32f4::usart;
 
-use circular_buffer::CircularBuffer;
+use crate::circular_buffer::CircularBuffer;
 
 use ::futures::{Async, AsyncSink, Sink, Stream, StartSend, Poll};
 

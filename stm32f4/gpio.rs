@@ -2,7 +2,7 @@
 
 #![allow(non_camel_case_types)]
 
-use volatile::RW;
+use crate::volatile::RW;
 
 extern {
     pub static GPIO_A: Gpio;

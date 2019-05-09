@@ -1,6 +1,6 @@
 //! Inter-integrated circuit (I2C) interface.
 
-use volatile::{RO, RW};
+use crate::volatile::{RO, RW};
 
 use super::rcc::RCC;
 
