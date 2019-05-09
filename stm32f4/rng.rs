@@ -1,5 +1,8 @@
 //! Random number generator.
 
+// allow `<< 0`
+#![allow(clippy::identity_op)]
+
 use crate::volatile::{RW, RO};
 
 extern {

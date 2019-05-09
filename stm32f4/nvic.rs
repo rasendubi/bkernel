@@ -114,13 +114,13 @@ pub enum IrqChannel {
 pub fn init(nvic: &NvicInit) {
     unsafe {
         if nvic.enable {
-            let mut tmppriority = (0x700 - AIRCR.get() & 0x700) >> 0x08;
+            let mut tmppriority = (0x700 - (AIRCR.get() & 0x700)) >> 0x08;
             let tmppre = 0x4 - tmppriority;
             let tmpsub = 0x0F >> tmppriority;
 
-            tmppriority = (nvic.priority as u32) << tmppre;
-            tmppriority |= nvic.subpriority as u32 & tmpsub;
-            tmppriority = tmppriority << 0x04;
+            tmppriority = u32::from(nvic.priority) << tmppre;
+            tmppriority |= u32::from(nvic.subpriority) & tmpsub;
+            tmppriority <<= 0x04;
 
             IPR[nvic.irq_channel as usize].set(tmppriority);
             ISER[nvic.irq_channel as usize >> 5].set(0x1 << (nvic.irq_channel as u8 & 0x1F));

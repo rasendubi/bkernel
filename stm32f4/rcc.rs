@@ -1,4 +1,5 @@
 //! Reset and clock control.
+#![allow(clippy::identity_op)]
 
 use crate::volatile::{RW, RES};
 
@@ -8,11 +9,11 @@ extern {
 
 // TODO(rasen): allow changing this?
 /// Value of the Internal oscillator in Hz.
-const HSI_VALUE: u32 = 16000000;
+const HSI_VALUE: u32 = 16_000_000;
 
 // TODO(rasen): allow changing this?
 /// Value of the External oscillator in Hz.
-const HSE_VALUE: u32 = 25000000;
+const HSE_VALUE: u32 = 25_000_000;
 
 #[repr(C)]
 #[allow(missing_debug_implementations)]

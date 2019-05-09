@@ -1,5 +1,8 @@
 //! Inter-integrated circuit (I2C) interface.
 
+// allow `<< 0`
+#![allow(clippy::identity_op)]
+
 use crate::volatile::{RO, RW};
 
 use super::rcc::RCC;
@@ -32,7 +35,7 @@ fn test_register_size() {
     assert_eq!(0x28, ::core::mem::size_of::<I2c>());
 }
 
-const FLAG_MASK: u32 = 0x00FFFFFF; // I2C FLAG mask
+const FLAG_MASK: u32 = 0x00FF_FFFF; // I2C FLAG mask
 
 #[allow(non_camel_case_types)]
 #[allow(dead_code)]
@@ -329,20 +332,20 @@ pub enum Interrupt {
 #[derive(Copy, Clone, Debug)]
 #[repr(u32)]
 pub enum InterruptFlag {
-    SMBALERT = 0x01008000,
-    TIMEOUT  = 0x01004000,
-    PECERR   = 0x01001000,
-    OVR      = 0x01000800,
-    AF       = 0x01000400,
-    ARLO     = 0x01000200,
-    BERR     = 0x01000100,
-    TXE      = 0x06000080,
-    RXNE     = 0x06000040,
-    STOPF    = 0x02000010,
-    ADD10    = 0x02000008,
-    BTF      = 0x02000004,
-    ADDR     = 0x02000002,
-    SB       = 0x02000001,
+    SMBALERT = 0x0100_8000,
+    TIMEOUT  = 0x0100_4000,
+    PECERR   = 0x0100_1000,
+    OVR      = 0x0100_0800,
+    AF       = 0x0100_0400,
+    ARLO     = 0x0100_0200,
+    BERR     = 0x0100_0100,
+    TXE      = 0x0600_0080,
+    RXNE     = 0x0600_0040,
+    STOPF    = 0x0200_0010,
+    ADD10    = 0x0200_0008,
+    BTF      = 0x0200_0004,
+    ADDR     = 0x0200_0002,
+    SB       = 0x0200_0001,
 }
 
 #[derive(Debug)]
@@ -410,7 +413,7 @@ pub enum Event {
     /// correctly released on the I2C bus (the bus is free, no other
     /// devices is communicating).
     // EV5
-    MasterModeSelect = 0x00030001, // BUSY, MSL, SB
+    MasterModeSelect = 0x0003_0001, // BUSY, MSL, SB
 
     /// Address acknowledge.
     ///
@@ -434,10 +437,10 @@ pub enum Event {
     /// I2c::send_7bit_address(). Then master should wait for event
     /// EV6.
     // EV6
-    MasterTransmitterModeSelected = 0x00070082, // BUSY, MSL, ADDR, TXE, TRA
-    MasterReceiverModeSelected = 0x00030002, // BUSY, MSL, ADDR
+    MasterTransmitterModeSelected = 0x0007_0082, // BUSY, MSL, ADDR, TXE, TRA
+    MasterReceiverModeSelected = 0x0003_0002, // BUSY, MSL, ADDR
     // EV9
-    MasterModeAddress10 = 0x00030008, // BUSY, MSL, ADD10
+    MasterModeAddress10 = 0x0003_0008, // BUSY, MSL, ADD10
 
     /// Communication events.
     ///
@@ -473,12 +476,12 @@ pub enum Event {
     /// communication may be slower.
     // Master RECEIVER mode
     // EV7
-    MasterByteReceived = 0x00030040, // BUSY, MSL, RXNE
+    MasterByteReceived = 0x0003_0040, // BUSY, MSL, RXNE
 
     // Master TRANSMITTER mode
     // EV8
-    MasterByteTransmitting = 0x00070080, // TRA, BUSY, MSL, TXE
-    MasterByteTransmitted = 0x00070084, // TRA, BUSY, MSL, TXE, BTF
+    MasterByteTransmitting = 0x0007_0080, // TRA, BUSY, MSL, TXE
+    MasterByteTransmitted = 0x0007_0084, // TRA, BUSY, MSL, TXE, BTF
 
     /// Communication start events.
     ///
@@ -504,13 +507,13 @@ pub enum Event {
     /// SlaveGenerallCallAddressMatched.
     // EV1 (all the events below are variants of EV1)
     // 1. Case of One Single Address managed by the slave
-    SlaveReceiverAddressMatched = 0x00020002, // BUSY, ADDR
-    SlaveTransmitterAddressMatched = 0x00060082, // TRA, BUSY, TXE, ADDR
+    SlaveReceiverAddressMatched = 0x0002_0002, // BUSY, ADDR
+    SlaveTransmitterAddressMatched = 0x0006_0082, // TRA, BUSY, TXE, ADDR
     // 2. Case of Dual address managed by the slave
-    SlaveReceiverSecondAddressMatched = 0x00820000, // DUALF, BUSY
-    SlaveTransmitterSecondAddressMatched = 0x00860080, // DUALF, TRA, BUSY, TXE
+    SlaveReceiverSecondAddressMatched = 0x0082_0000, // DUALF, BUSY
+    SlaveTransmitterSecondAddressMatched = 0x0086_0080, // DUALF, TRA, BUSY, TXE
     // 3. Case of Generall Call enabled for the slave
-    SlaveGenerallCallAddressMatched = 0x00120000, // GENCALL, BUSY
+    SlaveGenerallCallAddressMatched = 0x0012_0000, // GENCALL, BUSY
 
     /// Communication events.
     ///
@@ -541,15 +544,15 @@ pub enum Event {
     /// case the communication may be slower.
     // Slave Receiver mode
     // EV2
-    SlaveByteReceived = 0x00020040, // BUSY, RXNE
+    SlaveByteReceived = 0x0002_0040, // BUSY, RXNE
     // EV4
-    SlaveStopDetected = 0x00000010, // STOPF
+    SlaveStopDetected = 0x0000_0010, // STOPF
     // Slave Transmitter mode
     // EV3
-    SlaveByteTransmitted = 0x00060084, // TRA, BUSY, TXE, BTF
-    SlaveByteTransmitting = 0x00060080, // TRA, BUSY, TXE
+    SlaveByteTransmitted = 0x0006_0084, // TRA, BUSY, TXE, BTF
+    SlaveByteTransmitting = 0x0006_0080, // TRA, BUSY, TXE
     // EV3_2
-    SlaveAckFailure = 0x00000400, // AF
+    SlaveAckFailure = 0x0000_0400, // AF
 
     __NonExhaustive,
 }
@@ -571,13 +574,13 @@ impl Default for I2cInit {
 
 impl I2c {
     pub unsafe fn init(&self, init: &I2cInit) {
-        debug_assert!(init.clock_speed >= 0x1 && init.clock_speed <= 400000);
+        debug_assert!(init.clock_speed >= 0x1 && init.clock_speed <= 400_000);
         debug_assert!(init.own_address1 <= 0x3ff);
 
         let pclk1 = RCC.clock_freqs().pclk1;
 
         // Set frequency bits depending on pclk1 value
-        let freqrange = pclk1 / 1000000;
+        let freqrange = pclk1 / 1_000_000;
 
         self.cr2.update_with_mask(Cr2Masks::FREQ as u32, freqrange);
 
@@ -587,7 +590,7 @@ impl I2c {
         // Clear F/S, DUTY and CCR[11:0] bits
         let mut ccr = 0;
 
-        if init.clock_speed <= 100000 {
+        if init.clock_speed <= 100_000 {
             // Standard mode
 
             let mut result = pclk1 / (init.clock_speed << 1);
@@ -645,7 +648,7 @@ impl I2c {
         });
 
         // Set Own Address1 and acknowledged address
-        self.oar1.set((init.acknowledged_address as u32) | (init.own_address1 as u32));
+        self.oar1.set((init.acknowledged_address as u32) | u32::from(init.own_address1));
     }
 
     /// Generates I2C communication start condition.
@@ -658,14 +661,14 @@ impl I2c {
     }
 
     pub unsafe fn send_7bit_address(&self, address: u8, direction: Direction) {
-        self.dr.update_with_mask(0xff, match direction {
+        self.dr.update_with_mask(0xff, u32::from(match direction {
             Direction::Transmitter => address & !0x1,
             Direction::Receiver => address | 0x1,
-        } as u32);
+        }));
     }
 
     pub unsafe fn send_data(&self, data: u8) {
-        self.dr.set(data as u32);
+        self.dr.set(u32::from(data));
     }
 
     #[allow(clippy::cast_possible_truncation)] // DR is 8-bit register
@@ -706,7 +709,7 @@ impl I2c {
     /// Checks whether the specified I2C interrupt has occurred or
     /// not.
     pub unsafe fn it_status(&self, it: InterruptFlag) -> bool {
-        const ITEN_MASK: u32 = 0x07000000; // I2C Interrupt Enable mask
+        const ITEN_MASK: u32 = 0x0700_0000; // I2C Interrupt Enable mask
 
         // Check if the interrupt source is enabled or not
         let enablestatus = (((it as u32) & ITEN_MASK) >> 16) & self.cr2.get();

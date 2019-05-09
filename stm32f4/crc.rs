@@ -47,7 +47,7 @@ impl Crc {
     /// Stores 8-bit value in the Independent Data Register.
     pub fn set_idr(&self, value: u8) {
         unsafe {
-            self.idr.set(value as u32);
+            self.idr.set(u32::from(value));
         }
     }
 

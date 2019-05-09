@@ -196,6 +196,7 @@ impl ::core::fmt::Display for BusyBlock {
 const MAX_ALLOC: usize = 64*1024 - 4;
 
 impl Smalloc {
+    #[allow(clippy::cast_ptr_alignment)]
     fn free_list_start(&self) -> *mut *mut FreeBlock {
         self.start as *mut _
     }
@@ -258,7 +259,7 @@ impl Smalloc {
             };
 
             let split_next_next = (split_next as *mut u8).offset((*split_next).size as isize + ibbsize()) as *mut FreeBlock;
-            if split_next_next < self.start.offset(self.size as isize) as *mut FreeBlock {
+            if split_next_next < self.start.add(self.size) as *mut FreeBlock {
                 (*split_next_next).prev_size = (*split_next).size + (*split_next_next).is_free() as u16;
             }
 
@@ -295,7 +296,7 @@ impl Smalloc {
             // remove prev_block from list temporary
             *self.get_next_ptr(prev) = (*prev_block).next;
 
-            if (next_block as *mut u8) < self.start.offset(self.size as isize) {
+            if (next_block as *mut u8) < self.start.add(self.size) {
                 (*next_block).prev_size += (*prev_block).size + bbsize() as u16;
             }
             (*prev_block).size += (*block).size + bbsize() as u16;
@@ -306,14 +307,14 @@ impl Smalloc {
         }
 
         // try merge with next
-        if (next_block as *mut u8) < self.start.offset(self.size as isize) &&
+        if (next_block as *mut u8) < self.start.add(self.size) &&
             (*next_block).is_free() &&
             (*block).size as usize + (*next_block).size as usize + bbsize() < MAX_ALLOC {
                 let prev = self.find_previous_block(next_block);
                 *self.get_next_ptr(prev) = (*next_block).next;
 
                 let next_next = (next_block as *mut u8).offset(ibbsize() + (*next_block).size as isize) as *mut FreeBlock;
-                if (next_next as *mut u8) < self.start.offset(self.size as isize) {
+                if (next_next as *mut u8) < self.start.add(self.size) {
                     (*next_next).prev_size += (*block).size + bbsize() as u16;
                 }
 
@@ -413,7 +414,7 @@ mod test {
             let memory = alloc::alloc(layout);
             let a: Smalloc = Smalloc {
                 start: memory,
-                size: size,
+                size,
             };
             a.init();
 
@@ -971,27 +972,27 @@ mod test {
             let ptr1 = a.alloc(36239);
             println!("ptr1 = {:p}", ptr1);
             a.debug_print();
-            println!("");
+            println!();
 
             let ptr2 = a.alloc(20000);
             println!("ptr2 = {:p}", ptr2);
             a.debug_print();
-            println!("");
+            println!();
 
             println!("free ptr1 {:p}", ptr1);
             a.free(ptr1);
             a.debug_print();
-            println!("");
+            println!();
 
             let ptr3 = a.alloc(32768);
             println!("ptr3 = {:p}", ptr3);
             a.debug_print();
-            println!("");
+            println!();
 
             println!("free ptr3 {:p}", ptr3);
             a.free(ptr3);
             a.debug_print();
-            println!("");
+            println!();
         });
     }
 }

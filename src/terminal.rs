@@ -32,7 +32,7 @@ macro_rules! log {
 
 // https://raw.githubusercontent.com/mbasaglia/ASCII-Pony/master/Ponies/vinyl-scratch-noglasses.txt
 // https://github.com/mbasaglia/ASCII-Pony/
-const PONY: &'static str = "\r
+const PONY: &str = "\r
                                                      __..___\r
                                                _.-'____<'``\r
                                          ___.-`.-'`     ```_'-.\r
@@ -125,7 +125,7 @@ impl<S> Future for CommandResult<S>
                 }
                 CommandResult::EchoCharStr(c, ref mut f) => {
                     let sink = try_ready!(f.poll());
-                    if c == '\r' as u8 {
+                    if c == b'\r' {
                         process_enter(sink)
                     } else {
                         return Ok(Async::Ready(sink))
@@ -199,7 +199,7 @@ fn process_char<Si>(sink: Si, c: u8) -> impl Future<Item=Si, Error=()> + 'static
 
         if *cur == command.len() {
             // If command length is too long, emulate Enter was pressed
-            return CommandResult::echo_char(sink, '\r' as u8)
+            return CommandResult::echo_char(sink, b'\r')
         }
     }
 

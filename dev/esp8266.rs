@@ -183,14 +183,14 @@ impl<'a, A, B> Esp8266<'a, A, B>
             })
             .and_then(|usart| {
                 TakeUntil::new([0; 32], usart, [ b"\r\r\n" as &[u8] ])
-                    .map_err(|err| From::from(err))
+                    .map_err(From::from)
             })
             .and_then(|(_buffer, _size, _m, usart)| {
                 TakeUntil::new([0; 2048], usart, [
                     b"\r\n\r\nOK\r\n" as &[u8],
                     b"\r\n\r\nERROR\r\n" as &[u8],
                 ])
-                    .map_err(|err| From::from(err))
+                    .map_err(From::from)
             })
             .and_then(move |(buffer, size, m, _usart)| {
                 Ok(parse_ap_list::<R>(&buffer[.. size - m.len()]))
@@ -222,7 +222,7 @@ fn parse_ap(s: &str) -> AccessPoint {
     s = &s[8 .. s.len() - 1];
 
     // TODO(rasen): comma in ESSID is not allowed
-    let mut s = s.split(",");
+    let mut s = s.split(',');
 
     let ecn = i32::from_str(s.next().unwrap_or("")).unwrap_or(0);
 
@@ -235,7 +235,7 @@ fn parse_ap(s: &str) -> AccessPoint {
     let rssi = i32::from_str(s.next().unwrap_or("")).unwrap_or(0);
 
     let mac_s = s.next().unwrap_or("\"\"");
-    let mut mac_parts = mac_s[1 .. mac_s.len()-1].split(":").map(|hex| i32::from_str_radix(hex, 16).unwrap_or(0x00) as u8);
+    let mut mac_parts = mac_s[1 .. mac_s.len()-1].split(':').map(|hex| i32::from_str_radix(hex, 16).unwrap_or(0x00) as u8);
     let mut mac: [u8; 6] = [0; 6];
     mac[0] = mac_parts.next().unwrap_or(0);
     mac[1] = mac_parts.next().unwrap_or(0);
@@ -253,12 +253,12 @@ fn parse_ap(s: &str) -> AccessPoint {
     AccessPoint {
         ecn: unsafe { ::core::mem::transmute(ecn as u8) },
         ssid_len: ssid_len as u8,
-        ssid: ssid,
-        rssi: rssi,
-        mac: mac,
+        ssid,
+        rssi,
+        mac,
         ch: ch as u8,
-        freq_offset: freq_offset,
-        freq_calibration: freq_calibration,
+        freq_offset,
+        freq_calibration,
     }
 }
 

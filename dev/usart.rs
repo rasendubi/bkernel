@@ -62,8 +62,7 @@ impl<A: FixedSizeArray<u8>, B: FixedSizeArray<u8>> Usart<A, B> {
     }
 
     pub fn try_pop_reader(&self) -> Option<u8> {
-        let res = self.reader_buffer.pop();
-        res
+        self.reader_buffer.pop()
     }
 
     /// Interrupt service routine.
