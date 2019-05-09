@@ -1,9 +1,2 @@
 /target/
-/lib/
-/rust/
-/kernel.elf
 /kernel.bin
-/*/target
-Cargo.lock
-*.o
-*.a
