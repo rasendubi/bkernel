@@ -10,3 +10,4 @@ script:
   - cargo test
   - cargo build --release --target thumbv7em-none-eabi
   - cargo doc
+  - cargo fmt -- --check
