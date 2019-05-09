@@ -1,0 +1,6 @@
+# [build]
+# target = "thumbv7em-none-eabi"
+
+[target.thumbv7em-none-eabi]
+rustflags = ["-C", "link-arg=-Tstm32_flash.ld"]
+runner = "gdb -x openocd.gdb"

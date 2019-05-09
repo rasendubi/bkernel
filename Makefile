@@ -1,24 +1,8 @@
-CC := arm-none-eabi-gcc
-LD := arm-none-eabi-gcc
-OBJCOPY := arm-none-eabi-objcopy
-RUST := rustc
-
 TARGET := thumbv7em-none-eabi
 
 BOARD ?= stm32f407-discovery
 
-CFLAGS := -std=c99 -pedantic -Wall -Wextra -mcpu=cortex-m4 -msoft-float -nostdlib -lnosys \
-	-fPIC -mapcs-frame -ffreestanding -O3 -mlittle-endian -mthumb
-LDFLAGS := -N -nostdlib -T stm32_flash.ld -Wl,--gc-sections
-RUSTFLAGS := -Z no-landing-pads -L lib/$(TARGET) \
-	-A unknown_lints \
-	-W missing-debug-implementations \
-	-W trivial-numeric-casts \
-	-W unused-extern-crates \
-	-W unused-import-braces \
-	-W variant-size-differences \
-
-RUSTCFLAGS := ${RUSTCFLAGS} -g --target $(TARGET) -C opt-level=3 -L lib/$(TARGET)
+RUSTCFLAGS := ${RUSTCFLAGS} -g --target $(TARGET) -C opt-level=3
 
 CLIPPYFLAGS := \
 	-A unknown_lints \
@@ -38,57 +22,26 @@ CLIPPYFLAGS := \
 	-W unseparated_literal_suffix \
 	-W used_underscore_binding \
 	-W wrong_pub_self_convention \
- -W cast_possible_truncation \
+	-W cast_possible_truncation \
 
-RUSTDIR ?= rust
 DEVICE ?= /dev/ttyUSB0
-
-RUSTC_COMMIT := $(shell rustc -Vv | sed -n 's/^commit-hash: \(.*\)$$/\1/p')
-
-SOURCES := $(shell find src/ stm32f4/ smalloc/ linkmem/ breactor/ dev/ -type f -name '*.rs' -or -name '*.toml') Cargo.toml
-LD_SOURCES := $(wildcard *.ld)
 
 .PHONY: all
 all: build doc test
 	du -b kernel.bin
 
 .PHONY: build
-build: checkout_rust kernel.bin lib/$(TARGET)
+build: kernel.bin
 
-kernel.bin: kernel.elf
-	$(OBJCOPY) -O binary $^ $@
+kernel.bin: target/$(TARGET)/release/bkernel $(LD_SOURCES) # kernel.elf
+	$(OBJCOPY) -O binary $< $@
 
-kernel.elf: target/$(TARGET)/release/libkernel.a $(LD_SOURCES)
-	$(LD) $(LDFLAGS) -o $@ target/$(TARGET)/release/libkernel.a
-
-target/$(TARGET)/release/libkernel.a: $(SOURCES) lib/$(TARGET)/libcore.rlib lib/$(TARGET)/liballoc.rlib
+target/$(TARGET)/release/bkernel: $(SOURCES)
 	RUSTFLAGS="${RUSTFLAGS}" cargo build --target=$(TARGET) --release
 
-%.o: %.s
-	$(CC) $(CFLAGS) -o $@ -c $^
-
-lib/$(TARGET)/libcore.rlib: $(RUSTDIR)/src/libcore | checkout_rust lib/$(TARGET)
-	$(RUST) $(RUSTCFLAGS) $(RUSTDIR)/src/libcore/lib.rs --out-dir lib/$(TARGET)
-
-lib/$(TARGET)/liballoc.rlib: $(RUSTDIR)/src/liballoc lib/$(TARGET)/libcore.rlib | checkout_rust lib/$(TARGET)
-	$(RUST) $(RUSTCFLAGS) $(RUSTDIR)/src/liballoc/lib.rs --out-dir lib/$(TARGET)
-
-lib/$(TARGET):
-	mkdir -p $@
-
-rust:
-	git clone https://github.com/rust-lang/rust
-
-rust/src/libcore: rust
-rust/src/liballoc: rust
-
-.PHONY: checkout_rust
-checkout_rust: $(RUSTDIR)
-	cd $(RUSTDIR) && [ "$$(git rev-parse HEAD)" = "$(RUSTC_COMMIT)" ] || git checkout -q $(RUSTC_COMMIT) || ( git fetch && git checkout -q $(RUSTC_COMMIT) )
-
 .PHONY: doc
-doc: lib/$(TARGET)/libcore.rlib lib/$(TARGET)/liballoc.rlib
-	RUSTFLAGS="${RUSTFLAGS}" RUSTDOCFLAGS="-L lib/$(TARGET)" cargo doc --target=$(TARGET)
+doc:
+	RUSTFLAGS="${RUSTFLAGS}" cargo doc --target=$(TARGET)
 
 .PHONY: test
 test:
@@ -103,6 +56,10 @@ clippy:
 	RUSTFLAGS="${RUSTFLAGS}" cargo clippy --target=thumbv7em-none-eabi -p linkmem -- ${CLIPPYFLAGS}
 	RUSTFLAGS="${RUSTFLAGS}" cargo clippy --target=thumbv7em-none-eabi -p dev -- ${CLIPPYFLAGS}
 	RUSTFLAGS="${RUSTFLAGS}" cargo clippy --target=thumbv7em-none-eabi -p bkernel -- ${CLIPPYFLAGS}
+
+.PHONY: openocd
+openocd:
+	openocd -f ${BOARD}.cfg -s openocd/
 
 .PHONY: flash
 flash: kernel.bin

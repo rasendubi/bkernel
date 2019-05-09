@@ -668,7 +668,7 @@ impl I2c {
         self.dr.set(data as u32);
     }
 
-    #[allow(cast_possible_truncation)] // DR is 8-bit register
+    #[allow(clippy::cast_possible_truncation)] // DR is 8-bit register
     pub unsafe fn receive_data(&self) -> u8 {
         self.dr.get() as u8
     }

@@ -179,7 +179,7 @@ impl I2cTransfer {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn __isr_i2c1_ev() {
+pub unsafe extern fn __isr_i2c1_ev() {
     let bus = &I2C1_BUS;
 
     let event = bus.i2c.get_last_event();
@@ -218,8 +218,8 @@ pub unsafe extern "C" fn __isr_i2c1_ev() {
             }
         }
         i2c::Event::MasterByteTransmitting => {
-            let mut buffer = bus.buffer.get();
-            let mut buf_left = bus.buf_left.get();
+            let buffer = bus.buffer.get();
+            let buf_left = bus.buf_left.get();
 
             if *buf_left > 0 {
                 bus.i2c.send_data(**buffer);
@@ -229,8 +229,8 @@ pub unsafe extern "C" fn __isr_i2c1_ev() {
             }
         },
         i2c::Event::MasterByteReceived => {
-            let mut buffer = bus.buffer.get();
-            let mut buf_left = bus.buf_left.get();
+            let buffer = bus.buffer.get();
+            let buf_left = bus.buf_left.get();
 
             debug_assert!(*buf_left > 0);
 
@@ -260,7 +260,7 @@ pub unsafe extern "C" fn __isr_i2c1_ev() {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn __isr_i2c1_er() {
+pub unsafe extern fn __isr_i2c1_er() {
     let bus = &I2C1_BUS;
 
     let event = bus.i2c.get_last_event();
@@ -287,17 +287,17 @@ pub unsafe extern "C" fn __isr_i2c1_er() {
 }
 
 #[no_mangle]
-pub extern "C" fn __isr_i2c2_ev() {
+pub extern fn __isr_i2c2_ev() {
 }
 
 #[no_mangle]
-pub extern "C" fn __isr_i2c2_er() {
+pub extern fn __isr_i2c2_er() {
 }
 
 #[no_mangle]
-pub extern "C" fn __isr_i2c3_ev() {
+pub extern fn __isr_i2c3_ev() {
 }
 
 #[no_mangle]
-pub extern "C" fn __isr_i2c3_er() {
+pub extern fn __isr_i2c3_er() {
 }

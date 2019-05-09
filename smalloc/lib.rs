@@ -81,22 +81,24 @@
 
 #![cfg_attr(not(test), no_std)]
 
-#![cfg_attr(test, feature(alloc, heap_api, rand))]
-
 #[cfg(test)]
 extern crate alloc;
 #[cfg(test)]
 extern crate core;
 #[cfg(test)]
 extern crate rand;
+#[cfg(test)]
+extern crate rand_isaac;
 
+use core::alloc::Layout;
+use core::alloc::GlobalAlloc;
 use ::core::ptr;
 
 fn psize() -> usize {
     ::core::mem::size_of::<*mut u8>()
 }
 
-#[allow(cast_possible_wrap)]
+#[allow(clippy::cast_possible_wrap)]
 fn ipsize() -> isize {
     ::core::mem::size_of::<*mut u8>() as isize
 }
@@ -105,7 +107,7 @@ fn bbsize() -> usize {
     ::core::mem::size_of::<BusyBlock>()
 }
 
-#[allow(cast_possible_wrap)]
+#[allow(clippy::cast_possible_wrap)]
 fn ibbsize() -> isize {
     ::core::mem::size_of::<BusyBlock>() as isize
 }
@@ -115,7 +117,7 @@ fn fbsize() -> usize {
     ::core::mem::size_of::<FreeBlock>()
 }
 
-#[allow(cast_possible_wrap)]
+#[allow(clippy::cast_possible_wrap)]
 fn ifbsize() -> isize {
     ::core::mem::size_of::<FreeBlock>() as isize
 }
@@ -128,7 +130,16 @@ pub struct Smalloc {
     pub size: usize,
 }
 
-#[cfg_attr(test, derive(Debug, PartialEq))]
+unsafe impl GlobalAlloc for Smalloc {
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        self.alloc(layout.size())
+    }
+    unsafe fn dealloc(&self, ptr: *mut u8, _layout: Layout) {
+        self.free(ptr)
+    }
+}
+
+#[cfg_attr(test, derive(Clone, Copy, Debug, PartialEq))]
 #[repr(packed)]
 struct FreeBlock {
     pub prev_size: u16,
@@ -136,7 +147,7 @@ struct FreeBlock {
     pub next: *mut FreeBlock,
 }
 
-#[cfg_attr(test, derive(Debug, PartialEq))]
+#[cfg_attr(test, derive(Clone, Copy, Debug, PartialEq))]
 #[repr(packed)]
 struct BusyBlock {
     pub prev_size: u16,
@@ -160,21 +171,25 @@ impl BusyBlock {
 #[cfg(test)]
 impl ::core::fmt::Display for FreeBlock {
     fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
-        f.debug_struct("FreeBlock")
-            .field("prev_size", &self.prev_size)
-            .field("size", &self.size)
-            .field("next", &self.next)
-            .finish()
+        unsafe {
+            f.debug_struct("FreeBlock")
+                .field("prev_size", &self.prev_size)
+                .field("size", &self.size)
+                .field("next", &self.next)
+                .finish()
+        }
     }
 }
 
 #[cfg(test)]
 impl ::core::fmt::Display for BusyBlock {
     fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
-        f.debug_struct("BusyBlock")
-            .field("prev_size", &self.prev_size)
-            .field("size", &self.size)
-            .finish()
+        unsafe {
+            f.debug_struct("BusyBlock")
+                .field("prev_size", &self.prev_size)
+                .field("size", &self.size)
+                .finish()
+        }
     }
 }
 
@@ -188,8 +203,8 @@ impl Smalloc {
     /// Initializes memory for allocator.
     ///
     /// Must be called before any allocation.
-    #[allow(cast_possible_truncation)] // cur_size is guaranteed to be less than MAX_ALLOC
-    #[allow(cast_possible_wrap)] // MAX_ALLOC should not wrap when cast to isize
+    #[allow(clippy::cast_possible_truncation)] // cur_size is guaranteed to be less than MAX_ALLOC
+    #[allow(clippy::cast_possible_wrap)] // MAX_ALLOC should not wrap when cast to isize
     pub unsafe fn init(&self) {
         *self.free_list_start() = self.start.offset(ipsize()) as *mut FreeBlock;
 
@@ -210,8 +225,8 @@ impl Smalloc {
         }
     }
 
-    #[allow(cast_possible_truncation)] // size is checked to be u16
-    #[allow(cast_possible_wrap)]
+    #[allow(clippy::cast_possible_truncation)] // size is checked to be u16
+    #[allow(clippy::cast_possible_wrap)]
     pub unsafe fn alloc(&self, mut size: usize) -> *mut u8 {
         if size == 0 {
             return ptr::null_mut();
@@ -260,8 +275,8 @@ impl Smalloc {
         (cur as *mut u8).offset(ibbsize())
     }
 
-    #[allow(cast_possible_wrap)]
-    #[allow(cast_possible_truncation)] // bbsize < u16
+    #[allow(clippy::cast_possible_wrap)]
+    #[allow(clippy::cast_possible_truncation)] // bbsize < u16
     pub unsafe fn free(&self, ptr: *mut u8) {
         if ptr.is_null() {
             return;
@@ -388,14 +403,14 @@ mod test {
     #[allow(unused_imports)]
     use super::{BusyBlock, FreeBlock, psize, ipsize, bbsize, ibbsize, fbsize, ifbsize};
 
-    use alloc::heap;
+    use ::std::alloc;
 
-    use ::core::mem::size_of;
     use ::core::ptr;
 
     fn with_memory<F>(size: usize, f: F) where F: Fn(*mut u8, &Smalloc) -> () {
         unsafe {
-            let memory = heap::allocate(size, psize());
+            let layout = Layout::from_size_align_unchecked(size, psize());
+            let memory = alloc::alloc(layout);
             let a: Smalloc = Smalloc {
                 start: memory,
                 size: size,
@@ -404,7 +419,7 @@ mod test {
 
             f(memory, &a);
 
-            heap::deallocate(memory, size, size_of::<*mut u8>());
+            alloc::dealloc(memory, layout);
         }
     }
 
@@ -908,11 +923,11 @@ mod test {
         // That's a fucking trick because standard rand doesn't export
         // StdRng for unknown reason
         #[cfg(target_pointer_width = "32")]
-        use ::rand::IsaacRng as IsaacWordRng;
+        use rand_isaac::IsaacRng as IsaacWordRng;
         #[cfg(target_pointer_width = "64")]
-        use ::rand::Isaac64Rng as IsaacWordRng;
+        use rand_isaac::Isaac64Rng as IsaacWordRng;
 
-        use ::rand::{SeedableRng, Rng};
+        use ::rand::{Rng, SeedableRng};
         use ::std::vec::Vec;
         use ::std::intrinsics::write_bytes;
 
@@ -920,7 +935,7 @@ mod test {
 
         with_memory(MEMORY_SIZE, |_, a| unsafe {
             // Reproducability is a must
-            let mut rng = IsaacWordRng::from_seed(&[42,42,42]);
+            let mut rng = IsaacWordRng::from_seed([42; 32]);
 
             let mut allocs = Vec::new();
 

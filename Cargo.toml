@@ -3,10 +3,6 @@ name = "bkernel"
 version = "0.0.1"
 authors = ["Alexey Shmalko <rasen.dubi@gmail.com>"]
 
-[lib]
-name = "kernel"
-crate-type = ["lib", "staticlib"]
-
 [dependencies]
 futures = { version = "0.1", default-features = false }
 dev = { path = "./dev" }
@@ -15,8 +11,8 @@ smalloc = { path = "./smalloc" }
 linkmem = { path = "./linkmem" }
 breactor = { path = "./breactor" }
 
-[target.thumbv7em-none-eabi.dependencies]
-compiler_builtins = { git = "https://github.com/rust-lang-nursery/compiler-builtins", features=["c", "mem"] }
+[[bin]]
+name = "bkernel"
 
 [profile.release]
 opt-level = 3
@@ -24,3 +20,14 @@ lto = true
 debug = true
 debug-assertions = false
 panic = 'abort'
+
+[profile.dev]
+panic = 'abort'
+
+[workspace]
+members = [
+  "dev",
+  "smalloc",
+  "linkmem",
+  "breactor",
+]

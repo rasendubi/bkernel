@@ -1,8 +1,8 @@
-#![feature(lang_items, alloc, core_intrinsics, const_fn)]
-#![feature(conservative_impl_trait)]
+#![feature(lang_items, core_intrinsics, const_fn)]
 #![feature(fixed_size_array)]
+#![feature(alloc_error_handler)]
 
-#![feature(compiler_builtins_lib)]
+#![cfg_attr(not(test), no_main)]
 
 #![cfg_attr(target_os = "none", no_std)]
 
@@ -22,9 +22,6 @@ extern crate alloc;
 extern crate futures;
 
 extern crate breactor;
-
-extern crate compiler_builtins;
-pub use compiler_builtins::*;
 
 mod led;
 mod led_music;
@@ -118,7 +115,7 @@ pub extern fn kmain() -> ! {
     unsafe{&mut ::dev::rng::RNG}.enable();
     let mut print_rng = unsafe{&mut ::dev::rng::RNG}.for_each(|r| {
         use core::fmt::Write;
-        let _ = write!(unsafe{&::stm32f4::usart::USART2}, "RNG: {}\n", r);
+        let _ = write!(unsafe{&::stm32f4::usart::USART2}, "RNG: {}\r\n", r);
         Ok(())
     })
         .map(|_| ())
@@ -329,15 +326,36 @@ unsafe fn init_usart2() {
 
 #[cfg(target_os = "none")]
 pub mod panicking {
-    use core::fmt::{self, Write};
+    use core::panic::PanicInfo;
+    use core::fmt::Write;
     use stm32f4::usart::USART2;
 
-    #[lang = "panic_fmt"]
-    extern fn panic_fmt(fmt: fmt::Arguments, file: &str, line: u32) -> ! {
+    // #[lang = "panic_fmt"]
+    #[panic_handler]
+    fn panic(info: &PanicInfo) -> ! {
         {
             let _lock = unsafe { ::stm32f4::IrqLock::new() };
-            let _ = write!(unsafe{&USART2}, "\r\nPANIC\r\n{}:{} {}", file, line, fmt);
+            match info.location() {
+                Some(loc) => {
+                    let _ = write!(unsafe{&USART2}, "\r\nPANIC\r\n{}:{}", loc.file(), loc.line());
+                },
+                None => {
+                    let _ = write!(unsafe{&USART2}, "\r\nPANIC\r\n");
+                }
+            }
         }
+        loop {
+            unsafe { ::stm32f4::__wait_for_interrupt() };
+        }
+    }
+
+    #[alloc_error_handler]
+    fn alloc_error(_: core::alloc::Layout) -> ! {
+        {
+            let _lock = unsafe { ::stm32f4::IrqLock::new() };
+            let _ = write!(unsafe{&USART2}, "\r\nALLOC ERROR\r\n");
+        }
+
         loop {
             unsafe { ::stm32f4::__wait_for_interrupt() };
         }
@@ -428,7 +446,6 @@ unsafe fn init_rng() {
 
 unsafe fn init_esp8266() {
     use ::stm32f4::usart::USART3;
-    use ::stm32f4::gpio::GPIO_D;
 
     RCC.apb1_clock_enable(rcc::Apb1Enable::USART3);
 

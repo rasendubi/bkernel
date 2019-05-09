@@ -2,7 +2,6 @@
 #![no_std]
 #![feature(const_fn)]
 #![feature(integer_atomics)]
-#![feature(conservative_impl_trait)]
 #![feature(core_intrinsics)]
 #![feature(fixed_size_array)]
 

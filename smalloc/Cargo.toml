@@ -6,3 +6,7 @@ authors = ["Alexey Shmalko <rasen.dubi@gmail.com>"]
 [lib]
 name = "smalloc"
 path = "lib.rs"
+
+[dev-dependencies]
+rand_isaac = "0.1.1"
+rand = "0.6.5"

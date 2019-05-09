@@ -21,7 +21,7 @@ extern {
 /// Reset handler. It copies `.data` segment, initializes `.bss` to
 /// zeros, and calls `kmain()`.
 #[no_mangle]
-pub unsafe extern fn __isr_reset() {
+pub unsafe extern "C" fn __isr_reset() {
     let mut to = &mut __data_start as *mut Void as *mut u32;
     let data_end = &mut __data_end as *mut Void as *mut u32;
 

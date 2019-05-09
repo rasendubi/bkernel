@@ -62,7 +62,7 @@ impl Temperature {
     }
 
     /// Return temperature in degrees celsius.
-    #[allow(float_arithmetic)]
+    #[allow(clippy::float_arithmetic)]
     pub const fn celsius(&self) -> f32 {
         -46.85 + 175.72 * ((self.0 & !0x3) as f32) / ((1 << 16) as f32)
     }
@@ -94,7 +94,7 @@ impl Humidity {
         self.0
     }
 
-    #[allow(float_arithmetic)]
+    #[allow(clippy::float_arithmetic)]
     pub const fn percents(&self) -> f32 {
         -6.0 + 125.0*((self.0 & !0x3) as f32)/((1 << 16) as f32)
     }
