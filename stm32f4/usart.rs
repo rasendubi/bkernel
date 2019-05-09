@@ -5,7 +5,7 @@
 
 use core::fmt;
 
-use volatile::RW;
+use crate::volatile::RW;
 
 extern {
     pub static USART1: Usart;

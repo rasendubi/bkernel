@@ -7,7 +7,7 @@ use ::futures::{Async, Future, Poll, Stream};
 
 use ::breactor::start_send_all_string::StartSendAllString;
 
-use usart::Usart;
+use crate::usart::Usart;
 
 #[allow(unused)]
 macro_rules! debug_log {

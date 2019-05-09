@@ -1,5 +1,5 @@
 //! CS43L22 Low Power, Stereo DAC with Headphone and Speaker Amplifiers.
-use i2c;
+use crate::i2c;
 
 use ::futures::Future;
 

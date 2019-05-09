@@ -1,5 +1,5 @@
 //! CRC calculation unit.
-use volatile::{WO, RW};
+use crate::volatile::{WO, RW};
 
 extern {
     pub static CRC: Crc;

@@ -1,4 +1,4 @@
-use led;
+use crate::led;
 
 // TODO(rasen): rewrite this module to use Futures and timers.
 

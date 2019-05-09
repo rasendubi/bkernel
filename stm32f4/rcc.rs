@@ -1,6 +1,6 @@
 //! Reset and clock control.
 
-use volatile::{RW, RES};
+use crate::volatile::{RW, RES};
 
 extern {
     pub static RCC: Rcc;

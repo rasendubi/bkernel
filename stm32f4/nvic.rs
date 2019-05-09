@@ -1,6 +1,6 @@
 //! Nested Vector Interrupt Controller
 
-use volatile::{RW, RO};
+use crate::volatile::{RW, RO};
 
 extern {
     pub static ICTR: RO<u32>;
