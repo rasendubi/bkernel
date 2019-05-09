@@ -14,7 +14,7 @@ impl<'a, T> StartSendAllString<'a, T>
     pub fn new(sink: T, string: &'a str) -> StartSendAllString<'a, T> {
         StartSendAllString {
             sink: Some(sink),
-            string: string,
+            string,
             cur: 0,
         }
     }

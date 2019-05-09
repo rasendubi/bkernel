@@ -1,7 +1,9 @@
 //! Universal Synchronous Asynchronous Receiver Transmitter
 
-// Stupid compiler thinks Bits0_5 is not camel case, but Bits05 is.
+// Compiler thinks Bits0_5 is not camel case, but Bits05 is.
 #![allow(non_camel_case_types)]
+// allow `<< 0`
+#![allow(clippy::identity_op)]
 
 use core::fmt;
 
@@ -185,7 +187,7 @@ impl Usart {
             self.cr1.update_with_mask(Cr1::M as u32 | Cr1::PCE as u32 | Cr1::TE as u32 | Cr1::RE as u32,
                                       config.data_bits as u32 | Cr1::TE as u32 | Cr1::RE as u32);
             self.cr3.clear_flag(0x3FF); // No Hardware Flow-Control
-            self.brr.set(0xF42400 / config.baud_rate); // Default SysClk Rate / Baud Rate
+            self.brr.set(0x00F4_2400 / config.baud_rate); // Default SysClk Rate / Baud Rate
 
             // finally this enables the complete USART peripheral
             self.cr1.set_flag(Cr1::UE as u32);
@@ -194,13 +196,13 @@ impl Usart {
 
     pub fn puts_synchronous(&self, s: &str) {
         for c in s.bytes() {
-            self.put_char(c as u32);
+            self.put_char(u32::from(c));
         }
     }
 
     pub fn put_bytes(&self, bytes: &[u8]) {
         for b in bytes {
-            self.put_char(*b as u32);
+            self.put_char(u32::from(*b));
         }
     }
 
@@ -228,7 +230,7 @@ impl Usart {
     }
 
     pub unsafe fn put_unsafe(&self, c: u8) {
-        self.dr.set(c as u32);
+        self.dr.set(u32::from(c));
     }
 
     pub fn it_enable(&self, it: Interrupt) {
@@ -267,7 +269,7 @@ impl Usart {
 
     pub fn it_clear_flag(&self, it: InterruptFlag) {
         unsafe {
-            self.sr.set((!(it as u16)) as u32);
+            self.sr.set(u32::from(!(it as u16)));
         }
     }
 
@@ -313,7 +315,7 @@ impl Usart {
         unsafe {
             let bitpos = it as u32 >> 8;
             let itmask = 1_u16 << bitpos;
-            self.sr.set(!itmask as u32);
+            self.sr.set(u32::from(!itmask));
         }
     }
 }

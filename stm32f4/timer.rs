@@ -1,5 +1,8 @@
 //! General-purpose timers (TIM2-TIM5)
 
+// allow `<< 0`
+#![allow(clippy::identity_op)]
+
 use crate::volatile::{RW, RES};
 
 extern {
@@ -120,7 +123,7 @@ impl Tim {
             self.cr1.set(tmpcr1);
 
             self.arr.set(tim.period);
-            self.psc.set(tim.prescaler as u32);
+            self.psc.set(u32::from(tim.prescaler));
             self.egr.set(Egr::TG as u32);
         }
     }

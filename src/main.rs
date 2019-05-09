@@ -115,19 +115,16 @@ pub extern fn kmain() -> ! {
     unsafe{&mut ::dev::rng::RNG}.enable();
     let mut print_rng = unsafe{&mut ::dev::rng::RNG}.for_each(|r| {
         use core::fmt::Write;
-        let _ = write!(unsafe{&::stm32f4::usart::USART2}, "RNG: {}\r\n", r);
+        let _ = writeln!(unsafe{&::stm32f4::usart::USART2}, "RNG: {}\r", r);
         Ok(())
     })
         .map(|_| ())
         .map_err(|_| ());
 
-    let stdin = &USART2;
-    let stdout = &USART2;
-
     let mut terminal = StartSendAllString::new(
-        stdout,
+        &USART2,
         "\r\nWelcome to bkernel!\r\nType 'help' to get a list of available commands.\r\n"
-    ).and_then(|stdout| terminal::run_terminal(stdin, stdout))
+    ).and_then(|stdout| terminal::run_terminal(&USART2, stdout))
         .map(|_| ())
         .map_err(|_| ());
 
@@ -159,12 +156,10 @@ pub extern fn kmain() -> ! {
                 .map(move |hum| {
                     log!("Temperature: {} C      Humidity: {}%\r\n",
                          temp, hum);
-                    ()
                 })
         })
         .map_err(|err| {
             log!("HTU21D error: {:?}\r\n", err);
-            ()
         });
 
     let mut cs43l22 = unsafe {&mut CS43L22}.get_chip_id()
@@ -191,8 +186,8 @@ pub extern fn kmain() -> ! {
         })
         .and_then(|(aps, size)| {
             debug_log!("\r\nAccess points:\r\n");
-            for i in 0 .. ::core::cmp::min(size, aps.len()) {
-                debug_log!("{:?}\r\n", aps[i]);
+            for ap in &aps[0 .. ::core::cmp::min(size, aps.len())] {
+                debug_log!("{:?}\r\n", ap);
             }
             Ok(())
         })
@@ -204,35 +199,15 @@ pub extern fn kmain() -> ! {
     unsafe {
         let reactor = &REACTOR;
 
-        reactor.add_task(
-            5,
-            // Trust me, I know what I'm doing.
-            //
-            // The infinite loop below makes all values above it
-            // effectively 'static.
-            ::core::mem::transmute::<&mut Future<Item=(), Error=()>,
-                                     &'static mut Future<Item=(), Error=()>>(&mut terminal)
-        );
-        reactor.add_task(
-            4,
-            ::core::mem::transmute::<&mut Future<Item=(), Error=()>,
-                                     &'static mut Future<Item=(), Error=()>>(&mut print_rng)
-        );
-        reactor.add_task(
-            6,
-            ::core::mem::transmute::<&mut Future<Item=(), Error=()>,
-                                     &'static mut Future<Item=(), Error=()>>(&mut htu21d)
-        );
-        reactor.add_task(
-            2,
-            ::core::mem::transmute::<&mut Future<Item=(), Error=()>,
-                                     &'static mut Future<Item=(), Error=()>>(&mut cs43l22)
-        );
-        reactor.add_task(
-            1,
-            ::core::mem::transmute::<&mut Future<Item=(), Error=()>,
-                                     &'static mut Future<Item=(), Error=()>>(&mut esp8266)
-        );
+        // Trust me, I know what I'm doing with lifetime loundary here.
+        //
+        // The infinite loop below makes all values above it
+        // effectively 'static.
+        reactor.add_task(5, lifetime_loundary(&mut terminal));
+        reactor.add_task(4, lifetime_loundary(&mut print_rng));
+        reactor.add_task(6, lifetime_loundary(&mut htu21d));
+        reactor.add_task(2, lifetime_loundary(&mut cs43l22));
+        reactor.add_task(1, lifetime_loundary(&mut esp8266));
 
         loop {
             reactor.run();
@@ -241,6 +216,11 @@ pub extern fn kmain() -> ! {
             stm32f4::__wait_for_event();
         }
     }
+}
+
+/// Extremely unsafe (probably even UB)
+unsafe fn lifetime_loundary<'a, 'b, T: ?Sized>(val: &'a mut T) -> &'b mut T {
+    &mut *(val as *mut _)
 }
 
 unsafe fn init_timer() {
@@ -311,7 +291,7 @@ unsafe fn init_usart2() {
         data_bits: usart::DataBits::Bits8,
         stop_bits: usart::StopBits::Bits1,
         flow_control: usart::FlowControl::No,
-        baud_rate: 115200,
+        baud_rate: 115_200,
     });
 
     USART2.it_enable(usart::Interrupt::RXNE);
@@ -474,7 +454,7 @@ unsafe fn init_esp8266() {
         data_bits: usart::DataBits::Bits8,
         stop_bits: usart::StopBits::Bits1,
         flow_control: usart::FlowControl::No,
-        baud_rate: 115200,
+        baud_rate: 115_200,
     });
 
     USART3.it_enable(usart::Interrupt::RXNE);

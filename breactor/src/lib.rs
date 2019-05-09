@@ -49,7 +49,7 @@ impl TaskId {
         1_u32.checked_shl(id).map(TaskId)
     }
 
-    const fn get_mask(&self) -> u32 {
+    const fn get_mask(self) -> u32 {
         self.0
     }
 }
@@ -124,7 +124,7 @@ impl<'a> Reactor<'a> {
     pub const fn from_array(tasks: [UnsafeCell<Option<&'a mut Future<Item=(), Error=()>>>; 32]) -> Reactor<'a> {
         Reactor {
             current_task_mask: AtomicU32::new(0),
-            tasks: tasks,
+            tasks,
 
             // All tasks are ready.
             //

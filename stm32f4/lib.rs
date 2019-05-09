@@ -148,7 +148,7 @@ impl Drop for IrqLock {
 pub fn get_device_id() -> u128 {
     const REG: *const u32 = 0x1FFF_7A10 as _;
     unsafe {
-        (*REG as u128) | ((*REG.offset(1) as u128) << 32) | ((*REG.offset(2) as u128) << 64)
+        u128::from(*REG) | (u128::from(*REG.offset(1)) << 32) | (u128::from(*REG.offset(2)) << 64)
     }
 }
 

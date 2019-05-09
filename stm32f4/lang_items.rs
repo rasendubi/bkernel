@@ -1,5 +1,8 @@
 //! `lang_items` and functions needed to start Rust on bare metal.
 
+// `loop {}` can't be replaced with `panic!()`
+#![allow(clippy::empty_loop)]
+
 #[cfg(target_os = "none")]
 #[lang = "eh_personality"]
 extern fn eh_personality() {}

@@ -57,18 +57,22 @@ impl Temperature {
     ///
     /// The conversion formula must be applied to receive degrees
     /// celsius.
-    pub const fn raw(&self) -> u16 {
+    pub const fn raw(self) -> u16 {
         self.0
     }
 
     /// Return temperature in degrees celsius.
     #[allow(clippy::float_arithmetic)]
-    pub const fn celsius(&self) -> f32 {
+    // f32::from is not constant
+    #[allow(clippy::cast_lossless)]
+    pub const fn celsius(self) -> f32 {
         -46.85 + 175.72 * ((self.0 & !0x3) as f32) / ((1 << 16) as f32)
     }
 
     /// Temperature in milliseconds.
-    pub const fn millicelsius(&self) -> i64 {
+    // i64::from is not constant
+    #[allow(clippy::cast_lossless)]
+    pub const fn millicelsius(self) -> i64 {
         -46_850 + ((175_720 * ((self.0 & !0x3) as i64)) >> 16)
     }
 }
@@ -90,16 +94,20 @@ impl ::core::fmt::Display for Temperature {
 pub struct Humidity(u16);
 
 impl Humidity {
-    pub const fn raw(&self) -> u16 {
+    pub const fn raw(self) -> u16 {
         self.0
     }
 
     #[allow(clippy::float_arithmetic)]
-    pub const fn percents(&self) -> f32 {
+    // f32::from is not constant
+    #[allow(clippy::cast_lossless)]
+    pub const fn percents(self) -> f32 {
         -6.0 + 125.0*((self.0 & !0x3) as f32)/((1 << 16) as f32)
     }
 
-    pub const fn millipercents(&self) -> i64 {
+    // i64::from is not constant
+    #[allow(clippy::cast_lossless)]
+    pub const fn millipercents(self) -> i64 {
         -6_000 + ((125_000*((self.0 & !0x3) as i64)) >> 16)
     }
 }
@@ -185,7 +193,7 @@ impl<T> Future for Htu21dCommand<HoldMaster, T>
                 ResultTransmission(ref mut transmission) => {
                     let (mut i2c, buf) = try_ready!(transmission.poll());
                     i2c.stop();
-                    Done(((buf[0] as u16) << 8) | (buf[1] as u16), PhantomData)
+                    Done((u16::from(buf[0]) << 8) | u16::from(buf[1]), PhantomData)
                 }
                 Done(sample, _) => {
                     return Ok(Async::Ready(T::from(sample)));

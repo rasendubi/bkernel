@@ -84,7 +84,7 @@ impl Cs43l22 {
     pub const fn new(i2c: &'static i2c::I2cBus, ad0: bool) -> Cs43l22 {
         Cs43l22 {
             i2c,
-            i2c_addr: 0b10010100 | ((ad0 as u16) << 1),
+            i2c_addr: 0b1001_0100 | ((ad0 as u16) << 1),
             buffer: [0; 8],
         }
     }
