@@ -112,13 +112,15 @@ impl Gpio {
     /// ```no_run
     /// use stm32f4::gpio;
     ///
-    /// gpio::GPIO_B.enable(6, gpio::GpioConfig {
-    ///     mode: gpio::GpioMode::AF,
-    ///     ospeed: gpio::GpioOSpeed::FAST_SPEED,
-    ///     otype: gpio::GpioOType::OPEN_DRAIN,
-    ///     pupd: gpio::GpioPuPd::PULL_UP,
-    ///     af: gpio::GpioAF::AF7,
-    /// });
+    /// unsafe {
+    ///   gpio::GPIO_B.enable(6, gpio::GpioConfig {
+    ///       mode: gpio::GpioMode::AF,
+    ///       ospeed: gpio::GpioOSpeed::FAST_SPEED,
+    ///       otype: gpio::GpioOType::OPEN_DRAIN,
+    ///       pupd: gpio::GpioPuPd::PULL_UP,
+    ///       af: gpio::GpioAF::AF7,
+    ///   });
+    /// }
     /// ```
     pub fn enable(&self, pin: u32, config: GpioConfig) {
         unsafe {

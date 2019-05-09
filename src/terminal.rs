@@ -5,9 +5,9 @@ use ::futures::{Async, AsyncSink, Future, Poll, Sink, Stream};
 
 use ::breactor::start_send_all_string::StartSendAllString;
 
-const PROMPT: &'static str = "> ";
+const PROMPT: &str = "> ";
 
-const HELP_MESSAGE: &'static str =
+const HELP_MESSAGE: &str =
 "Available commands:\r
 hi      -- welcomes you\r
 pony    -- surprise!\r
@@ -183,8 +183,8 @@ static mut CUR: usize = 0;
 fn process_char<Si>(sink: Si, c: u8) -> impl Future<Item=Si, Error=()> + 'static
     where Si: Sink<SinkItem=u8, SinkError=()> + 'static
 {
-    let mut command = unsafe{&mut COMMAND};
-    let mut cur = unsafe{&mut CUR};
+    let command = unsafe{&mut COMMAND};
+    let cur = unsafe{&mut CUR};
 
     if c == 0x8 { // backspace
         if *cur != 0 {
@@ -210,7 +210,7 @@ fn process_enter<Si>(sink: Si) -> CommandResult<Si>
     where Si: Sink<SinkItem=u8, SinkError=()> + 'static
 {
     let command = unsafe{&mut COMMAND};
-    let mut cur = unsafe{&mut CUR};
+    let cur = unsafe{&mut CUR};
 
     let command = &command[0 .. *cur - 1];
     *cur = 0;

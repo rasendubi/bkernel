@@ -2,7 +2,6 @@
 #![feature(lang_items)]
 #![feature(core_intrinsics)]
 #![feature(asm)]
-#![feature(i128_type)]
 
 #![no_std]
 
@@ -131,7 +130,6 @@ pub unsafe fn restore_irq(primask: u32) {
 pub struct IrqLock(u32);
 
 impl IrqLock {
-    #[allow(new_without_default_derive)]
     pub unsafe fn new() -> IrqLock {
         IrqLock(save_irq())
     }

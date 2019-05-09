@@ -222,7 +222,7 @@ impl Usart {
         unsafe { self.dr.get() & 0xff }
     }
 
-    #[allow(cast_possible_truncation)] // DR is 8-bit register
+    #[allow(clippy::cast_possible_truncation)] // DR is 8-bit register
     pub unsafe fn get_unsafe(&self) -> u8 {
         self.dr.get() as u8
     }

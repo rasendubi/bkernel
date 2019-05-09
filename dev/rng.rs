@@ -58,7 +58,7 @@ impl<'a> Stream for Rng<'a> {
 }
 
 #[no_mangle]
-pub unsafe fn __isr_hash_rng() {
+pub unsafe extern fn __isr_hash_rng() {
     let task = RNG.task.swap(0, Ordering::SeqCst);
     REACTOR.set_ready_task_mask(task);
     RNG.inner.it_disable();

@@ -76,7 +76,7 @@ impl<A: FixedSizeArray<u8>, B: FixedSizeArray<u8>> Usart<A, B> {
     /// # extern crate dev;
     /// # extern crate stm32f4;
     /// # use dev::usart::Usart;
-    /// static USART2: Usart<[u8; 32], [u8;32]> = Usart::new(&stm32f4::usart::USART2, [0; 32], [0;32]);
+    /// static USART2: Usart<[u8; 32], [u8;32]> = Usart::new(unsafe {&stm32f4::usart::USART2}, [0; 32], [0;32]);
     ///
     /// pub unsafe extern fn __isr_usart2() {
     ///     USART2.isr()
