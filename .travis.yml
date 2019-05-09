@@ -7,6 +7,6 @@ install:
   - sudo apt-get install gcc-arm-embedded -y
   - rustup target add thumbv7em-none-eabi
 script:
-  - cargo test
+  - cargo test --all
   - cargo build --release --target thumbv7em-none-eabi
-  - cargo doc
+  - cargo doc --target thumbv7em-none-eabi
