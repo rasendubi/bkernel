@@ -1,7 +1,7 @@
 //! CRC calculation unit.
-use crate::volatile::{WO, RW};
+use crate::volatile::{RW, WO};
 
-extern {
+extern "C" {
     pub static CRC: Crc;
 }
 
@@ -16,9 +16,9 @@ extern {
 #[repr(C)]
 #[allow(missing_debug_implementations)]
 pub struct Crc {
-    dr:  RW<u32>, // 0x0
+    dr: RW<u32>,  // 0x0
     idr: RW<u32>, // 0x4
-    cr:  WO<u32>, // 0x8
+    cr: WO<u32>,  // 0x8
 }
 
 impl Crc {
@@ -39,9 +39,7 @@ impl Crc {
 
     /// Returns the current CRC value.
     pub fn get_crc(&self) -> u32 {
-        unsafe {
-            self.dr.get()
-        }
+        unsafe { self.dr.get() }
     }
 
     /// Stores 8-bit value in the Independent Data Register.
@@ -54,9 +52,7 @@ impl Crc {
     /// Reads 8-bit value from the Indenpendent Data Register.
     #[allow(clippy::cast_possible_truncation)] // IDR is 8-bit register
     pub fn get_idr(&self) -> u8 {
-        unsafe {
-            self.idr.get() as u8
-        }
+        unsafe { self.idr.get() as u8 }
     }
 
     pub fn block_crc(&self, data: &[u32]) -> u32 {

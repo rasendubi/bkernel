@@ -12,9 +12,9 @@ extern crate stm32f4;
 
 mod circular_buffer;
 
-pub mod usart;
-pub mod i2c;
-pub mod rng;
-pub mod htu21d;
 pub mod cs43l22;
 pub mod esp8266;
+pub mod htu21d;
+pub mod i2c;
+pub mod rng;
+pub mod usart;

@@ -36,24 +36,24 @@ fn delay(a: u32) {
     }
 }
 
-fn play_led_step(tt:u32) {
+fn play_led_step(tt: u32) {
     led::LD3.turn_on();
     delay(tt);
     led::LD3.turn_off();
 
-    delay(tt/10);
+    delay(tt / 10);
 
     led::LD4.turn_on();
     delay(tt);
     led::LD4.turn_off();
 
-    delay(tt/10);
+    delay(tt / 10);
 
     led::LD5.turn_on();
     delay(tt);
     led::LD5.turn_off();
 
-    delay(tt/10);
+    delay(tt / 10);
 
     led::LD6.turn_on();
     delay(1000);

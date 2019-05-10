@@ -10,9 +10,9 @@ use futures::{Async, Future, Poll};
 use breactor::mutex::{Mutex, MutexLock};
 use breactor::promise::Promise;
 
-pub static I2C1_BUS: I2cBus = I2cBus::new(unsafe{&i2c::I2C1});
-pub static I2C2_BUS: I2cBus = I2cBus::new(unsafe{&i2c::I2C2});
-pub static I2C3_BUS: I2cBus = I2cBus::new(unsafe{&i2c::I2C3});
+pub static I2C1_BUS: I2cBus = I2cBus::new(unsafe { &i2c::I2C1 });
+pub static I2C2_BUS: I2cBus = I2cBus::new(unsafe { &i2c::I2C2 });
+pub static I2C3_BUS: I2cBus = I2cBus::new(unsafe { &i2c::I2C3 });
 
 #[allow(missing_debug_implementations)]
 pub struct I2cBus {
@@ -55,8 +55,7 @@ pub struct I2cTransfer {
     bus: &'static I2cBus,
 }
 
-unsafe impl Sync for I2cBus {
-}
+unsafe impl Sync for I2cBus {}
 
 impl I2cBus {
     const fn new(i2c: &'static I2c) -> Self {
@@ -85,8 +84,13 @@ impl Future for StartTransferFuture {
     type Error = Error;
 
     fn poll(&mut self) -> Result<Async<I2cTransfer>, Error> {
-        self.bus.mutex.lock()
-            .map(move |lock| I2cTransfer { lock, bus: self.bus })
+        self.bus
+            .mutex
+            .lock()
+            .map(move |lock| I2cTransfer {
+                lock,
+                bus: self.bus,
+            })
             .map_err(|_| Error::LockError)
             .poll()
     }
@@ -110,8 +114,10 @@ impl<'a> Future for Transmission<'a> {
         let result = self.transfer.as_ref().unwrap().bus.result.get();
         unsafe {
             try_ready!((*result).poll());
-            Ok(Async::Ready((self.transfer.take().unwrap(),
-                             ::core::slice::from_raw_parts(self.data, self.size))))
+            Ok(Async::Ready((
+                self.transfer.take().unwrap(),
+                ::core::slice::from_raw_parts(self.data, self.size),
+            )))
         }
     }
 }
@@ -121,7 +127,12 @@ impl I2cTransfer {
         self.master_transmitter_raw(addr, data.as_ptr(), data.len())
     }
 
-    pub fn master_transmitter_raw<'a>(self, addr: u16, data_ptr: *const u8, data_size: usize) -> Transmission<'a> {
+    pub fn master_transmitter_raw<'a>(
+        self,
+        addr: u16,
+        data_ptr: *const u8,
+        data_size: usize,
+    ) -> Transmission<'a> {
         unsafe {
             *self.bus.slave_address.get() = addr;
             *self.bus.buffer.get() = data_ptr as *mut u8;
@@ -147,7 +158,12 @@ impl I2cTransfer {
         self.master_receiver_raw(addr, data.as_mut_ptr(), data.len())
     }
 
-    pub fn master_receiver_raw<'a>(self, addr: u16, data_ptr: *mut u8, data_size: usize) -> Transmission<'a> {
+    pub fn master_receiver_raw<'a>(
+        self,
+        addr: u16,
+        data_ptr: *mut u8,
+        data_size: usize,
+    ) -> Transmission<'a> {
         unsafe {
             *self.bus.slave_address.get() = addr | 0x01;
             *self.bus.buffer.get() = data_ptr;
@@ -179,12 +195,13 @@ impl I2cTransfer {
 }
 
 #[no_mangle]
-pub unsafe extern fn __isr_i2c1_ev() {
+pub unsafe extern "C" fn __isr_i2c1_ev() {
     let bus = &I2C1_BUS;
 
     let event = bus.i2c.get_last_event();
 
-    if event == 0x30000 { // MSL, BUSY
+    if event == 0x30000 {
+        // MSL, BUSY
         return;
     }
     if event == 0x0 {
@@ -197,14 +214,13 @@ pub unsafe extern fn __isr_i2c1_ev() {
             // not really data, but who cares
             // TODO(ashmalko): handle ADDR10
             bus.i2c.send_data(slave_address as u8);
-        },
-        i2c::Event::MasterTransmitterModeSelected |
-        i2c::Event::MasterReceiverModeSelected => {
+        }
+        i2c::Event::MasterTransmitterModeSelected | i2c::Event::MasterReceiverModeSelected => {
             let buf_left = bus.buf_left.get();
             if (*buf_left) == 1 {
                 bus.i2c.set_acknowledge(false);
             }
-        },
+        }
         i2c::Event::MasterByteTransmitted => {
             let buf_left = bus.buf_left.get();
 
@@ -227,7 +243,7 @@ pub unsafe extern fn __isr_i2c1_ev() {
                 *buf_left -= 1;
                 (*buffer) = (*buffer).offset(1);
             }
-        },
+        }
         i2c::Event::MasterByteReceived => {
             let buffer = bus.buffer.get();
             let buf_left = bus.buf_left.get();
@@ -249,7 +265,7 @@ pub unsafe extern fn __isr_i2c1_ev() {
                 bus.i2c.it_disable(i2c::Interrupt::Buf);
                 bus.i2c.it_disable(i2c::Interrupt::Err);
             }
-        },
+        }
         _ => {
             // TODO(ashmalko): this function should be rewritten to
             // check particular status flags, and not matching events
@@ -260,7 +276,7 @@ pub unsafe extern fn __isr_i2c1_ev() {
 }
 
 #[no_mangle]
-pub unsafe extern fn __isr_i2c1_er() {
+pub unsafe extern "C" fn __isr_i2c1_er() {
     let bus = &I2C1_BUS;
 
     let event = bus.i2c.get_last_event();
@@ -287,17 +303,13 @@ pub unsafe extern fn __isr_i2c1_er() {
 }
 
 #[no_mangle]
-pub extern fn __isr_i2c2_ev() {
-}
+pub extern "C" fn __isr_i2c2_ev() {}
 
 #[no_mangle]
-pub extern fn __isr_i2c2_er() {
-}
+pub extern "C" fn __isr_i2c2_er() {}
 
 #[no_mangle]
-pub extern fn __isr_i2c3_ev() {
-}
+pub extern "C" fn __isr_i2c3_ev() {}
 
 #[no_mangle]
-pub extern fn __isr_i2c3_er() {
-}
+pub extern "C" fn __isr_i2c3_er() {}

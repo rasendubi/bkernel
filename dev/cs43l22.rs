@@ -89,27 +89,20 @@ impl Cs43l22 {
         }
     }
 
-    pub fn get_chip_id(&'static mut self) -> impl Future<Item=u8, Error=Error> + 'static {
+    pub fn get_chip_id(&'static mut self) -> impl Future<Item = u8, Error = Error> + 'static {
         let addr = self.i2c_addr;
 
         self.buffer[0] = 0x01; // ID register
         let buffer = self.buffer.as_mut_ptr();
 
-        self.i2c.start_transfer()
-            .and_then(move |i2c| {
-                i2c.master_transmitter_raw(
-                    addr, buffer, 1)
-            })
-            .and_then(move |(i2c, _buffer)| {
-                i2c.master_receiver_raw(
-                    addr, buffer, 1)
-            })
+        self.i2c
+            .start_transfer()
+            .and_then(move |i2c| i2c.master_transmitter_raw(addr, buffer, 1))
+            .and_then(move |(i2c, _buffer)| i2c.master_receiver_raw(addr, buffer, 1))
             .map(|(mut i2c, buffer)| {
                 i2c.stop();
                 buffer[0]
             })
-            .map_err(|err| {
-                Error::I2cError(err)
-            })
+            .map_err(|err| Error::I2cError(err))
     }
 }

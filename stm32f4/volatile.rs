@@ -6,7 +6,7 @@
 
 use core::intrinsics::{volatile_load, volatile_store};
 
-use core::fmt::{Debug, Formatter, Error};
+use core::fmt::{Debug, Error, Formatter};
 
 use core::ops::{BitAnd, BitOr, Not};
 
@@ -108,7 +108,10 @@ impl<T> RW<T> {
     /// assert_eq!(0x3f, reg.get());
     /// # }
     /// ```
-    pub unsafe fn update<F>(&self, f: F) where F: FnOnce(T) -> T {
+    pub unsafe fn update<F>(&self, f: F)
+    where
+        F: FnOnce(T) -> T,
+    {
         self.set(f(self.get()))
     }
 
@@ -126,7 +129,8 @@ impl<T> RW<T> {
     /// # }
     /// ```
     pub unsafe fn update_with_mask(&self, mask: T, value: T)
-        where T: Not<Output=T> + BitAnd<T, Output=T> + BitOr<T, Output=T>
+    where
+        T: Not<Output = T> + BitAnd<T, Output = T> + BitOr<T, Output = T>,
     {
         self.update(|x| x & !mask | value);
     }
@@ -144,7 +148,8 @@ impl<T> RW<T> {
     /// # }
     /// ```
     pub unsafe fn set_flag(&self, value: T)
-        where T: BitOr<T, Output=T>
+    where
+        T: BitOr<T, Output = T>,
     {
         self.update(|x| x | value);
     }
@@ -162,7 +167,8 @@ impl<T> RW<T> {
     /// # }
     /// ```
     pub unsafe fn clear_flag(&self, value: T)
-        where T: Not<Output=T> + BitAnd<T, Output=T>
+    where
+        T: Not<Output = T> + BitAnd<T, Output = T>,
     {
         self.update(|x| x & !value);
     }

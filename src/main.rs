@@ -1,22 +1,20 @@
 #![feature(lang_items, core_intrinsics, const_fn)]
 #![feature(fixed_size_array)]
 #![feature(alloc_error_handler)]
-
 #![cfg_attr(not(test), no_main)]
-
 #![cfg_attr(target_os = "none", no_std)]
 
 #[cfg(not(target_os = "none"))]
 extern crate core;
 
-extern crate stm32f4;
 extern crate dev;
+extern crate stm32f4;
 
-#[cfg(target_os = "none")]
-extern crate smalloc;
+extern crate alloc;
 #[cfg(target_os = "none")]
 extern crate linkmem;
-extern crate alloc;
+#[cfg(target_os = "none")]
+extern crate smalloc;
 
 #[macro_use]
 extern crate futures;
@@ -25,16 +23,16 @@ extern crate breactor;
 
 mod led;
 mod led_music;
-mod terminal;
 mod log;
+mod terminal;
 
-use stm32f4::{rcc, gpio, usart, timer, nvic};
-use stm32f4::rcc::RCC;
 use stm32f4::gpio::{GPIO_B, GPIO_D};
+use stm32f4::rcc::RCC;
 use stm32f4::timer::TIM2;
+use stm32f4::{gpio, nvic, rcc, timer, usart};
 
-use futures::{Future, Stream};
 use futures::future::{self, Loop};
+use futures::{Future, Stream};
 
 use ::breactor::start_send_all_string::StartSendAllString;
 
@@ -46,16 +44,15 @@ use ::dev::htu21d::{Htu21d, Htu21dError};
 
 use ::dev::cs43l22::Cs43l22;
 
-use ::dev::esp8266::{Esp8266, AccessPoint};
+use ::dev::esp8266::{AccessPoint, Esp8266};
 
 pub static USART3: Usart<[u8; 32], [u8; 32]> =
-    Usart::new(unsafe{&::stm32f4::usart::USART3}, [0; 32], [0; 32]);
+    Usart::new(unsafe { &::stm32f4::usart::USART3 }, [0; 32], [0; 32]);
 
-pub static mut ESP8266: Esp8266<'static, [u8; 32], [u8; 32]> =
-    Esp8266::new(&USART3);
+pub static mut ESP8266: Esp8266<'static, [u8; 32], [u8; 32]> = Esp8266::new(&USART3);
 
 pub static USART2: Usart<[u8; 128], [u8; 32]> =
-    Usart::new(unsafe{&::stm32f4::usart::USART2}, [0; 128], [0; 32]);
+    Usart::new(unsafe { &::stm32f4::usart::USART2 }, [0; 128], [0; 32]);
 
 macro_rules! debug_log {
     ( $( $x:expr ),* ) => {
@@ -83,11 +80,11 @@ static mut CS43L22: Cs43l22 = Cs43l22::new(&::dev::i2c::I2C1_BUS, false);
 
 #[cfg(target_os = "none")]
 fn init_memory() {
-    const HEAP_SIZE: usize = 64*1024;
+    const HEAP_SIZE: usize = 64 * 1024;
     static mut HEAP: [u8; HEAP_SIZE] = [0; HEAP_SIZE];
 
     ::linkmem::init(smalloc::Smalloc {
-        start: unsafe {&mut HEAP}.as_mut_ptr(),
+        start: unsafe { &mut HEAP }.as_mut_ptr(),
         size: HEAP_SIZE,
     });
 }
@@ -97,7 +94,7 @@ fn init_memory() {}
 
 /// The main entry of the kernel.
 #[no_mangle]
-pub extern fn kmain() -> ! {
+pub extern "C" fn kmain() -> ! {
     init_memory();
     unsafe {
         init_usart2();
@@ -110,91 +107,83 @@ pub extern fn kmain() -> ! {
 
     // Test that allocator works
     let mut b = ::alloc::boxed::Box::new(5);
-    unsafe { ::core::intrinsics::volatile_store(&mut *b as *mut _, 4); }
+    unsafe {
+        ::core::intrinsics::volatile_store(&mut *b as *mut _, 4);
+    }
 
-    unsafe{&mut ::dev::rng::RNG}.enable();
-    let mut print_rng = unsafe{&mut ::dev::rng::RNG}.for_each(|r| {
-        use core::fmt::Write;
-        let _ = writeln!(unsafe{&::stm32f4::usart::USART2}, "RNG: {}\r", r);
-        Ok(())
-    })
+    unsafe { &mut ::dev::rng::RNG }.enable();
+    let mut print_rng = unsafe { &mut ::dev::rng::RNG }
+        .for_each(|r| {
+            use core::fmt::Write;
+            let _ = writeln!(unsafe { &::stm32f4::usart::USART2 }, "RNG: {}\r", r);
+            Ok(())
+        })
         .map(|_| ())
         .map_err(|_| ());
 
     let mut terminal = StartSendAllString::new(
         &USART2,
-        "\r\nWelcome to bkernel!\r\nType 'help' to get a list of available commands.\r\n"
-    ).and_then(|stdout| terminal::run_terminal(&USART2, stdout))
-        .map(|_| ())
-        .map_err(|_| ());
+        "\r\nWelcome to bkernel!\r\nType 'help' to get a list of available commands.\r\n",
+    )
+    .and_then(|stdout| terminal::run_terminal(&USART2, stdout))
+    .map(|_| ())
+    .map_err(|_| ());
 
-    let mut htu21d = HTU21D.soft_reset()
+    let mut htu21d = HTU21D
+        .soft_reset()
         .and_then(|_| {
             // This is needed because device is not instantly up after
             // reset, so we poll it, untill it ready.
-            future::loop_fn(
-                (),
-                |_| {
-                    HTU21D.read_temperature_hold_master()
-                        .then(|res| match res {
-                            Ok(temp) => {
-                                Ok(Loop::Break(temp))
-                            },
-                            // Acknowledge failure -> device is not ready -> retry
-                            Err(Htu21dError::I2cError(dev::i2c::Error::AcknowledgementFailure)) => {
-                                Ok(Loop::Continue(()))
-                            },
-                            Err(x) => {
-                                Err(x)
-                            },
-                        })
-                }
-            )
+            future::loop_fn((), |_| {
+                HTU21D.read_temperature_hold_master().then(|res| match res {
+                    Ok(temp) => Ok(Loop::Break(temp)),
+                    // Acknowledge failure -> device is not ready -> retry
+                    Err(Htu21dError::I2cError(dev::i2c::Error::AcknowledgementFailure)) => {
+                        Ok(Loop::Continue(()))
+                    }
+                    Err(x) => Err(x),
+                })
+            })
         })
         .and_then(|temp| {
-            HTU21D.read_humidity_hold_master()
-                .map(move |hum| {
-                    log!("Temperature: {} C      Humidity: {}%\r\n",
-                         temp, hum);
-                })
+            HTU21D.read_humidity_hold_master().map(move |hum| {
+                log!("Temperature: {} C      Humidity: {}%\r\n", temp, hum);
+            })
         })
         .map_err(|err| {
             log!("HTU21D error: {:?}\r\n", err);
         });
 
-    let mut cs43l22 = unsafe {&mut CS43L22}.get_chip_id()
-        .then(|res| {
-            match res {
-                Ok(id) => {
-                    log!("CS43L22 CHIP ID: 0b{:b}\r\n", id);
-                },
-                Err(err) => {
-                    log!("Error: {:?}\r\n", err);
-                },
+    let mut cs43l22 = unsafe { &mut CS43L22 }.get_chip_id().then(|res| {
+        match res {
+            Ok(id) => {
+                log!("CS43L22 CHIP ID: 0b{:b}\r\n", id);
             }
-            Ok(())
-        });
+            Err(err) => {
+                log!("Error: {:?}\r\n", err);
+            }
+        }
+        Ok(())
+    });
 
-    let mut esp8266 = unsafe{&mut ESP8266}.check_at()
+    let mut esp8266 = unsafe { &mut ESP8266 }
+        .check_at()
         .then(|x| {
             log!("\r\nESP CHECK AT: {:?}\r\n", x);
 
             Ok(()) as Result<(), ()>
         })
-        .then(|_| {
-            unsafe{&mut ESP8266}.list_aps::<[AccessPoint; 32]>()
-        })
+        .then(|_| unsafe { &mut ESP8266 }.list_aps::<[AccessPoint; 32]>())
         .and_then(|(aps, size)| {
             debug_log!("\r\nAccess points:\r\n");
-            for ap in &aps[0 .. ::core::cmp::min(size, aps.len())] {
+            for ap in &aps[0..::core::cmp::min(size, aps.len())] {
                 debug_log!("{:?}\r\n", ap);
             }
             Ok(())
         })
         .map_err(|err| {
             log!("\r\nList APs error: {:?}\r\n", err);
-        })
-        ;
+        });
 
     unsafe {
         let reactor = &REACTOR;
@@ -270,20 +259,26 @@ unsafe fn init_usart2() {
 
     // This sequence sets up the TX and RX pins so they work correctly
     // with the USART2 peripheral
-    GPIO_D.enable(5, gpio::GpioConfig {
-        mode: gpio::GpioMode::AF,
-        ospeed: gpio::GpioOSpeed::FAST_SPEED,
-        otype: gpio::GpioOType::PUSH_PULL,
-        pupd: gpio::GpioPuPd::PULL_UP,
-        af: gpio::GpioAF::AF7,
-    });
-    GPIO_D.enable(6, gpio::GpioConfig {
-        mode: gpio::GpioMode::AF,
-        ospeed: gpio::GpioOSpeed::FAST_SPEED,
-        otype: gpio::GpioOType::PUSH_PULL,
-        pupd: gpio::GpioPuPd::PULL_UP,
-        af: gpio::GpioAF::AF7,
-    });
+    GPIO_D.enable(
+        5,
+        gpio::GpioConfig {
+            mode: gpio::GpioMode::AF,
+            ospeed: gpio::GpioOSpeed::FAST_SPEED,
+            otype: gpio::GpioOType::PUSH_PULL,
+            pupd: gpio::GpioPuPd::PULL_UP,
+            af: gpio::GpioAF::AF7,
+        },
+    );
+    GPIO_D.enable(
+        6,
+        gpio::GpioConfig {
+            mode: gpio::GpioMode::AF,
+            ospeed: gpio::GpioOSpeed::FAST_SPEED,
+            otype: gpio::GpioOType::PUSH_PULL,
+            pupd: gpio::GpioPuPd::PULL_UP,
+            af: gpio::GpioAF::AF7,
+        },
+    );
 
     // The RX and TX pins are now connected to their AF so that the
     // USART2 can take over control of the pins
@@ -306,8 +301,8 @@ unsafe fn init_usart2() {
 
 #[cfg(target_os = "none")]
 pub mod panicking {
-    use core::panic::PanicInfo;
     use core::fmt::Write;
+    use core::panic::PanicInfo;
     use stm32f4::usart::USART2;
 
     // #[lang = "panic_fmt"]
@@ -317,10 +312,15 @@ pub mod panicking {
             let _lock = unsafe { ::stm32f4::IrqLock::new() };
             match info.location() {
                 Some(loc) => {
-                    let _ = write!(unsafe{&USART2}, "\r\nPANIC\r\n{}:{}", loc.file(), loc.line());
-                },
+                    let _ = write!(
+                        unsafe { &USART2 },
+                        "\r\nPANIC\r\n{}:{}",
+                        loc.file(),
+                        loc.line()
+                    );
+                }
                 None => {
-                    let _ = write!(unsafe{&USART2}, "\r\nPANIC\r\n");
+                    let _ = write!(unsafe { &USART2 }, "\r\nPANIC\r\n");
                 }
             }
         }
@@ -333,7 +333,7 @@ pub mod panicking {
     fn alloc_error(_: core::alloc::Layout) -> ! {
         {
             let _lock = unsafe { ::stm32f4::IrqLock::new() };
-            let _ = write!(unsafe{&USART2}, "\r\nALLOC ERROR\r\n");
+            let _ = write!(unsafe { &USART2 }, "\r\nALLOC ERROR\r\n");
         }
 
         loop {
@@ -343,7 +343,7 @@ pub mod panicking {
 }
 
 #[no_mangle]
-pub unsafe extern fn __isr_tim2() {
+pub unsafe extern "C" fn __isr_tim2() {
     static mut LED3_VALUE: bool = false;
 
     if TIM2.it_status(timer::Dier::UIE) {
@@ -362,32 +362,41 @@ unsafe fn init_i2c() {
     use stm32f4::i2c;
 
     rcc::RCC.ahb1_clock_enable(rcc::Ahb1Enable::GPIOD);
-    GPIO_D.enable(4, gpio::GpioConfig {
-        mode: gpio::GpioMode::OUTPUT,
-        ospeed: gpio::GpioOSpeed::FAST_SPEED,
-        otype: gpio::GpioOType::PUSH_PULL,
-        pupd: gpio::GpioPuPd::PULL_DOWN,
-        af: gpio::GpioAF::AF0,
-    });
+    GPIO_D.enable(
+        4,
+        gpio::GpioConfig {
+            mode: gpio::GpioMode::OUTPUT,
+            ospeed: gpio::GpioOSpeed::FAST_SPEED,
+            otype: gpio::GpioOType::PUSH_PULL,
+            pupd: gpio::GpioPuPd::PULL_DOWN,
+            af: gpio::GpioAF::AF0,
+        },
+    );
 
     GPIO_D.set_bit(4);
 
     rcc::RCC.ahb1_clock_enable(rcc::Ahb1Enable::GPIOB);
 
-    GPIO_B.enable(6, gpio::GpioConfig {
-        mode: gpio::GpioMode::AF,
-        ospeed: gpio::GpioOSpeed::FAST_SPEED,
-        otype: gpio::GpioOType::OPEN_DRAIN,
-        pupd: gpio::GpioPuPd::NO,
-        af: gpio::GpioAF::AF4,
-    });
-    GPIO_B.enable(9, gpio::GpioConfig {
-        mode: gpio::GpioMode::AF,
-        ospeed: gpio::GpioOSpeed::FAST_SPEED,
-        otype: gpio::GpioOType::OPEN_DRAIN,
-        pupd: gpio::GpioPuPd::NO,
-        af: gpio::GpioAF::AF4,
-    });
+    GPIO_B.enable(
+        6,
+        gpio::GpioConfig {
+            mode: gpio::GpioMode::AF,
+            ospeed: gpio::GpioOSpeed::FAST_SPEED,
+            otype: gpio::GpioOType::OPEN_DRAIN,
+            pupd: gpio::GpioPuPd::NO,
+            af: gpio::GpioAF::AF4,
+        },
+    );
+    GPIO_B.enable(
+        9,
+        gpio::GpioConfig {
+            mode: gpio::GpioMode::AF,
+            ospeed: gpio::GpioOSpeed::FAST_SPEED,
+            otype: gpio::GpioOType::OPEN_DRAIN,
+            pupd: gpio::GpioPuPd::NO,
+            af: gpio::GpioAF::AF4,
+        },
+    );
 
     rcc::RCC.apb1_clock_enable(rcc::Apb1Enable::I2C1);
     i2c::I2C1.init(&i2c::I2cInit {
@@ -433,20 +442,26 @@ unsafe fn init_esp8266() {
     // for TX and PD9 for RX
     RCC.ahb1_clock_enable(rcc::Ahb1Enable::GPIOD);
 
-    GPIO_D.enable(8, gpio::GpioConfig {
-        mode: gpio::GpioMode::AF,
-        ospeed: gpio::GpioOSpeed::FAST_SPEED,
-        otype: gpio::GpioOType::PUSH_PULL,
-        pupd: gpio::GpioPuPd::PULL_UP,
-        af: gpio::GpioAF::AF7,
-    });
-    GPIO_D.enable(9, gpio::GpioConfig {
-        mode: gpio::GpioMode::AF,
-        ospeed: gpio::GpioOSpeed::FAST_SPEED,
-        otype: gpio::GpioOType::PUSH_PULL,
-        pupd: gpio::GpioPuPd::PULL_UP,
-        af: gpio::GpioAF::AF7,
-    });
+    GPIO_D.enable(
+        8,
+        gpio::GpioConfig {
+            mode: gpio::GpioMode::AF,
+            ospeed: gpio::GpioOSpeed::FAST_SPEED,
+            otype: gpio::GpioOType::PUSH_PULL,
+            pupd: gpio::GpioPuPd::PULL_UP,
+            af: gpio::GpioAF::AF7,
+        },
+    );
+    GPIO_D.enable(
+        9,
+        gpio::GpioConfig {
+            mode: gpio::GpioMode::AF,
+            ospeed: gpio::GpioOSpeed::FAST_SPEED,
+            otype: gpio::GpioOType::PUSH_PULL,
+            pupd: gpio::GpioPuPd::PULL_UP,
+            af: gpio::GpioAF::AF7,
+        },
+    );
 
     // The RX and TX pins are now connected to their AF so that the
     // USART3 can take over control of the pins
@@ -468,11 +483,11 @@ unsafe fn init_esp8266() {
 }
 
 #[no_mangle]
-pub unsafe extern fn __isr_usart2() {
+pub unsafe extern "C" fn __isr_usart2() {
     USART2.isr()
 }
 
 #[no_mangle]
-pub unsafe extern fn __isr_usart3() {
+pub unsafe extern "C" fn __isr_usart3() {
     USART3.isr()
 }

@@ -1,5 +1,5 @@
-use futures::{Poll, Async, Future, AsyncSink, Stream, Sink};
 use futures::stream::Fuse;
+use futures::{Async, AsyncSink, Future, Poll, Sink, Stream};
 
 #[derive(Debug)]
 #[must_use = "futures do nothing unless polled"]
@@ -11,9 +11,10 @@ pub struct StartSendAll<T, U: Stream> {
 
 #[allow(dead_code)]
 pub fn new<T, U>(sink: T, stream: U) -> StartSendAll<T, U>
-    where T: Sink,
-          U: Stream<Item = T::SinkItem>,
-          T::SinkError: From<U::Error>,
+where
+    T: Sink,
+    U: Stream<Item = T::SinkItem>,
+    T::SinkError: From<U::Error>,
 {
     StartSendAll {
         sink: Some(sink),
@@ -23,9 +24,10 @@ pub fn new<T, U>(sink: T, stream: U) -> StartSendAll<T, U>
 }
 
 impl<T, U> StartSendAll<T, U>
-    where T: Sink,
-          U: Stream<Item = T::SinkItem>,
-          T::SinkError: From<U::Error>,
+where
+    T: Sink,
+    U: Stream<Item = T::SinkItem>,
+    T::SinkError: From<U::Error>,
 {
     fn sink_mut(&mut self) -> &mut T {
         self.sink.as_mut().take().expect("")
@@ -45,16 +47,17 @@ impl<T, U> StartSendAll<T, U>
         debug_assert!(self.buffered.is_none());
         if let AsyncSink::NotReady(item) = self.sink_mut().start_send(item)? {
             self.buffered = Some(item);
-            return Ok(Async::NotReady)
+            return Ok(Async::NotReady);
         }
         Ok(Async::Ready(()))
     }
 }
 
 impl<T, U> Future for StartSendAll<T, U>
-    where T: Sink,
-          U: Stream<Item = T::SinkItem>,
-          T::SinkError: From<U::Error>,
+where
+    T: Sink,
+    U: Stream<Item = T::SinkItem>,
+    T::SinkError: From<U::Error>,
 {
     type Item = (T, U);
     type Error = T::SinkError;
@@ -69,12 +72,8 @@ impl<T, U> Future for StartSendAll<T, U>
         loop {
             match self.stream_mut().poll()? {
                 Async::Ready(Some(item)) => try_ready!(self.try_start_send(item)),
-                Async::Ready(None) => {
-                    return Ok(Async::Ready(self.take_result()))
-                }
-                Async::NotReady => {
-                    return Ok(Async::NotReady)
-                }
+                Async::Ready(None) => return Ok(Async::Ready(self.take_result())),
+                Async::NotReady => return Ok(Async::NotReady),
             }
         }
     }

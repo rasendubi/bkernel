@@ -4,10 +4,10 @@ use ::stm32f4::usart;
 
 use crate::circular_buffer::CircularBuffer;
 
-use ::futures::{Async, AsyncSink, Sink, Stream, StartSend, Poll};
+use ::futures::{Async, AsyncSink, Poll, Sink, StartSend, Stream};
 
-use ::core::sync::atomic::{AtomicU32, Ordering};
 use ::core::array::FixedSizeArray;
+use ::core::sync::atomic::{AtomicU32, Ordering};
 
 use ::breactor::REACTOR;
 
@@ -17,11 +17,15 @@ pub struct Usart<A, B> {
     writer_task_mask: AtomicU32,
     reader_task_mask: AtomicU32,
     writer_buffer: CircularBuffer<u8, A>,
-    reader_buffer: CircularBuffer<u8, B>
+    reader_buffer: CircularBuffer<u8, B>,
 }
 
 impl<A: FixedSizeArray<u8>, B: FixedSizeArray<u8>> Usart<A, B> {
-    pub const fn new(usart: &'static usart::Usart, writer_buffer: A, reader_buffer: B) -> Usart<A, B> {
+    pub const fn new(
+        usart: &'static usart::Usart,
+        writer_buffer: A,
+        reader_buffer: B,
+    ) -> Usart<A, B> {
         Usart {
             usart,
             writer_task_mask: AtomicU32::new(0),
@@ -106,7 +110,8 @@ impl<'a, A: FixedSizeArray<u8>, B: FixedSizeArray<u8>> Sink for &'a Usart<A, B> 
     type SinkError = ();
 
     fn start_send(&mut self, item: u8) -> StartSend<u8, Self::SinkError> {
-        self.writer_task_mask.store(REACTOR.get_current_task_mask(), Ordering::SeqCst);
+        self.writer_task_mask
+            .store(REACTOR.get_current_task_mask(), Ordering::SeqCst);
 
         if self.try_push_writer(item) {
             self.writer_task_mask.store(0, Ordering::SeqCst);
@@ -122,7 +127,8 @@ impl<'a, A: FixedSizeArray<u8>, B: FixedSizeArray<u8>> Sink for &'a Usart<A, B> 
     }
 
     fn poll_complete(&mut self) -> Poll<(), Self::SinkError> {
-        self.writer_task_mask.store(REACTOR.get_current_task_mask(), Ordering::SeqCst);
+        self.writer_task_mask
+            .store(REACTOR.get_current_task_mask(), Ordering::SeqCst);
 
         if self.writer_buffer.was_empty() {
             self.writer_task_mask.store(0, Ordering::SeqCst);
@@ -142,13 +148,14 @@ impl<'a, A: FixedSizeArray<u8>, B: FixedSizeArray<u8>> Stream for &'a Usart<A, B
     type Error = ();
 
     fn poll(&mut self) -> Poll<Option<u8>, Self::Error> {
-        self.reader_task_mask.store(REACTOR.get_current_task_mask(), Ordering::SeqCst);
+        self.reader_task_mask
+            .store(REACTOR.get_current_task_mask(), Ordering::SeqCst);
 
         match self.try_pop_reader() {
             Some(x) => {
                 self.reader_task_mask.store(0, Ordering::SeqCst);
                 Ok(Async::Ready(Some(x)))
-            },
+            }
             None => Ok(Async::NotReady),
         }
     }

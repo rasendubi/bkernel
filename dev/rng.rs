@@ -9,7 +9,7 @@ use breactor::REACTOR;
 use futures::{Async, Poll, Stream};
 
 pub static mut RNG: Rng = Rng {
-    inner: unsafe{&rng::RNG},
+    inner: unsafe { &rng::RNG },
     task: AtomicU32::new(0),
 };
 
@@ -44,21 +44,21 @@ impl<'a> Stream for Rng<'a> {
             Ok(Some(x)) => {
                 self.task.fetch_and(!task, Ordering::SeqCst);
                 Ok(Async::Ready(Some(x)))
-            },
+            }
             Err(err) => {
                 self.task.fetch_and(!task, Ordering::SeqCst);
                 Err(err)
-            },
+            }
             Ok(None) => {
                 self.inner.it_enable();
                 Ok(Async::NotReady)
-            },
+            }
         }
     }
 }
 
 #[no_mangle]
-pub unsafe extern fn __isr_hash_rng() {
+pub unsafe extern "C" fn __isr_hash_rng() {
     let task = RNG.task.swap(0, Ordering::SeqCst);
     REACTOR.set_ready_task_mask(task);
     RNG.inner.it_disable();

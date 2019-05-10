@@ -11,9 +11,7 @@ pub struct Logger<'a, A: FixedSizeArray<u8> + 'a, B: FixedSizeArray<u8> + 'a> {
 
 impl<'a, A: FixedSizeArray<u8> + 'a, B: FixedSizeArray<u8> + 'a> Logger<'a, A, B> {
     pub const fn new(usart: &Usart<A, B>) -> Logger<A, B> {
-        Logger {
-            inner: usart,
-        }
+        Logger { inner: usart }
     }
 }
 

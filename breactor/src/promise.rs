@@ -31,8 +31,7 @@ pub struct Promise<T, E> {
     result: UnsafeCell<Option<Result<T, E>>>,
 }
 
-unsafe impl<T, E> Sync for Promise<T, E> {
-}
+unsafe impl<T, E> Sync for Promise<T, E> {}
 
 impl<T, E> Promise<T, E> {
     /// Creates an empty Promise.

@@ -27,8 +27,7 @@ pub struct Esp8266<'a, A: 'a, B: 'a> {
 }
 
 #[derive(PartialEq, Eq, Debug)]
-pub enum Error
-{
+pub enum Error {
     /// Generic error.
     Generic,
     /// Usart stream has finished.
@@ -52,8 +51,9 @@ impl<S, E> From<TakeUntilError<S, E>> for Error {
 }
 
 impl<'a, A, B> Esp8266<'a, A, B>
-    where A: FixedSizeArray<u8>,
-          B: FixedSizeArray<u8>,
+where
+    A: FixedSizeArray<u8>,
+    B: FixedSizeArray<u8>,
 {
     /// Creates new ESP instance from a USART.
     ///
@@ -72,9 +72,7 @@ impl<'a, A, B> Esp8266<'a, A, B>
     /// # }
     /// ```
     pub const fn new(usart: &'a Usart<A, B>) -> Esp8266<'a, A, B> {
-        Esp8266 {
-            usart,
-        }
+        Esp8266 { usart }
     }
 
     /// Check if the USART is connected to ESP8266 (actually, anything
@@ -97,41 +95,33 @@ impl<'a, A, B> Esp8266<'a, A, B>
     /// assert_eq!(Ok(Async::Ready(true)), esp.check_at().poll());
     /// # }
     /// ```
-    pub fn check_at(&'a mut self) -> impl Future<Item=bool, Error=Error> + 'a {
+    pub fn check_at(&'a mut self) -> impl Future<Item = bool, Error = Error> + 'a {
         // TODO(rasen): make const fn alternative to future::lazy
         ::futures::future::lazy(move || {
-            while let Some(_) = self.usart.try_pop_reader() {
-            }
+            while let Some(_) = self.usart.try_pop_reader() {}
 
             Ok(self.usart)
         })
-            .and_then(|usart| {
-                StartSendAllString::new(usart, "AT\r\n")
-            })
-            .then(|res| {
-                match res {
-                    Ok(usart) => {
-                        TakeUntil::new([0; 32], usart, [
-                            b"OK\r\n" as &[u8],
-                            b"ERROR\r\n" as &[u8],
-                        ])
-                    },
-                    Err(_err) => {
-                        unsafe {
-                            // Usart sink never errors
-                            ::core::intrinsics::unreachable();
-                        }
-                    },
+        .and_then(|usart| StartSendAllString::new(usart, "AT\r\n"))
+        .then(|res| {
+            match res {
+                Ok(usart) => {
+                    TakeUntil::new([0; 32], usart, [b"OK\r\n" as &[u8], b"ERROR\r\n" as &[u8]])
                 }
-            })
-            .and_then(|(_buffer, _size, _m, _usart)| {
-                // If any pattern matched, the other side understands
-                // AT commands.
-                Ok(true)
-            })
-            .map_err(|_err| {
-                Error::Generic
-            })
+                Err(_err) => {
+                    unsafe {
+                        // Usart sink never errors
+                        ::core::intrinsics::unreachable();
+                    }
+                }
+            }
+        })
+        .and_then(|(_buffer, _size, _m, _usart)| {
+            // If any pattern matched, the other side understands
+            // AT commands.
+            Ok(true)
+        })
+        .map_err(|_err| Error::Generic)
     }
 
     /// List available access points.
@@ -168,38 +158,36 @@ impl<'a, A, B> Esp8266<'a, A, B>
     /// ```
     // TODO(rasen): return Stream<Item=AccessPoint> to leverage
     // incremental processing. This way, we can decrease buffer size.
-    pub fn list_aps<R>(&'a mut self) -> impl Future<Item=(R, usize), Error=Error> + 'a
-        where R: FixedSizeArray<AccessPoint> + 'a
+    pub fn list_aps<R>(&'a mut self) -> impl Future<Item = (R, usize), Error = Error> + 'a
+    where
+        R: FixedSizeArray<AccessPoint> + 'a,
     {
         ::futures::future::lazy(move || {
-            while let Some(_) = self.usart.try_pop_reader() {
-            }
+            while let Some(_) = self.usart.try_pop_reader() {}
 
             Ok(self.usart)
         })
-            .and_then(|usart| {
-                StartSendAllString::new(usart, "AT+CWLAP\r\n")
-                    .map_err(|_| Error::Generic)
-            })
-            .and_then(|usart| {
-                TakeUntil::new([0; 32], usart, [ b"\r\r\n" as &[u8] ])
-                    .map_err(From::from)
-            })
-            .and_then(|(_buffer, _size, _m, usart)| {
-                TakeUntil::new([0; 2048], usart, [
-                    b"\r\n\r\nOK\r\n" as &[u8],
-                    b"\r\n\r\nERROR\r\n" as &[u8],
-                ])
-                    .map_err(From::from)
-            })
-            .and_then(move |(buffer, size, m, _usart)| {
-                Ok(parse_ap_list::<R>(&buffer[.. size - m.len()]))
-            })
+        .and_then(|usart| {
+            StartSendAllString::new(usart, "AT+CWLAP\r\n").map_err(|_| Error::Generic)
+        })
+        .and_then(|usart| TakeUntil::new([0; 32], usart, [b"\r\r\n" as &[u8]]).map_err(From::from))
+        .and_then(|(_buffer, _size, _m, usart)| {
+            TakeUntil::new(
+                [0; 2048],
+                usart,
+                [b"\r\n\r\nOK\r\n" as &[u8], b"\r\n\r\nERROR\r\n" as &[u8]],
+            )
+            .map_err(From::from)
+        })
+        .and_then(move |(buffer, size, m, _usart)| {
+            Ok(parse_ap_list::<R>(&buffer[..size - m.len()]))
+        })
     }
 }
 
 fn parse_ap_list<A>(b: &[u8]) -> (A, usize)
-    where A: FixedSizeArray<AccessPoint>,
+where
+    A: FixedSizeArray<AccessPoint>,
 {
     let mut result: A = unsafe { ::core::mem::uninitialized() };
     let mut cur = 0;
@@ -219,7 +207,7 @@ fn parse_ap_list<A>(b: &[u8]) -> (A, usize)
 fn parse_ap(s: &str) -> AccessPoint {
     let mut s = s;
     // drop "+CWLAP:(" and final ")"
-    s = &s[8 .. s.len() - 1];
+    s = &s[8..s.len() - 1];
 
     // TODO(rasen): comma in ESSID is not allowed
     let mut s = s.split(',');
@@ -227,15 +215,17 @@ fn parse_ap(s: &str) -> AccessPoint {
     let ecn = i32::from_str(s.next().unwrap_or("")).unwrap_or(0);
 
     let ssid_s = s.next().unwrap_or("\"\"");
-    let ssid_s = &ssid_s[1 .. ssid_s.len()-1];
+    let ssid_s = &ssid_s[1..ssid_s.len() - 1];
     let ssid_len = ssid_s.len();
     let mut ssid: [u8; 32] = unsafe { ::core::mem::zeroed() };
-    (&mut ssid[.. ssid_len]).clone_from_slice(&ssid_s.as_bytes());
+    (&mut ssid[..ssid_len]).clone_from_slice(&ssid_s.as_bytes());
 
     let rssi = i32::from_str(s.next().unwrap_or("")).unwrap_or(0);
 
     let mac_s = s.next().unwrap_or("\"\"");
-    let mut mac_parts = mac_s[1 .. mac_s.len()-1].split(':').map(|hex| i32::from_str_radix(hex, 16).unwrap_or(0x00) as u8);
+    let mut mac_parts = mac_s[1..mac_s.len() - 1]
+        .split(':')
+        .map(|hex| i32::from_str_radix(hex, 16).unwrap_or(0x00) as u8);
     let mut mac: [u8; 6] = [0; 6];
     mac[0] = mac_parts.next().unwrap_or(0);
     mac[1] = mac_parts.next().unwrap_or(0);
@@ -305,23 +295,24 @@ pub struct AccessPoint {
 impl AccessPoint {
     /// Returns SSID as a string.
     pub fn ssid(&self) -> &str {
-        unsafe {
-            ::core::str::from_utf8_unchecked(&self.ssid[.. self.ssid_len as usize])
-        }
+        unsafe { ::core::str::from_utf8_unchecked(&self.ssid[..self.ssid_len as usize]) }
     }
 }
 
 impl ::core::fmt::Debug for AccessPoint {
     fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
-        write!(f, "AccessPoint({:?}, \"{}\", {}, {:?}, {}, {}, {})",
-               self.ecn,
-               self.ssid(),
-               self.rssi,
-               // TODO(rasen): better MAC formatting
-               self.mac,
-               self.ch,
-               self.freq_offset,
-               self.freq_calibration)
+        write!(
+            f,
+            "AccessPoint({:?}, \"{}\", {}, {:?}, {}, {}, {})",
+            self.ecn,
+            self.ssid(),
+            self.rssi,
+            // TODO(rasen): better MAC formatting
+            self.mac,
+            self.ch,
+            self.freq_offset,
+            self.freq_calibration
+        )
     }
 }
 
@@ -335,9 +326,10 @@ struct TakeUntil<'a, A, S, M> {
 }
 
 impl<'a, A, S, M> TakeUntil<'a, A, S, M>
-    where A: FixedSizeArray<u8>,
-          S: Stream<Item=u8>,
-          M: FixedSizeArray<&'static [u8]>,
+where
+    A: FixedSizeArray<u8>,
+    S: Stream<Item = u8>,
+    M: FixedSizeArray<&'static [u8]>,
 {
     pub fn new(buffer: A, stream: S, matches: M) -> TakeUntil<'a, A, S, M> {
         TakeUntil {
@@ -363,9 +355,10 @@ enum TakeUntilError<S, E> {
 }
 
 impl<'a, A, S, M> Future for TakeUntil<'a, A, S, M>
-    where A: FixedSizeArray<u8>,
-          S: Stream<Item=u8>,
-          M: FixedSizeArray<&'static [u8]>,
+where
+    A: FixedSizeArray<u8>,
+    S: Stream<Item = u8>,
+    M: FixedSizeArray<&'static [u8]>,
 {
     type Item = (A, usize, &'static [u8], S);
     type Error = TakeUntilError<S, S::Error>;
@@ -373,8 +366,7 @@ impl<'a, A, S, M> Future for TakeUntil<'a, A, S, M>
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         loop {
             if self.cur >= self.buffer.as_slice().len() {
-                return Err(TakeUntilError::BufferOverflow(
-                    self.stream.take().unwrap()));
+                return Err(TakeUntilError::BufferOverflow(self.stream.take().unwrap()));
             }
 
             match self.stream.as_mut().take().unwrap().poll() {
@@ -383,33 +375,30 @@ impl<'a, A, S, M> Future for TakeUntil<'a, A, S, M>
                     self.cur += 1;
 
                     for m in self.matches.as_slice() {
-                        if self.buffer.as_slice()[.. self.cur].ends_with(m) {
+                        if self.buffer.as_slice()[..self.cur].ends_with(m) {
                             let mut b: A = unsafe { ::core::mem::uninitialized() };
-                            b.as_mut_slice()[.. self.cur].clone_from_slice(&self.buffer.as_slice()[.. self.cur]);
+                            b.as_mut_slice()[..self.cur]
+                                .clone_from_slice(&self.buffer.as_slice()[..self.cur]);
 
-                            return Ok(Async::Ready((
-                                b,
-                                self.cur,
-                                m,
-                                self.stream.take().unwrap())));
+                            return Ok(Async::Ready((b, self.cur, m, self.stream.take().unwrap())));
                         }
                     }
-                },
+                }
 
                 Ok(Async::Ready(None)) => {
-                    return Err(TakeUntilError::Finished(
-                        self.stream.take().unwrap()));
-                },
+                    return Err(TakeUntilError::Finished(self.stream.take().unwrap()));
+                }
 
                 Ok(Async::NotReady) => {
                     return Ok(Async::NotReady);
-                },
+                }
 
                 Err(err) => {
                     return Err(TakeUntilError::StreamError(
                         self.stream.take().unwrap(),
-                        err));
-                },
+                        err,
+                    ));
+                }
             }
         }
     }

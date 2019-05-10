@@ -8,7 +8,7 @@
 // code and the board will hang.
 enum Void {}
 
-extern {
+extern "C" {
     static mut __init_data_start: u32;
     static mut __data_start: Void;
     static mut __data_end: Void;
@@ -53,7 +53,7 @@ pub unsafe extern "C" fn __isr_reset() {
 /// Default ISR. It just panics.
 #[cfg(target_arch = "arm")]
 #[no_mangle]
-pub unsafe extern fn __isr_default() {
+pub unsafe extern "C" fn __isr_default() {
     let ipsr: u32;
     asm!("mrs $0, IPSR" : "=r" (ipsr));
     if ipsr >= 16 {
@@ -63,7 +63,7 @@ pub unsafe extern fn __isr_default() {
     }
 }
 
-extern {
+extern "C" {
     static __stack_end: u32;
     pub fn __isr_nmi();
     pub fn __isr_hardfault();
@@ -160,11 +160,11 @@ extern {
 
 #[no_mangle]
 #[link_section = ".stack_end"]
-pub static STACK_END: &'static u32 = unsafe{&__stack_end};
+pub static STACK_END: &'static u32 = unsafe { &__stack_end };
 
 #[no_mangle]
 #[link_section = ".isr_vector"]
-pub static ISR_VECTOR: [Option<unsafe extern fn()>; 97] = [
+pub static ISR_VECTOR: [Option<unsafe extern "C" fn()>; 97] = [
     Some(__isr_reset),
     Some(__isr_nmi),
     Some(__isr_hardfault),
@@ -180,7 +180,6 @@ pub static ISR_VECTOR: [Option<unsafe extern fn()>; 97] = [
     None,
     Some(__isr_pendsv),
     Some(__isr_systick),
-
     Some(__isr_wwdg),
     Some(__isr_pvd),
     Some(__isr_tamp_stamp),

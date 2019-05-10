@@ -6,7 +6,9 @@ install:
   - sudo apt-get update -qq
   - sudo apt-get install gcc-arm-embedded -y
   - rustup target add thumbv7em-none-eabi
+  - rustup component add rustfmt
 script:
   - cargo test --all
   - cargo build --release --target thumbv7em-none-eabi
   - cargo doc --target thumbv7em-none-eabi
+  - cargo fmt -- --check
