@@ -1,5 +1,5 @@
-use std::collections::VecDeque;
 use futures::prelude::*;
+use std::collections::VecDeque;
 
 use crate::resettable_stream::ResettableStream;
 
@@ -55,6 +55,5 @@ impl<T> Stream for TestChannel<T> {
 }
 
 impl<T> ResettableStream for TestChannel<T> {
-    fn reset(&mut self) {
-    }
+    fn reset(&mut self) {}
 }

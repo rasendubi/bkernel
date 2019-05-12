@@ -11,9 +11,9 @@ extern crate futures;
 extern crate stm32f4;
 
 mod circular_buffer;
-mod resettable_stream;
 #[cfg(test)]
 mod debug;
+mod resettable_stream;
 
 pub mod cs43l22;
 pub mod esp8266;

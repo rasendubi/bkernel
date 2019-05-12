@@ -2,8 +2,8 @@
 
 use ::stm32f4::usart;
 
-use crate::resettable_stream::ResettableStream;
 use crate::circular_buffer::CircularBuffer;
+use crate::resettable_stream::ResettableStream;
 
 use ::futures::{Async, AsyncSink, Poll, Sink, StartSend, Stream};
 

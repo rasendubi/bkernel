@@ -3,7 +3,7 @@ use ::core::array::FixedSizeArray;
 use ::core::marker::PhantomData;
 use ::core::str::FromStr;
 
-use futures::{Async, Future, Poll, Stream, Sink};
+use futures::{Async, Future, Poll, Sink, Stream};
 
 use ::breactor::start_send_all_string::StartSendAllString;
 
@@ -93,29 +93,27 @@ impl<Channel: Stream<Item = u8> + Sink<SinkItem = u8>> Esp8266<Channel> {
     /// ```
     pub fn check_at<'a>(&'a mut self) -> impl Future<Item = bool, Error = Error> + 'a {
         // TODO(rasen): make const fn alternative to future::lazy
-        ::futures::future::lazy(move || {
-            Ok(&mut self.usart)
-        })
-        .and_then(|usart| StartSendAllString::new(usart, "AT\r\n"))
-        .then(|res| {
-            match res {
-                Ok(usart) => {
-                    TakeUntil::new([0; 32], usart, [b"OK\r\n" as &[u8], b"ERROR\r\n" as &[u8]])
-                }
-                Err(_err) => {
-                    unsafe {
-                        // Usart sink never errors
-                        ::core::intrinsics::unreachable();
+        ::futures::future::lazy(move || Ok(&mut self.usart))
+            .and_then(|usart| StartSendAllString::new(usart, "AT\r\n"))
+            .then(|res| {
+                match res {
+                    Ok(usart) => {
+                        TakeUntil::new([0; 32], usart, [b"OK\r\n" as &[u8], b"ERROR\r\n" as &[u8]])
+                    }
+                    Err(_err) => {
+                        unsafe {
+                            // Usart sink never errors
+                            ::core::intrinsics::unreachable();
+                        }
                     }
                 }
-            }
-        })
-        .and_then(|(_buffer, _size, _m, _usart)| {
-            // If any pattern matched, the other side understands
-            // AT commands.
-            Ok(true)
-        })
-        .map_err(|_err| Error::Generic)
+            })
+            .and_then(|(_buffer, _size, _m, _usart)| {
+                // If any pattern matched, the other side understands
+                // AT commands.
+                Ok(true)
+            })
+            .map_err(|_err| Error::Generic)
     }
 
     /// List available access points.
@@ -156,56 +154,56 @@ impl<Channel: Stream<Item = u8> + Sink<SinkItem = u8>> Esp8266<Channel> {
     where
         R: FixedSizeArray<AccessPoint> + 'a,
     {
-        ::futures::future::lazy(move || {
-            Ok(&mut self.usart)
-        })
-        .and_then(|usart| {
-            StartSendAllString::new(usart, "AT+CWLAP\r\n").map_err(|_| Error::Generic)
-        })
-        .and_then(|usart| TakeUntil::new([0; 32], usart, [b"\r\r\n" as &[u8]]).map_err(From::from))
-        .and_then(|(_buffer, _size, _m, usart)| {
-            TakeUntil::new(
-                [0; 2048],
-                usart,
-                [b"\r\n\r\nOK\r\n" as &[u8], b"\r\n\r\nERROR\r\n"],
-            )
-            .map_err(From::from)
-        })
-        .and_then(move |(buffer, size, m, _usart)| {
-            Ok(parse_ap_list::<R>(&buffer[..size - m.len()]))
-        })
+        ::futures::future::lazy(move || Ok(&mut self.usart))
+            .and_then(|usart| {
+                StartSendAllString::new(usart, "AT+CWLAP\r\n").map_err(|_| Error::Generic)
+            })
+            .and_then(|usart| {
+                TakeUntil::new([0; 32], usart, [b"\r\r\n" as &[u8]]).map_err(From::from)
+            })
+            .and_then(|(_buffer, _size, _m, usart)| {
+                TakeUntil::new(
+                    [0; 2048],
+                    usart,
+                    [b"\r\n\r\nOK\r\n" as &[u8], b"\r\n\r\nERROR\r\n"],
+                )
+                .map_err(From::from)
+            })
+            .and_then(move |(buffer, size, m, _usart)| {
+                Ok(parse_ap_list::<R>(&buffer[..size - m.len()]))
+            })
     }
 
-    pub fn join_ap<'a>(&'a mut self, ap: &'a str, pass: &'a str) -> impl Future<Item = bool, Error = Error> + 'a {
-        ::futures::future::lazy(move || {
-            Ok(&mut self.usart)
-        })
-        .and_then(|usart| StartSendAllString::new(usart, "AT+CWJAP=\""))
-        .and_then(move |usart| StartSendAllString::new(usart, ap))
-        .and_then(|usart| StartSendAllString::new(usart, "\",\""))
-        .and_then(move |usart| StartSendAllString::new(usart, pass))
-        .and_then(|usart| StartSendAllString::new(usart, "\"\r\n"))
-        .then(|res| {
-            match res {
-                Ok(usart) => {
-                    TakeUntil::new([0; 128], usart, [b"OK\r\n" as &[u8], b"ERROR\r\n" as &[u8]])
-                }
-                Err(_err) => {
-                    unsafe {
-                        // Usart sink never errors
-                        ::core::intrinsics::unreachable();
+    pub fn join_ap<'a>(
+        &'a mut self,
+        ap: &'a str,
+        pass: &'a str,
+    ) -> impl Future<Item = bool, Error = Error> + 'a {
+        ::futures::future::lazy(move || Ok(&mut self.usart))
+            .and_then(|usart| StartSendAllString::new(usart, "AT+CWJAP=\""))
+            .and_then(move |usart| StartSendAllString::new(usart, ap))
+            .and_then(|usart| StartSendAllString::new(usart, "\",\""))
+            .and_then(move |usart| StartSendAllString::new(usart, pass))
+            .and_then(|usart| StartSendAllString::new(usart, "\"\r\n"))
+            .then(|res| {
+                match res {
+                    Ok(usart) => {
+                        TakeUntil::new([0; 128], usart, [b"OK\r\n" as &[u8], b"ERROR\r\n" as &[u8]])
+                    }
+                    Err(_err) => {
+                        unsafe {
+                            // Usart sink never errors
+                            ::core::intrinsics::unreachable();
+                        }
                     }
                 }
-            }
-        })
-        .and_then(|(_buffer, _size, m, _usart)| {
-            match m {
+            })
+            .and_then(|(_buffer, _size, m, _usart)| match m {
                 b"OK\r\n" => Ok(true),
                 b"ERROR\r\n" => Ok(false),
                 _ => unreachable!(),
-            }
-        })
-        .map_err(|_err| Error::Generic)
+            })
+            .map_err(|_err| Error::Generic)
     }
 }
 
