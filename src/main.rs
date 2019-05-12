@@ -49,7 +49,7 @@ use ::dev::esp8266::{AccessPoint, Esp8266};
 pub static USART3: Usart<[u8; 32], [u8; 32]> =
     Usart::new(unsafe { &::stm32f4::usart::USART3 }, [0; 32], [0; 32]);
 
-pub static mut ESP8266: Esp8266<'static, [u8; 32], [u8; 32]> = Esp8266::new(&USART3);
+pub static mut ESP8266: Esp8266<&'static Usart<[u8; 32], [u8; 32]>> = Esp8266::new(&USART3);
 
 pub static USART2: Usart<[u8; 128], [u8; 32]> =
     Usart::new(unsafe { &::stm32f4::usart::USART2 }, [0; 128], [0; 32]);

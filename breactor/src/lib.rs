@@ -135,9 +135,9 @@ impl<'a> Reactor<'a> {
         }
     }
 
-    /// Creates a react with a predefined set of tasks.
+    /// Creates a reactor with a predefined set of tasks.
     pub const fn from_array(
-        tasks: [UnsafeCell<Option<&'a mut Future<Item = (), Error = ()>>>; 32],
+        tasks: [UnsafeCell<Option<&'a mut dyn Future<Item = (), Error = ()>>>; 32],
     ) -> Reactor<'a> {
         Reactor {
             current_task_mask: AtomicU32::new(0),

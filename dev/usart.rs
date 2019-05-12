@@ -3,6 +3,7 @@
 use ::stm32f4::usart;
 
 use crate::circular_buffer::CircularBuffer;
+use crate::resettable_stream::ResettableStream;
 
 use ::futures::{Async, AsyncSink, Poll, Sink, StartSend, Stream};
 
@@ -158,5 +159,11 @@ impl<'a, A: FixedSizeArray<u8>, B: FixedSizeArray<u8>> Stream for &'a Usart<A, B
             }
             None => Ok(Async::NotReady),
         }
+    }
+}
+
+impl<'a, A: FixedSizeArray<u8>, B: FixedSizeArray<u8>> ResettableStream for &'a Usart<A, B> {
+    fn reset(&mut self) {
+        while let Some(_) = self.try_pop_reader() {}
     }
 }
