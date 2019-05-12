@@ -1,5 +1,5 @@
 //! Future-based drivers for hardware peripherals.
-#![no_std]
+#![cfg_attr(not(test), no_std)]
 #![feature(const_fn)]
 #![feature(integer_atomics)]
 #![feature(core_intrinsics)]
@@ -11,6 +11,9 @@ extern crate futures;
 extern crate stm32f4;
 
 mod circular_buffer;
+mod resettable_stream;
+#[cfg(test)]
+mod debug;
 
 pub mod cs43l22;
 pub mod esp8266;

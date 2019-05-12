@@ -3,11 +3,11 @@ use ::core::array::FixedSizeArray;
 use ::core::marker::PhantomData;
 use ::core::str::FromStr;
 
-use ::futures::{Async, Future, Poll, Stream};
+use futures::{Async, Future, Poll, Stream, Sink};
 
 use ::breactor::start_send_all_string::StartSendAllString;
 
-use crate::usart::Usart;
+// use crate::resettable_stream::ResettableStream;
 
 #[allow(unused)]
 macro_rules! debug_log {
@@ -22,8 +22,8 @@ macro_rules! debug_log {
 }
 
 #[allow(missing_debug_implementations)]
-pub struct Esp8266<'a, A: 'a, B: 'a> {
-    usart: &'a Usart<A, B>,
+pub struct Esp8266<Channel: Stream<Item = u8> + Sink<SinkItem = u8>> {
+    usart: Channel,
 }
 
 #[derive(PartialEq, Eq, Debug)]
@@ -50,11 +50,7 @@ impl<S, E> From<TakeUntilError<S, E>> for Error {
     }
 }
 
-impl<'a, A, B> Esp8266<'a, A, B>
-where
-    A: FixedSizeArray<u8>,
-    B: FixedSizeArray<u8>,
-{
+impl<Channel: Stream<Item = u8> + Sink<SinkItem = u8>> Esp8266<Channel> {
     /// Creates new ESP instance from a USART.
     ///
     /// # Examples
@@ -71,7 +67,7 @@ where
     /// let esp = Esp8266::new(&USART3);
     /// # }
     /// ```
-    pub const fn new(usart: &'a Usart<A, B>) -> Esp8266<'a, A, B> {
+    pub const fn new(usart: Channel) -> Esp8266<Channel> {
         Esp8266 { usart }
     }
 
@@ -95,12 +91,10 @@ where
     /// assert_eq!(Ok(Async::Ready(true)), esp.check_at().poll());
     /// # }
     /// ```
-    pub fn check_at(&'a mut self) -> impl Future<Item = bool, Error = Error> + 'a {
+    pub fn check_at<'a>(&'a mut self) -> impl Future<Item = bool, Error = Error> + 'a {
         // TODO(rasen): make const fn alternative to future::lazy
         ::futures::future::lazy(move || {
-            while let Some(_) = self.usart.try_pop_reader() {}
-
-            Ok(self.usart)
+            Ok(&mut self.usart)
         })
         .and_then(|usart| StartSendAllString::new(usart, "AT\r\n"))
         .then(|res| {
@@ -126,9 +120,9 @@ where
 
     /// List available access points.
     ///
-    /// The resulting future returns a fixd-size array along with the
+    /// The resulting future returns a fixed-size array along with the
     /// actual number of access points returned from ESP8266. Note
-    /// that the number may be bigger than array requested.
+    /// that the number may be higher than array requested.
     ///
     /// # Examples
     /// List up to 32 access points.
@@ -158,14 +152,12 @@ where
     /// ```
     // TODO(rasen): return Stream<Item=AccessPoint> to leverage
     // incremental processing. This way, we can decrease buffer size.
-    pub fn list_aps<R>(&'a mut self) -> impl Future<Item = (R, usize), Error = Error> + 'a
+    pub fn list_aps<'a, R>(&'a mut self) -> impl Future<Item = (R, usize), Error = Error> + 'a
     where
         R: FixedSizeArray<AccessPoint> + 'a,
     {
         ::futures::future::lazy(move || {
-            while let Some(_) = self.usart.try_pop_reader() {}
-
-            Ok(self.usart)
+            Ok(&mut self.usart)
         })
         .and_then(|usart| {
             StartSendAllString::new(usart, "AT+CWLAP\r\n").map_err(|_| Error::Generic)
@@ -175,7 +167,7 @@ where
             TakeUntil::new(
                 [0; 2048],
                 usart,
-                [b"\r\n\r\nOK\r\n" as &[u8], b"\r\n\r\nERROR\r\n" as &[u8]],
+                [b"\r\n\r\nOK\r\n" as &[u8], b"\r\n\r\nERROR\r\n"],
             )
             .map_err(From::from)
         })
