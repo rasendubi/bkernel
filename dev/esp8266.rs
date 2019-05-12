@@ -175,6 +175,38 @@ impl<Channel: Stream<Item = u8> + Sink<SinkItem = u8>> Esp8266<Channel> {
             Ok(parse_ap_list::<R>(&buffer[..size - m.len()]))
         })
     }
+
+    pub fn join_ap<'a>(&'a mut self, ap: &'a str, pass: &'a str) -> impl Future<Item = bool, Error = Error> + 'a {
+        ::futures::future::lazy(move || {
+            Ok(&mut self.usart)
+        })
+        .and_then(|usart| StartSendAllString::new(usart, "AT+CWJAP=\""))
+        .and_then(move |usart| StartSendAllString::new(usart, ap))
+        .and_then(|usart| StartSendAllString::new(usart, "\",\""))
+        .and_then(move |usart| StartSendAllString::new(usart, pass))
+        .and_then(|usart| StartSendAllString::new(usart, "\"\r\n"))
+        .then(|res| {
+            match res {
+                Ok(usart) => {
+                    TakeUntil::new([0; 128], usart, [b"OK\r\n" as &[u8], b"ERROR\r\n" as &[u8]])
+                }
+                Err(_err) => {
+                    unsafe {
+                        // Usart sink never errors
+                        ::core::intrinsics::unreachable();
+                    }
+                }
+            }
+        })
+        .and_then(|(_buffer, _size, m, _usart)| {
+            match m {
+                b"OK\r\n" => Ok(true),
+                b"ERROR\r\n" => Ok(false),
+                _ => unreachable!(),
+            }
+        })
+        .map_err(|_err| Error::Generic)
+    }
 }
 
 fn parse_ap_list<A>(b: &[u8]) -> (A, usize)
