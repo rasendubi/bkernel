@@ -48,14 +48,10 @@ where
         let this = &mut *self;
 
         while this.cur < this.string.as_bytes().len() {
-            match Pin::new(this.sink_mut()).poll_ready(cx) {
-                Poll::Ready(Ok(())) => {
-                    let item = this.string.as_bytes()[this.cur];
-                    Pin::new(this.sink_mut()).start_send(item)?;
-                }
-                Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
-                Poll::Pending => return Poll::Pending,
-            }
+            try_ready!(Pin::new(this.sink_mut()).poll_ready(cx));
+
+            let item = this.string.as_bytes()[this.cur];
+            Pin::new(this.sink_mut()).start_send(item)?;
 
             this.cur += 1;
         }

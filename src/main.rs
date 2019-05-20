@@ -31,7 +31,6 @@ use core::pin::Pin;
 use futures::future;
 use futures::FutureExt;
 use futures::Poll;
-use futures::StreamExt;
 use futures::TryFutureExt;
 
 use stm32f4::gpio::{GPIO_B, GPIO_D};
@@ -116,14 +115,15 @@ pub extern "C" fn kmain() -> ! {
         ::core::intrinsics::volatile_store(&mut *b as *mut _, 4);
     }
 
-    unsafe { &mut ::dev::rng::RNG }.enable();
-    let mut print_rng = unsafe { &mut ::dev::rng::RNG }
-        .inspect(|r| {
-            use core::fmt::Write;
-            let _ = writeln!(unsafe { &::stm32f4::usart::USART2 }, "RNG: {:?}\r", r);
-        })
-        .into_future()
-        .map(|_| ());
+    // unsafe { &mut ::dev::rng::RNG }.enable();
+    // let mut print_rng = unsafe { &mut ::dev::rng::RNG }
+    //     .for_each(|r| {
+    //         use core::fmt::Write;
+    //         let _ = writeln!(unsafe { &::stm32f4::usart::USART2 }, "RNG: {:?}\r", r);
+
+    //         futures::future::ready(())
+    //     })
+    //     .map(|_| ());
 
     let mut terminal = StartSendAllString::new(
         &USART2,
@@ -208,7 +208,7 @@ pub extern "C" fn kmain() -> ! {
         // The infinite loop below makes all values above it
         // effectively 'static.
         reactor.add_task(5, Pin::new_unchecked(lifetime_loundary(&mut terminal)));
-        reactor.add_task(4, Pin::new_unchecked(lifetime_loundary(&mut print_rng)));
+        // reactor.add_task(4, Pin::new_unchecked(lifetime_loundary(&mut print_rng)));
         reactor.add_task(6, Pin::new_unchecked(lifetime_loundary(&mut htu21d)));
         reactor.add_task(2, Pin::new_unchecked(lifetime_loundary(&mut cs43l22)));
         reactor.add_task(1, Pin::new_unchecked(lifetime_loundary(&mut esp8266)));

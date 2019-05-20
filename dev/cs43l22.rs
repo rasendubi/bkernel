@@ -103,6 +103,6 @@ impl Cs43l22 {
                 i2c.stop();
                 buffer[0]
             })
-            .map_err(|err| Error::I2cError(err))
+            .map_err(Error::I2cError)
     }
 }

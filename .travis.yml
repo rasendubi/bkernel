@@ -10,5 +10,8 @@ install:
 script:
   - cargo test --all
   - cargo build --release --target thumbv7em-none-eabi
-  - cargo doc --target thumbv7em-none-eabi
+  # rustdoc fails with associated types:
+  # https://github.com/rust-lang/rust/issues/58011
+  #
+  # - cargo doc --target thumbv7em-none-eabi
   - cargo fmt -- --check
