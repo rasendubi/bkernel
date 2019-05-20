@@ -5,9 +5,11 @@
 //! sensor.
 use super::i2c;
 
-use ::futures::{Async, Future};
+use core::marker::PhantomData;
+use core::pin::Pin;
+use core::task::Context;
 
-use ::core::marker::PhantomData;
+use futures::{Future, Poll};
 
 #[allow(missing_debug_implementations)]
 pub struct Htu21d {
@@ -164,24 +166,27 @@ pub enum Htu21dCommand<H, R> {
     Done(u16, PhantomData<(H, R)>),
 }
 
+impl<H, R> Unpin for Htu21dCommand<H, R> {}
+
 impl<T> Future for Htu21dCommand<HoldMaster, T>
 where
     T: From<u16> + Copy,
 {
-    type Item = T;
-    type Error = Htu21dError;
+    type Output = Result<T, Htu21dError>;
 
-    fn poll(&mut self) -> Result<Async<T>, Htu21dError> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Result<T, Htu21dError>> {
         use self::Htu21dCommand::*;
 
+        let this = &mut *self;
+
         loop {
-            *self = match *self {
+            *this = match this {
                 StartTransfer(ref mut start_transfer, ref cmd) => {
-                    let i2c = try_ready!(start_transfer.poll());
+                    let i2c = ready!(Pin::new(start_transfer).poll(cx));
                     CmdTransmission(i2c.master_transmitter_raw(HTU21D_ADDRESS, *cmd, 1))
                 }
                 CmdTransmission(ref mut transmission) => {
-                    let (i2c, _buf) = try_ready!(transmission.poll());
+                    let (i2c, _buf) = try_ready!(Pin::new(transmission).poll(cx));
                     ResultTransmission(i2c.master_receiver_raw(
                         HTU21D_ADDRESS,
                         unsafe { &mut __READ_BUFFER }.as_mut_ptr(),
@@ -189,12 +194,12 @@ where
                     ))
                 }
                 ResultTransmission(ref mut transmission) => {
-                    let (mut i2c, buf) = try_ready!(transmission.poll());
+                    let (mut i2c, buf) = try_ready!(Pin::new(transmission).poll(cx));
                     i2c.stop();
                     Done((u16::from(buf[0]) << 8) | u16::from(buf[1]), PhantomData)
                 }
                 Done(sample, _) => {
-                    return Ok(Async::Ready(T::from(sample)));
+                    return Poll::Ready(Ok(<T>::from(*sample)));
                 }
             };
         }
@@ -202,25 +207,26 @@ where
 }
 
 impl Future for Htu21dCommand<NoHoldMaster, Reset> {
-    type Item = Reset;
-    type Error = Htu21dError;
+    type Output = Result<Reset, Htu21dError>;
 
-    fn poll(&mut self) -> Result<Async<Reset>, Htu21dError> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Result<Reset, Htu21dError>> {
         use self::Htu21dCommand::*;
 
+        let this = &mut *self;
+
         loop {
-            *self = match *self {
+            *this = match this {
                 StartTransfer(ref mut start_transfer, ref cmd) => {
-                    let transfer = try_ready!(start_transfer.poll());
+                    let transfer = ready!(Pin::new(start_transfer).poll(cx));
                     CmdTransmission(transfer.master_transmitter_raw(HTU21D_ADDRESS, *cmd, 1))
                 }
                 CmdTransmission(ref mut transmission) => {
-                    let (mut i2c, _buf) = try_ready!(transmission.poll());
+                    let (mut i2c, _buf) = try_ready!(Pin::new(transmission).poll(cx));
                     i2c.stop();
                     Done(0, PhantomData)
                 }
                 Done(_, _) => {
-                    return Ok(Async::Ready(Reset));
+                    return Poll::Ready(Ok(Reset));
                 }
                 _ => unsafe {
                     ::core::intrinsics::unreachable();

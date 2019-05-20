@@ -1,9 +1,11 @@
 //! Lock-free synchronization point for single-value single-producer,
 //! single-consumer.
-use ::core::cell::UnsafeCell;
-use ::core::sync::atomic::{AtomicU32, Ordering};
+use core::cell::UnsafeCell;
+use core::pin::Pin;
+use core::sync::atomic::{AtomicU32, Ordering};
 
-use ::futures::{Async, Future, Poll};
+use futures::task::Context;
+use futures::{Future, Poll};
 
 use super::REACTOR;
 
@@ -15,7 +17,7 @@ use super::REACTOR;
 /// The consumer is assumed to hold the object and should not drop it
 /// until it is resolved.
 #[allow(missing_debug_implementations)]
-pub struct Promise<T, E> {
+pub struct Promise<T> {
     /// Stores the mask of the owning task.
     ///
     /// If `task` is `0`, the Promise have been resolved.
@@ -28,17 +30,17 @@ pub struct Promise<T, E> {
     ///
     /// When `task` is zero, the result stores `Some`, and should only
     /// be read by the consumer.
-    result: UnsafeCell<Option<Result<T, E>>>,
+    result: UnsafeCell<Option<T>>,
 }
 
-unsafe impl<T, E> Sync for Promise<T, E> {}
+unsafe impl<T> Sync for Promise<T> {}
 
-impl<T, E> Promise<T, E> {
+impl<T> Promise<T> {
     /// Creates an empty Promise.
     ///
     /// The promise must be claimed with `claim()` before calling
     /// `poll()` or `resolve()`.
-    pub const unsafe fn empty() -> Promise<T, E> {
+    pub const unsafe fn empty() -> Promise<T> {
         Promise {
             task: AtomicU32::new(0),
             result: UnsafeCell::new(None),
@@ -48,14 +50,14 @@ impl<T, E> Promise<T, E> {
     /// Creates new promise and makes it be owned by the current task.
     ///
     /// Should only be called from within a task.
-    pub fn new() -> Promise<T, E> {
+    pub fn new() -> Promise<T> {
         Promise {
             task: AtomicU32::new(REACTOR.get_current_task_mask()),
             result: UnsafeCell::new(None),
         }
     }
 
-    pub const fn new_task(task_mask: u32) -> Promise<T, E> {
+    pub const fn new_task(task_mask: u32) -> Promise<T> {
         Promise {
             task: AtomicU32::new(task_mask),
             result: UnsafeCell::new(None),
@@ -82,7 +84,7 @@ impl<T, E> Promise<T, E> {
     //
     // Also, I should consider making Promise be owned by the
     // producer and tracking consumer's future-part.
-    pub fn resolve(&self, result: Result<T, E>) {
+    pub fn resolve(&self, result: T) {
         unsafe {
             *self.result.get() = Some(result);
         }
@@ -101,19 +103,16 @@ impl<T, E> Promise<T, E> {
     }
 }
 
-impl<T, E> Future for Promise<T, E> {
-    type Item = T;
-    type Error = E;
+impl<T> Future for Promise<T> {
+    type Output = T;
 
-    fn poll(&mut self) -> Poll<T, E> {
+    fn poll(self: Pin<&mut Self>, _cx: &mut Context) -> Poll<T> {
+        // TODO(rasen): use waker
         let task = self.task.load(Ordering::Acquire);
         if task == 0 {
-            match unsafe { ::core::ptr::replace(self.result.get(), None) }.unwrap() {
-                Ok(x) => Ok(Async::Ready(x)),
-                Err(x) => Err(x),
-            }
+            Poll::Ready(unsafe { ::core::ptr::replace(self.result.get(), None) }.unwrap())
         } else {
-            Ok(Async::NotReady)
+            Poll::Pending
         }
     }
 }

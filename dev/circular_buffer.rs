@@ -16,7 +16,7 @@ pub struct CircularBuffer<T, A> {
     __phantom: PhantomData<T>,
 }
 
-impl<T: Copy, A: FixedSizeArray<T>> CircularBuffer<T, A> {
+impl<T: Clone, A: FixedSizeArray<T>> CircularBuffer<T, A> {
     /// Construct a new CircularBuffer initializing all elements to
     /// `init`.
     ///
@@ -66,7 +66,7 @@ impl<T: Copy, A: FixedSizeArray<T>> CircularBuffer<T, A> {
         if current_head == self.tail.load(Ordering::Acquire) {
             None
         } else {
-            let item = unsafe { &mut *self.array.get() }.as_slice()[current_head];
+            let item = unsafe { &mut *self.array.get() }.as_slice()[current_head].clone();
             self.head
                 .store(self.increment(current_head), Ordering::Release);
 
@@ -80,6 +80,17 @@ impl<T: Copy, A: FixedSizeArray<T>> CircularBuffer<T, A> {
     /// function returns.
     pub fn was_empty(&self) -> bool {
         self.head.load(Ordering::Relaxed) == self.tail.load(Ordering::Relaxed)
+    }
+
+    /// Whether the buffer was full at the time of querying.
+    ///
+    /// Note that the status may have already changed by the time the
+    /// function returns.
+    pub fn was_full(&self) -> bool {
+        let current_tail = self.tail.load(Ordering::Relaxed);
+        let current_head = self.head.load(Ordering::Relaxed);
+
+        self.increment(current_tail) == current_head
     }
 }
 

@@ -1,7 +1,9 @@
 //! Mutual exclusion for futures.
 
-use ::core::sync::atomic::{AtomicU32, Ordering};
-use ::futures::{Async, Future, Poll};
+use core::pin::Pin;
+use core::sync::atomic::{AtomicU32, Ordering};
+use futures::task::Context;
+use futures::{Future, Poll};
 
 use super::REACTOR;
 
@@ -24,7 +26,7 @@ use super::REACTOR;
 /// # #![feature(conservative_impl_trait)]
 /// # extern crate breactor;
 /// # extern crate futures;
-/// # use ::futures::Future;
+/// # use futures::{Future, FutureExt};
 /// # use breactor::mutex::*;
 /// static BUS: Bus = Bus { mutex: Mutex::new() };
 ///
@@ -37,7 +39,7 @@ use super::REACTOR;
 /// }
 ///
 /// impl Bus {
-///     pub fn access(&'static self) -> impl Future<Item=AccessToken, Error=()> {
+///     pub fn access(&'static self) -> impl Future<Output = AccessToken> {
 ///         self.mutex.lock().map(|lock| AccessToken { lock })
 ///     }
 /// }
@@ -105,10 +107,10 @@ impl Mutex {
 }
 
 impl<'a> Future for LockFuture<'a> {
-    type Item = MutexLock<'a>;
-    type Error = ();
+    type Output = MutexLock<'a>;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+    fn poll(self: Pin<&mut Self>, _cx: &mut Context) -> Poll<Self::Output> {
+        // TODO(rasen): use waker
         let task = REACTOR.get_current_task_mask();
 
         self.mutex.wait_task_mask.fetch_or(task, Ordering::SeqCst);
@@ -116,9 +118,9 @@ impl<'a> Future for LockFuture<'a> {
         let prev = self.mutex.owner.compare_and_swap(0, task, Ordering::SeqCst);
         if prev == 0 {
             // Mutex locked
-            Ok(Async::Ready(MutexLock { mutex: self.mutex }))
+            Poll::Ready(MutexLock { mutex: self.mutex })
         } else {
-            Ok(Async::NotReady)
+            Poll::Pending
         }
     }
 }

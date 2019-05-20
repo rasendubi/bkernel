@@ -1,7 +1,7 @@
 //! CS43L22 Low Power, Stereo DAC with Headphone and Speaker Amplifiers.
 use crate::i2c;
 
-use ::futures::Future;
+use futures::{Future, FutureExt, TryFutureExt};
 
 #[allow(missing_debug_implementations)]
 pub struct Cs43l22 {
@@ -89,7 +89,7 @@ impl Cs43l22 {
         }
     }
 
-    pub fn get_chip_id(&'static mut self) -> impl Future<Item = u8, Error = Error> + 'static {
+    pub fn get_chip_id(&'static mut self) -> impl Future<Output = Result<u8, Error>> + 'static {
         let addr = self.i2c_addr;
 
         self.buffer[0] = 0x01; // ID register
@@ -97,9 +97,9 @@ impl Cs43l22 {
 
         self.i2c
             .start_transfer()
-            .and_then(move |i2c| i2c.master_transmitter_raw(addr, buffer, 1))
+            .then(move |i2c| i2c.master_transmitter_raw(addr, buffer, 1))
             .and_then(move |(i2c, _buffer)| i2c.master_receiver_raw(addr, buffer, 1))
-            .map(|(mut i2c, buffer)| {
+            .map_ok(|(mut i2c, buffer)| {
                 i2c.stop();
                 buffer[0]
             })
