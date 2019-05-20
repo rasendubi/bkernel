@@ -1,4 +1,6 @@
-use futures::{Async, AsyncSink, Future, Poll, Sink};
+use core::pin::Pin;
+use futures::task::Context;
+use futures::{Future, Poll, Sink};
 
 #[derive(Debug)]
 #[must_use = "futures do nothing unless polled"]
@@ -8,9 +10,11 @@ pub struct StartSendAllString<'a, T> {
     cur: usize,
 }
 
+impl<'a, T> Unpin for StartSendAllString<'a, T> where T: Sink<u8> + Unpin {}
+
 impl<'a, T> StartSendAllString<'a, T>
 where
-    T: Sink<SinkItem = u8>,
+    T: Sink<u8> + Unpin,
 {
     pub fn new(sink: T, string: &'a str) -> StartSendAllString<'a, T> {
         StartSendAllString {
@@ -23,7 +27,7 @@ where
 
 impl<'a, T> StartSendAllString<'a, T>
 where
-    T: Sink<SinkItem = u8>,
+    T: Sink<u8>,
 {
     fn sink_mut(&mut self) -> &mut T {
         self.sink.as_mut().take().expect("")
@@ -36,20 +40,22 @@ where
 
 impl<'a, T> Future for StartSendAllString<'a, T>
 where
-    T: Sink<SinkItem = u8>,
+    T: Sink<u8> + Unpin,
 {
-    type Item = T;
-    type Error = T::SinkError;
+    type Output = Result<T, T::SinkError>;
 
-    fn poll(&mut self) -> Poll<T, T::SinkError> {
-        while self.cur < self.string.as_bytes().len() {
-            let item = self.string.as_bytes()[self.cur];
-            if let AsyncSink::NotReady(_) = self.sink_mut().start_send(item)? {
-                return Ok(Async::NotReady);
-            }
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = &mut *self;
 
-            self.cur += 1;
+        while this.cur < this.string.as_bytes().len() {
+            try_ready!(Pin::new(this.sink_mut()).poll_ready(cx));
+
+            let item = this.string.as_bytes()[this.cur];
+            Pin::new(this.sink_mut()).start_send(item)?;
+
+            this.cur += 1;
         }
-        Ok(Async::Ready(self.take_result()))
+
+        Poll::Ready(Ok(self.take_result()))
     }
 }

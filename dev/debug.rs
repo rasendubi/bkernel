@@ -27,11 +27,10 @@ impl<T> TestChannel<T> {
     }
 }
 
-impl<T> Sink for TestChannel<T> {
-    type SinkItem = T;
+impl<T> Sink<T> for TestChannel<T> {
     type SinkError = ();
 
-    fn start_send(&mut self, item: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
+    fn start_send(&mut self, item: T) -> StartSend<T, Self::SinkError> {
         self.sink.push(item);
         Ok(AsyncSink::Ready)
     }

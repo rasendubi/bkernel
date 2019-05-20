@@ -5,5 +5,5 @@ authors = ["Alexey Shmalko <rasen.dubi@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-futures = { version = "0.1", default-features = false }
+futures = { package = "futures-preview", version = "0.3.0-alpha.16", default-features = false }
 stm32f4 = { path = "../stm32f4" }

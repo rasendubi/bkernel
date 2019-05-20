@@ -1,20 +1,29 @@
+use core::pin::Pin;
 use futures::stream::Fuse;
-use futures::{Async, AsyncSink, Future, Poll, Sink, Stream};
+use futures::stream::StreamExt;
+use futures::task::Context;
+use futures::{Future, Poll, Sink, Stream};
 
 #[derive(Debug)]
 #[must_use = "futures do nothing unless polled"]
-pub struct StartSendAll<T, U: Stream> {
-    sink: Option<T>,
-    stream: Option<Fuse<U>>,
-    buffered: Option<U::Item>,
+pub struct StartSendAll<Si, St: Stream> {
+    sink: Option<Si>,
+    stream: Option<Fuse<St>>,
+    buffered: Option<St::Item>,
+}
+
+impl<Si, St> Unpin for StartSendAll<Si, St>
+where
+    Si: Sink<St::Item> + Unpin,
+    St: Stream + Unpin,
+{
 }
 
 #[allow(dead_code)]
-pub fn new<T, U>(sink: T, stream: U) -> StartSendAll<T, U>
+pub fn new<Si, St>(sink: Si, stream: St) -> StartSendAll<Si, St>
 where
-    T: Sink,
-    U: Stream<Item = T::SinkItem>,
-    T::SinkError: From<U::Error>,
+    Si: Sink<St::Item>,
+    St: Stream,
 {
     StartSendAll {
         sink: Some(sink),
@@ -23,57 +32,63 @@ where
     }
 }
 
-impl<T, U> StartSendAll<T, U>
+impl<Si, St> StartSendAll<Si, St>
 where
-    T: Sink,
-    U: Stream<Item = T::SinkItem>,
-    T::SinkError: From<U::Error>,
+    Si: Sink<St::Item> + Unpin,
+    St: Stream + Unpin,
 {
-    fn sink_mut(&mut self) -> &mut T {
+    fn sink_mut(&mut self) -> &mut Si {
         self.sink.as_mut().take().expect("")
     }
 
-    fn stream_mut(&mut self) -> &mut Fuse<U> {
+    fn stream_mut(&mut self) -> &mut Fuse<St> {
         self.stream.as_mut().take().expect("")
     }
 
-    fn take_result(&mut self) -> (T, U) {
+    fn take_result(&mut self) -> (Si, St) {
         let sink = self.sink.take().expect("");
         let fuse = self.stream.take().expect("");
         (sink, fuse.into_inner())
     }
 
-    fn try_start_send(&mut self, item: U::Item) -> Poll<(), T::SinkError> {
+    fn try_start_send(
+        &mut self,
+        cx: &mut Context<'_>,
+        item: St::Item,
+    ) -> Poll<Result<(), Si::SinkError>> {
         debug_assert!(self.buffered.is_none());
-        if let AsyncSink::NotReady(item) = self.sink_mut().start_send(item)? {
-            self.buffered = Some(item);
-            return Ok(Async::NotReady);
+        match Pin::new(self.sink_mut()).poll_ready(cx) {
+            Poll::Ready(Ok(())) => Poll::Ready(Pin::new(self.sink_mut()).start_send(item)),
+            Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
+            Poll::Pending => {
+                self.buffered = Some(item);
+                Poll::Pending
+            }
         }
-        Ok(Async::Ready(()))
     }
 }
 
-impl<T, U> Future for StartSendAll<T, U>
+impl<Si, St> Future for StartSendAll<Si, St>
 where
-    T: Sink,
-    U: Stream<Item = T::SinkItem>,
-    T::SinkError: From<U::Error>,
+    Si: Sink<St::Item> + Unpin,
+    St: Stream + Unpin,
 {
-    type Item = (T, U);
-    type Error = T::SinkError;
+    type Output = Result<(Si, St), Si::SinkError>;
 
-    fn poll(&mut self) -> Poll<(T, U), T::SinkError> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = &mut *self;
+
         // If we've got an item buffered already, we need to write it to the
         // sink before we can do anything else
-        if let Some(item) = self.buffered.take() {
-            try_ready!(self.try_start_send(item))
+        if let Some(item) = this.buffered.take() {
+            ready!(this.try_start_send(cx, item))?
         }
 
         loop {
-            match self.stream_mut().poll()? {
-                Async::Ready(Some(item)) => try_ready!(self.try_start_send(item)),
-                Async::Ready(None) => return Ok(Async::Ready(self.take_result())),
-                Async::NotReady => return Ok(Async::NotReady),
+            match Pin::new(this.stream_mut()).poll_next(cx) {
+                Poll::Ready(Some(item)) => try_ready!(this.try_start_send(cx, item)),
+                Poll::Ready(None) => return Poll::Ready(Ok(this.take_result())),
+                Poll::Pending => return Poll::Pending,
             }
         }
     }

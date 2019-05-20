@@ -26,13 +26,17 @@ mod led_music;
 mod log;
 mod terminal;
 
+use core::pin::Pin;
+
+use futures::future;
+use futures::FutureExt;
+use futures::Poll;
+use futures::TryFutureExt;
+
 use stm32f4::gpio::{GPIO_B, GPIO_D};
 use stm32f4::rcc::RCC;
 use stm32f4::timer::TIM2;
 use stm32f4::{gpio, nvic, rcc, timer, usart};
-
-use futures::future::{self, Loop};
-use futures::{Future, Stream};
 
 use ::breactor::start_send_all_string::StartSendAllString;
 
@@ -111,47 +115,51 @@ pub extern "C" fn kmain() -> ! {
         ::core::intrinsics::volatile_store(&mut *b as *mut _, 4);
     }
 
-    unsafe { &mut ::dev::rng::RNG }.enable();
-    let mut print_rng = unsafe { &mut ::dev::rng::RNG }
-        .for_each(|r| {
-            use core::fmt::Write;
-            let _ = writeln!(unsafe { &::stm32f4::usart::USART2 }, "RNG: {}\r", r);
-            Ok(())
-        })
-        .map(|_| ())
-        .map_err(|_| ());
+    // unsafe { &mut ::dev::rng::RNG }.enable();
+    // let mut print_rng = unsafe { &mut ::dev::rng::RNG }
+    //     .for_each(|r| {
+    //         use core::fmt::Write;
+    //         let _ = writeln!(unsafe { &::stm32f4::usart::USART2 }, "RNG: {:?}\r", r);
+
+    //         futures::future::ready(())
+    //     })
+    //     .map(|_| ());
 
     let mut terminal = StartSendAllString::new(
         &USART2,
         "\r\nWelcome to bkernel!\r\nType 'help' to get a list of available commands.\r\n",
     )
     .and_then(|stdout| terminal::run_terminal(&USART2, stdout))
-    .map(|_| ())
-    .map_err(|_| ());
+    .map(|_| ());
 
     let mut htu21d = HTU21D
         .soft_reset()
         .and_then(|_| {
             // This is needed because device is not instantly up after
             // reset, so we poll it, untill it ready.
-            future::loop_fn((), |_| {
-                HTU21D.read_temperature_hold_master().then(|res| match res {
-                    Ok(temp) => Ok(Loop::Break(temp)),
+            future::poll_fn(|cx| {
+                match ready!(HTU21D.read_temperature_hold_master().poll_unpin(cx)) {
+                    Ok(temp) => Poll::Ready(Ok(temp)),
                     // Acknowledge failure -> device is not ready -> retry
                     Err(Htu21dError::I2cError(dev::i2c::Error::AcknowledgementFailure)) => {
-                        Ok(Loop::Continue(()))
+                        Poll::Pending
                     }
-                    Err(x) => Err(x),
-                })
+                    Err(x) => Poll::Ready(Err(x)),
+                }
             })
         })
         .and_then(|temp| {
-            HTU21D.read_humidity_hold_master().map(move |hum| {
-                log!("Temperature: {} C      Humidity: {}%\r\n", temp, hum);
-            })
+            HTU21D
+                .read_humidity_hold_master()
+                .map_ok(move |hum| (temp, hum))
         })
-        .map_err(|err| {
-            log!("HTU21D error: {:?}\r\n", err);
+        .then(|x| {
+            match x {
+                Ok((temp, hum)) => log!("Temperature: {} C      Humidity: {}%\r\n", temp, hum),
+                Err(err) => log!("HTU21D error: {:?}\r\n", err),
+            }
+
+            future::ready(())
         });
 
     let mut cs43l22 = unsafe { &mut CS43L22 }.get_chip_id().then(|res| {
@@ -163,15 +171,15 @@ pub extern "C" fn kmain() -> ! {
                 log!("Error: {:?}\r\n", err);
             }
         }
-        Ok(())
+
+        future::ready(())
     });
 
     let mut esp8266 = unsafe { &mut ESP8266 }
         .check_at()
         .then(|x| {
             log!("\r\nESP CHECK AT: {:?}\r\n", x);
-
-            Ok(()) as Result<(), ()>
+            future::ready(Ok(()) as Result<(), ()>)
         })
         .then(|_| unsafe { &mut ESP8266 }.list_aps::<[AccessPoint; 32]>())
         .and_then(|(aps, size)| {
@@ -179,11 +187,18 @@ pub extern "C" fn kmain() -> ! {
             for ap in &aps[0..::core::cmp::min(size, aps.len())] {
                 debug_log!("{:?}\r\n", ap);
             }
-            Ok(())
+
+            future::ready(Ok(()))
+        })
+        .then(|_| unsafe { &mut ESP8266 }.join_ap("Rotem Indiana_Guest", "snickershock"))
+        .and_then(|res| {
+            debug_log!("Join status: {:?}", res);
+            future::ready(Ok(()))
         })
         .map_err(|err| {
-            log!("\r\nList APs error: {:?}\r\n", err);
-        });
+            log!("\r\nESP8266 error: {:?}\r\n", err);
+        })
+        .map(|_| ());
 
     unsafe {
         let reactor = &REACTOR;
@@ -192,11 +207,11 @@ pub extern "C" fn kmain() -> ! {
         //
         // The infinite loop below makes all values above it
         // effectively 'static.
-        reactor.add_task(5, lifetime_loundary(&mut terminal));
-        reactor.add_task(4, lifetime_loundary(&mut print_rng));
-        reactor.add_task(6, lifetime_loundary(&mut htu21d));
-        reactor.add_task(2, lifetime_loundary(&mut cs43l22));
-        reactor.add_task(1, lifetime_loundary(&mut esp8266));
+        reactor.add_task(5, Pin::new_unchecked(lifetime_loundary(&mut terminal)));
+        // reactor.add_task(4, Pin::new_unchecked(lifetime_loundary(&mut print_rng)));
+        reactor.add_task(6, Pin::new_unchecked(lifetime_loundary(&mut htu21d)));
+        reactor.add_task(2, Pin::new_unchecked(lifetime_loundary(&mut cs43l22)));
+        reactor.add_task(1, Pin::new_unchecked(lifetime_loundary(&mut esp8266)));
 
         loop {
             reactor.run();

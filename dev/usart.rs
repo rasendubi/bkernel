@@ -1,16 +1,18 @@
 //! Future-based USART driver.
 
-use ::stm32f4::usart;
+use core::pin::Pin;
+use core::task::Context;
+use stm32f4::usart;
 
 use crate::circular_buffer::CircularBuffer;
 use crate::resettable_stream::ResettableStream;
 
-use ::futures::{Async, AsyncSink, Poll, Sink, StartSend, Stream};
+use futures::{Poll, Sink, Stream};
 
-use ::core::array::FixedSizeArray;
-use ::core::sync::atomic::{AtomicU32, Ordering};
+use core::array::FixedSizeArray;
+use core::sync::atomic::{AtomicU32, Ordering};
 
-use ::breactor::REACTOR;
+use breactor::REACTOR;
 
 #[allow(missing_debug_implementations)]
 pub struct Usart<A, B> {
@@ -106,58 +108,67 @@ impl<A: FixedSizeArray<u8>, B: FixedSizeArray<u8>> Usart<A, B> {
     }
 }
 
-impl<'a, A: FixedSizeArray<u8>, B: FixedSizeArray<u8>> Sink for &'a Usart<A, B> {
-    type SinkItem = u8;
+impl<'a, A: FixedSizeArray<u8>, B: FixedSizeArray<u8>> Sink<u8> for &'a Usart<A, B> {
     type SinkError = ();
 
-    fn start_send(&mut self, item: u8) -> StartSend<u8, Self::SinkError> {
+    fn poll_ready(
+        self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
+    ) -> Poll<Result<(), Self::SinkError>> {
         self.writer_task_mask
             .store(REACTOR.get_current_task_mask(), Ordering::SeqCst);
 
-        if self.try_push_writer(item) {
+        if self.writer_buffer.was_full() {
+            Poll::Pending
+        } else {
             self.writer_task_mask.store(0, Ordering::SeqCst);
 
-            // This triggers TXE interrupt if transmitter is already
-            // empty, so the USART catches up with new data.
-            self.usart.it_enable(usart::Interrupt::TXE);
-
-            Ok(AsyncSink::Ready)
-        } else {
-            Ok(AsyncSink::NotReady(item))
+            Poll::Ready(Ok(()))
         }
     }
 
-    fn poll_complete(&mut self) -> Poll<(), Self::SinkError> {
+    fn start_send(self: Pin<&mut Self>, item: u8) -> Result<(), Self::SinkError> {
+        if self.try_push_writer(item) {
+            // This triggers TXE interrupt if transmitter was
+            // empty, so the USART catches up with new data.
+            self.usart.it_enable(usart::Interrupt::TXE);
+
+            Ok(())
+        } else {
+            panic!("Usart: start_send was called, but the queue is not ready");
+        }
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context) -> Poll<Result<(), Self::SinkError>> {
         self.writer_task_mask
             .store(REACTOR.get_current_task_mask(), Ordering::SeqCst);
 
         if self.writer_buffer.was_empty() {
             self.writer_task_mask.store(0, Ordering::SeqCst);
-            Ok(Async::Ready(()))
+            Poll::Ready(Ok(()))
         } else {
-            Ok(Async::NotReady)
+            Poll::Pending
         }
     }
 
-    fn close(&mut self) -> Poll<(), Self::SinkError> {
-        self.poll_complete()
+    fn poll_close(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Result<(), Self::SinkError>> {
+        self.poll_flush(cx)
     }
 }
 
 impl<'a, A: FixedSizeArray<u8>, B: FixedSizeArray<u8>> Stream for &'a Usart<A, B> {
     type Item = u8;
-    type Error = ();
 
-    fn poll(&mut self) -> Poll<Option<u8>, Self::Error> {
+    fn poll_next(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         self.reader_task_mask
             .store(REACTOR.get_current_task_mask(), Ordering::SeqCst);
 
         match self.try_pop_reader() {
             Some(x) => {
                 self.reader_task_mask.store(0, Ordering::SeqCst);
-                Ok(Async::Ready(Some(x)))
+                Poll::Ready(Some(x))
             }
-            None => Ok(Async::NotReady),
+            None => Poll::Pending,
         }
     }
 }

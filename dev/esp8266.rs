@@ -1,13 +1,13 @@
 //! ESP8266 AT command based driver.
-use ::core::array::FixedSizeArray;
-use ::core::marker::PhantomData;
-use ::core::str::FromStr;
+use core::array::FixedSizeArray;
+use core::marker::PhantomData;
+use core::pin::Pin;
+use core::str::FromStr;
+use core::task::Context;
 
-use futures::{Async, Future, Poll, Sink, Stream};
+use futures::{Future, Poll, Sink, Stream, TryFutureExt};
 
-use ::breactor::start_send_all_string::StartSendAllString;
-
-// use crate::resettable_stream::ResettableStream;
+use breactor::start_send_all_string::StartSendAllString;
 
 #[allow(unused)]
 macro_rules! debug_log {
@@ -22,7 +22,7 @@ macro_rules! debug_log {
 }
 
 #[allow(missing_debug_implementations)]
-pub struct Esp8266<Channel: Stream<Item = u8> + Sink<SinkItem = u8>> {
+pub struct Esp8266<Channel: Stream<Item = u8> + Sink<u8>> {
     usart: Channel,
 }
 
@@ -50,7 +50,7 @@ impl<S, E> From<TakeUntilError<S, E>> for Error {
     }
 }
 
-impl<Channel: Stream<Item = u8> + Sink<SinkItem = u8>> Esp8266<Channel> {
+impl<Channel: Stream<Item = u8> + Sink<u8> + Unpin> Esp8266<Channel> {
     /// Creates new ESP instance from a USART.
     ///
     /// # Examples
@@ -77,41 +77,36 @@ impl<Channel: Stream<Item = u8> + Sink<SinkItem = u8>> Esp8266<Channel> {
     /// # Examples
     /// ```no_run
     /// # #![feature(const_fn)]
+    /// # #![feature(async_await)]
+    /// # #![feature(await_macro)]
     /// # extern crate futures;
     /// # extern crate dev;
     /// # extern crate stm32f4;
     /// # fn main() {
-    /// # use ::dev::esp8266::Esp8266;
-    /// # use ::dev::usart::Usart;
-    /// # use ::futures::{Async, Future};
+    /// # use dev::esp8266::Esp8266;
+    /// # use dev::usart::Usart;
+    /// # use futures::{Poll, Future};
+    /// # async {
     /// static USART3: Usart<[u8; 32], [u8; 32]> =
     ///     Usart::new(unsafe{&::stm32f4::usart::USART3}, [0; 32], [0; 32]);
     ///
     /// let mut esp = Esp8266::new(&USART3);
-    /// assert_eq!(Ok(Async::Ready(true)), esp.check_at().poll());
+    /// assert_eq!(Ok(true), await!(esp.check_at()));
+    ///
+    /// # };
     /// # }
     /// ```
-    pub fn check_at<'a>(&'a mut self) -> impl Future<Item = bool, Error = Error> + 'a {
-        // TODO(rasen): make const fn alternative to future::lazy
-        ::futures::future::lazy(move || Ok(&mut self.usart))
-            .and_then(|usart| StartSendAllString::new(usart, "AT\r\n"))
-            .then(|res| {
-                match res {
-                    Ok(usart) => {
-                        TakeUntil::new([0; 32], usart, [b"OK\r\n" as &[u8], b"ERROR\r\n" as &[u8]])
-                    }
-                    Err(_err) => {
-                        unsafe {
-                            // Usart sink never errors
-                            ::core::intrinsics::unreachable();
-                        }
-                    }
-                }
+    pub fn check_at<'a>(&'a mut self) -> impl Future<Output = Result<bool, Error>> + 'a {
+        StartSendAllString::new(&mut self.usart, "AT\r\n")
+            .map_err(|_err| Error::Generic)
+            .and_then(|usart| {
+                TakeUntil::new([0; 32], usart, [b"OK\r\n" as &[u8], b"ERROR\r\n" as &[u8]])
+                    .map_err(|_err| Error::Generic)
             })
-            .and_then(|(_buffer, _size, _m, _usart)| {
+            .map_ok(|(_buffer, _size, _m, _usart)| {
                 // If any pattern matched, the other side understands
                 // AT commands.
-                Ok(true)
+                true
             })
             .map_err(|_err| Error::Generic)
     }
@@ -131,9 +126,9 @@ impl<Channel: Stream<Item = u8> + Sink<SinkItem = u8>> Esp8266<Channel> {
     /// # extern crate dev;
     /// # extern crate stm32f4;
     /// # fn main() {
-    /// # use ::dev::esp8266::{Esp8266, AccessPoint};
-    /// # use ::dev::usart::Usart;
-    /// # use ::futures::{Async, Future};
+    /// # use dev::esp8266::{Esp8266, AccessPoint};
+    /// # use dev::usart::Usart;
+    /// # use futures::{Future, FutureExt, TryFutureExt};
     /// static USART3: Usart<[u8; 32], [u8; 32]> =
     ///     Usart::new(unsafe{&::stm32f4::usart::USART3}, [0; 32], [0; 32]);
     ///
@@ -144,20 +139,18 @@ impl<Channel: Stream<Item = u8> + Sink<SinkItem = u8>> Esp8266<Channel> {
     ///         for i in 0 .. std::cmp::min(size, aps.len()) {
     ///             println!("{:?}", aps[i]);
     ///         }
-    ///         Ok(())
+    ///         futures::future::ready(Ok(()))
     ///     });
     /// # }
     /// ```
     // TODO(rasen): return Stream<Item=AccessPoint> to leverage
     // incremental processing. This way, we can decrease buffer size.
-    pub fn list_aps<'a, R>(&'a mut self) -> impl Future<Item = (R, usize), Error = Error> + 'a
+    pub fn list_aps<'a, R>(&'a mut self) -> impl Future<Output = Result<(R, usize), Error>> + 'a
     where
         R: FixedSizeArray<AccessPoint> + 'a,
     {
-        ::futures::future::lazy(move || Ok(&mut self.usart))
-            .and_then(|usart| {
-                StartSendAllString::new(usart, "AT+CWLAP\r\n").map_err(|_| Error::Generic)
-            })
+        StartSendAllString::new(&mut self.usart, "AT+CWLAP\r\n")
+            .map_err(|_| Error::Generic)
             .and_then(|usart| {
                 TakeUntil::new([0; 32], usart, [b"\r\r\n" as &[u8]]).map_err(From::from)
             })
@@ -169,38 +162,28 @@ impl<Channel: Stream<Item = u8> + Sink<SinkItem = u8>> Esp8266<Channel> {
                 )
                 .map_err(From::from)
             })
-            .and_then(move |(buffer, size, m, _usart)| {
-                Ok(parse_ap_list::<R>(&buffer[..size - m.len()]))
-            })
+            .map_ok(move |(buffer, size, m, _usart)| parse_ap_list::<R>(&buffer[..size - m.len()]))
     }
 
     pub fn join_ap<'a>(
         &'a mut self,
         ap: &'a str,
         pass: &'a str,
-    ) -> impl Future<Item = bool, Error = Error> + 'a {
-        ::futures::future::lazy(move || Ok(&mut self.usart))
+    ) -> impl Future<Output = Result<bool, Error>> + 'a {
+        futures::future::lazy(move |_| Ok(&mut self.usart))
             .and_then(|usart| StartSendAllString::new(usart, "AT+CWJAP=\""))
             .and_then(move |usart| StartSendAllString::new(usart, ap))
             .and_then(|usart| StartSendAllString::new(usart, "\",\""))
             .and_then(move |usart| StartSendAllString::new(usart, pass))
             .and_then(|usart| StartSendAllString::new(usart, "\"\r\n"))
-            .then(|res| {
-                match res {
-                    Ok(usart) => {
-                        TakeUntil::new([0; 128], usart, [b"OK\r\n" as &[u8], b"ERROR\r\n" as &[u8]])
-                    }
-                    Err(_err) => {
-                        unsafe {
-                            // Usart sink never errors
-                            ::core::intrinsics::unreachable();
-                        }
-                    }
-                }
+            .map_err(|_err| Error::Generic)
+            .and_then(|usart| {
+                TakeUntil::new([0; 128], usart, [b"OK\r\n" as &[u8], b"ERROR\r\n" as &[u8]])
+                    .map_err(|_err| Error::Generic)
             })
-            .and_then(|(_buffer, _size, m, _usart)| match m {
-                b"OK\r\n" => Ok(true),
-                b"ERROR\r\n" => Ok(false),
+            .map_ok(|(_buffer, _size, m, _usart)| match m {
+                b"OK\r\n" => true,
+                b"ERROR\r\n" => false,
                 _ => unreachable!(),
             })
             .map_err(|_err| Error::Generic)
@@ -350,7 +333,7 @@ struct TakeUntil<'a, A, S, M> {
 impl<'a, A, S, M> TakeUntil<'a, A, S, M>
 where
     A: FixedSizeArray<u8>,
-    S: Stream<Item = u8>,
+    S: Stream<Item = u8> + Unpin,
     M: FixedSizeArray<&'static [u8]>,
 {
     pub fn new(buffer: A, stream: S, matches: M) -> TakeUntil<'a, A, S, M> {
@@ -376,24 +359,34 @@ enum TakeUntilError<S, E> {
     BufferOverflow(S),
 }
 
+impl<'a, A, S, M> Unpin for TakeUntil<'a, A, S, M>
+where
+    A: FixedSizeArray<u8>,
+    S: Stream<Item = u8> + Unpin,
+    M: FixedSizeArray<&'static [u8]>,
+{
+}
+
 impl<'a, A, S, M> Future for TakeUntil<'a, A, S, M>
 where
     A: FixedSizeArray<u8>,
-    S: Stream<Item = u8>,
+    S: Stream<Item = u8> + Unpin,
     M: FixedSizeArray<&'static [u8]>,
 {
-    type Item = (A, usize, &'static [u8], S);
-    type Error = TakeUntilError<S, S::Error>;
+    type Output = Result<(A, usize, &'static [u8], S), TakeUntilError<S, ()>>;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         loop {
             if self.cur >= self.buffer.as_slice().len() {
-                return Err(TakeUntilError::BufferOverflow(self.stream.take().unwrap()));
+                return Poll::Ready(Err(TakeUntilError::BufferOverflow(
+                    self.stream.take().unwrap(),
+                )));
             }
 
-            match self.stream.as_mut().take().unwrap().poll() {
-                Ok(Async::Ready(Some(c))) => {
-                    self.buffer.as_mut_slice()[self.cur] = c;
+            match Pin::new(self.stream.as_mut().take().unwrap()).poll_next(cx) {
+                Poll::Ready(Some(c)) => {
+                    let cur = self.cur;
+                    self.buffer.as_mut_slice()[cur] = c;
                     self.cur += 1;
 
                     for m in self.matches.as_slice() {
@@ -402,24 +395,17 @@ where
                             b.as_mut_slice()[..self.cur]
                                 .clone_from_slice(&self.buffer.as_slice()[..self.cur]);
 
-                            return Ok(Async::Ready((b, self.cur, m, self.stream.take().unwrap())));
+                            return Poll::Ready(Ok((b, self.cur, m, self.stream.take().unwrap())));
                         }
                     }
                 }
 
-                Ok(Async::Ready(None)) => {
-                    return Err(TakeUntilError::Finished(self.stream.take().unwrap()));
+                Poll::Ready(None) => {
+                    return Poll::Ready(Err(TakeUntilError::Finished(self.stream.take().unwrap())));
                 }
 
-                Ok(Async::NotReady) => {
-                    return Ok(Async::NotReady);
-                }
-
-                Err(err) => {
-                    return Err(TakeUntilError::StreamError(
-                        self.stream.take().unwrap(),
-                        err,
-                    ));
+                Poll::Pending => {
+                    return Poll::Pending;
                 }
             }
         }

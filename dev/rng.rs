@@ -1,12 +1,14 @@
 //! Random number generator.
-use ::core::sync::atomic::{AtomicU32, Ordering};
+use core::pin::Pin;
+use core::sync::atomic::{AtomicU32, Ordering};
+use core::task::Context;
 
 use stm32f4::rng;
 use stm32f4::IrqLock;
 
 use breactor::REACTOR;
 
-use futures::{Async, Poll, Stream};
+use futures::{Poll, Stream};
 
 pub static mut RNG: Rng = Rng {
     inner: unsafe { &rng::RNG },
@@ -30,10 +32,9 @@ impl<'a> Rng<'a> {
 }
 
 impl<'a> Stream for Rng<'a> {
-    type Item = u32;
-    type Error = rng::Error;
+    type Item = Result<u32, rng::Error>;
 
-    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+    fn poll_next(self: Pin<&mut Self>, _cx: &mut Context) -> Poll<Option<Self::Item>> {
         let task = REACTOR.get_current_task_mask();
 
         self.task.fetch_or(task, Ordering::SeqCst);
@@ -43,15 +44,15 @@ impl<'a> Stream for Rng<'a> {
         match self.inner.get() {
             Ok(Some(x)) => {
                 self.task.fetch_and(!task, Ordering::SeqCst);
-                Ok(Async::Ready(Some(x)))
+                Poll::Ready(Some(Ok(x)))
             }
             Err(err) => {
                 self.task.fetch_and(!task, Ordering::SeqCst);
-                Err(err)
+                Poll::Ready(Some(Err(err)))
             }
             Ok(None) => {
                 self.inner.it_enable();
-                Ok(Async::NotReady)
+                Poll::Pending
             }
         }
     }

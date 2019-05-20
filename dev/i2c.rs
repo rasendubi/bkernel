@@ -1,11 +1,13 @@
 //! I2C module adapter for use with futures.
 
-use ::core::cell::UnsafeCell;
-use ::core::marker::PhantomData;
+use core::cell::UnsafeCell;
+use core::marker::PhantomData;
+use core::pin::Pin;
+use core::task::Context;
 
 use stm32f4::i2c::{self, I2c};
 
-use futures::{Async, Future, Poll};
+use futures::{Future, FutureExt, Poll};
 
 use breactor::mutex::{Mutex, MutexLock};
 use breactor::promise::Promise;
@@ -22,7 +24,7 @@ pub struct I2cBus {
     buffer: UnsafeCell<*mut u8>,
     buf_left: UnsafeCell<usize>,
 
-    result: UnsafeCell<Promise<(), Error>>,
+    result: UnsafeCell<Promise<Result<(), Error>>>,
 }
 
 #[derive(PartialEq, Eq, Copy, Clone, Debug)]
@@ -57,6 +59,8 @@ pub struct I2cTransfer {
 
 unsafe impl Sync for I2cBus {}
 
+pub existential type StartTransferFuture: Future<Output = I2cTransfer>;
+
 impl I2cBus {
     const fn new(i2c: &'static I2c) -> Self {
         I2cBus {
@@ -69,30 +73,10 @@ impl I2cBus {
         }
     }
 
-    pub const fn start_transfer(&'static self) -> StartTransferFuture {
-        StartTransferFuture { bus: self }
-    }
-}
-
-#[allow(missing_debug_implementations)]
-pub struct StartTransferFuture {
-    bus: &'static I2cBus,
-}
-
-impl Future for StartTransferFuture {
-    type Item = I2cTransfer;
-    type Error = Error;
-
-    fn poll(&mut self) -> Result<Async<I2cTransfer>, Error> {
-        self.bus
-            .mutex
+    pub fn start_transfer(&'static self) -> StartTransferFuture {
+        self.mutex
             .lock()
-            .map(move |lock| I2cTransfer {
-                lock,
-                bus: self.bus,
-            })
-            .map_err(|_| Error::LockError)
-            .poll()
+            .map(move |lock| I2cTransfer { lock, bus: self })
     }
 }
 
@@ -107,14 +91,13 @@ pub struct Transmission<'a> {
 }
 
 impl<'a> Future for Transmission<'a> {
-    type Item = (I2cTransfer, &'a [u8]);
-    type Error = Error;
+    type Output = Result<(I2cTransfer, &'a [u8]), Error>;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         let result = self.transfer.as_ref().unwrap().bus.result.get();
         unsafe {
-            try_ready!((*result).poll());
-            Ok(Async::Ready((
+            try_ready!(Pin::new(&mut *result).poll(cx));
+            Poll::Ready(Ok((
                 self.transfer.take().unwrap(),
                 ::core::slice::from_raw_parts(self.data, self.size),
             )))

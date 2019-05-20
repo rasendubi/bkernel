@@ -11,12 +11,16 @@ pub mod mutex;
 pub mod promise;
 pub mod start_send_all;
 pub mod start_send_all_string;
+mod waker;
 
-use ::core::cell::UnsafeCell;
-use ::core::sync::atomic::{AtomicU32, Ordering};
-use ::core::u32;
+use crate::waker::new_task_waker;
+use core::cell::UnsafeCell;
+use core::pin::Pin;
+use core::sync::atomic::{AtomicU32, Ordering};
+use core::task::Context;
+use core::u32;
 
-use ::futures::{Async, Future};
+use futures::{Future, Poll};
 
 pub static REACTOR: Reactor = Reactor::new();
 
@@ -73,7 +77,7 @@ pub struct Reactor<'a> {
     // might occur right when the value is changed (or tasks reads its
     // id), leading to inconsistencies.
     current_task_mask: AtomicU32,
-    tasks: [UnsafeCell<Option<&'a mut Future<Item = (), Error = ()>>>; 32],
+    tasks: [UnsafeCell<Option<Pin<&'a mut dyn Future<Output = ()>>>>; 32],
 
     /// This is a bread and butter of the reactor.
     ///
@@ -137,7 +141,7 @@ impl<'a> Reactor<'a> {
 
     /// Creates a reactor with a predefined set of tasks.
     pub const fn from_array(
-        tasks: [UnsafeCell<Option<&'a mut dyn Future<Item = (), Error = ()>>>; 32],
+        tasks: [UnsafeCell<Option<Pin<&'a mut dyn Future<Output = ()>>>>; 32],
     ) -> Reactor<'a> {
         Reactor {
             current_task_mask: AtomicU32::new(0),
@@ -199,13 +203,13 @@ impl<'a> Reactor<'a> {
             let mtask = &mut *self.tasks[task_id as usize].get();
             *mtask = match *mtask {
                 Some(ref mut task) => {
-                    let res = task.poll();
+                    let waker = new_task_waker(task_mask);
+                    let mut cx = Context::from_waker(&waker);
+                    let res = task.as_mut().poll(&mut cx);
                     match res {
-                        Ok(Async::NotReady) => continue,
-                        _ => {
-                            // Remove task if has finished or failed.
-                            None
-                        }
+                        Poll::Pending => continue,
+                        // Remove task if has finished
+                        Poll::Ready(()) => None,
                     }
                 }
                 None => {
@@ -221,7 +225,7 @@ impl<'a> Reactor<'a> {
     ///
     /// The caller must ensure it has unique write access to the
     /// reactor.
-    pub unsafe fn add_task(&self, task_id: u32, f: &'a mut Future<Item = (), Error = ()>) -> bool {
+    pub unsafe fn add_task(&self, task_id: u32, f: Pin<&'a mut dyn Future<Output = ()>>) -> bool {
         if task_id >= 32 {
             false
         } else {
