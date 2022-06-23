@@ -276,7 +276,7 @@ impl Usart {
     }
 
     pub fn it_enabled(&self, it: Interrupt) -> bool {
-        unsafe {
+        
             let itpos = it as u32 & 0x001F;
             let itmask = 0x01 << itpos;
 
@@ -287,12 +287,12 @@ impl Usart {
                 _ => &self.cr3,
             };
 
-            itmask & reg.get() != 0
-        }
+            itmask & unsafe {reg.get()} != 0
+        
     }
 
     pub fn it_status(&self, it: Interrupt) -> bool {
-        unsafe {
+        
             let itpos = it as u32 & 0x001F;
             let mut itmask = 0x01 << itpos;
 
@@ -303,22 +303,22 @@ impl Usart {
                 _ => &self.cr3,
             };
 
-            itmask &= reg.get();
+            itmask &= unsafe { reg.get() };
 
             let mut bitpos = it as u32 >> 8;
             bitpos = 0x01 << bitpos;
-            bitpos &= self.sr.get();
+            bitpos &= unsafe { self.sr.get() };
 
             bitpos != 0 && itmask != 0
-        }
+        
     }
 
     pub fn it_clear_pending(&self, it: Interrupt) {
-        unsafe {
+        
             let bitpos = it as u32 >> 8;
             let itmask = 1_u16 << bitpos;
-            self.sr.set(u32::from(!itmask));
-        }
+            unsafe { self.sr.set(u32::from(!itmask)) };
+        
     }
 }
 
