@@ -116,10 +116,11 @@ pub enum ClockDivision {
 
 impl Tim {
     pub fn init(&self, tim: &TimInit) {
-        unsafe {
-            let mut tmpcr1 = self.cr1.get();
+        
+            let mut tmpcr1 = unsafe { self.cr1.get() };
             tmpcr1 &= !(Cr1::DIR as u32 | Cr1::CMS as u32);
             tmpcr1 |= tim.counter_mode as u32;
+        unsafe {
             self.cr1.set(tmpcr1);
 
             self.arr.set(tim.period);
@@ -157,11 +158,11 @@ impl Tim {
     }
 
     pub fn it_status(&self, it: Dier) -> bool {
-        unsafe {
-            let itstatus = self.sr.get() & it as u32;
-            let itenable = self.dier.get() & it as u32;
+        
+            let itstatus = unsafe { self.sr.get() } & it as u32;
+            let itenable = unsafe { self.dier.get() } & it as u32;
             itstatus != 0 && itenable != 0
-        }
+        
     }
 
     pub fn it_clear_pending(&self, it: Dier) {
